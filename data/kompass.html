@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kompass — NAVIS Marine Dashboard</title>
+<style>
+:root{
+  --bg:#1c1f26; --panel:#2a2f38; --text:#f4f4f4; --muted:#9aa3a8;
+}
+body{
+  margin:0;
+  font-family:"Segoe UI",Roboto,Arial,sans-serif;
+  background:var(--bg); color:var(--text);
+  display:flex; flex-direction:column; align-items:center;
+  height:100vh;
+}
+
+/* Navigationsleiste */
+#navbar {
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  background-color:#002b3a;
+  padding:4px 0;
+  border-bottom:1px solid #005566;
+  width:100%;
+  box-shadow:0 0 8px rgba(0,255,255,0.1);
+}
+.navbtn {
+  background-color:#003d52;
+  color:#00ffff;
+  border:1px solid #007a99;
+  border-radius:5px;
+  padding:3px 10px;
+  text-decoration:none;
+  font-size:0.9em;
+  font-weight:bold;
+  transition:0.2s;
+}
+.navbtn:hover {
+  background-color:#00b8d4;
+  color:#001a26;
+  border-color:#00e6e6;
+}
+
+.panel{
+  background:var(--panel);
+  border-radius:12px;
+  padding:8px;
+  box-shadow:0 8px 28px rgba(0,0,0,0.6);
+  margin-top:8px;
+}
+#compassCanvas{width:90vmin;height:90vmin;display:block;border-radius:12px;}
+</style>
+</head>
+<body>
+
+<div id="navbar">
+  <a href="index.html" class="navbtn">NAVIS</a>
+  <a href="karte.html" class="navbtn">Karte</a>
+  <a href="horizont.html" class="navbtn">Horizont</a>
+  <a href="autopilot.html" class="navbtn">Autopilot</a>
+</div>
+
+<div class="panel">
+  <canvas id="compassCanvas" width="600" height="600"></canvas>
+</div>
+
+<script>
+const WS_URL = `ws://${location.hostname}/ws`;
+const state = {
+  kompass: 0,
+  gps_speed: 0,
+  winddir_gemessen: 0,
+  windspeed_gemessen: 0,
+  winddir_berechnet: 0,
+  windspeed_berechnet: 0
+};
+const target = JSON.parse(JSON.stringify(state));
+
+const cCanvas = document.getElementById('compassCanvas');
+const cctx = cCanvas.getContext('2d');
+
+let windGemessenMin = state.winddir_gemessen;
+let windGemessenMax = state.winddir_gemessen;
+let windBerechnetMin = state.winddir_berechnet;
+let windBerechnetMax = state.winddir_berechnet;
+
+const WIND_HISTORY_SEC = 240 * 15;
+let windGemessenHistory = [];
+let windBerechnetHistory = [];
+
+// ================= Draw-Funktionen =================
+function drawArrow(ctx,fx,fy,tx,ty,color,head=12,width=3,glow=2){
+  const dx = tx - fx, dy = ty - fy, ang = Math.atan2(dy,dx);
+  ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = glow;
+  ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(tx,ty);
+  ctx.lineWidth = width; ctx.strokeStyle = color; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tx,ty);
+  ctx.lineTo(tx-head*Math.cos(ang-Math.PI/6), ty-head*Math.sin(ang-Math.PI/6));
+  ctx.lineTo(tx-head*Math.cos(ang+Math.PI/6), ty-head*Math.sin(ang+Math.PI/6));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+  ctx.restore();
+}
+
+function drawLabelBox(ctx,x,y,color,lines){
+  ctx.save();
+  ctx.font = "bold 13px Segoe UI";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  const pad = 8, lineH = 18;
+  const widths = lines.map(t => ctx.measureText(t).width);
+  const w = Math.max(...widths) + pad*2;
+  const h = lineH * lines.length + pad;
+  let bx = x - w/2, by = y - h/2;
+  const m = 12;
+  bx = Math.max(m, Math.min(bx, cCanvas.width - w - m));
+  by = Math.max(m, Math.min(by, cCanvas.height - h - m));
+  ctx.fillStyle = "rgba(0,0,0,0.65)"; ctx.fillRect(bx,by,w,h);
+  ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.strokeRect(bx,by,w,h);
+  ctx.fillStyle = color;
+  lines.forEach((t,i)=> ctx.fillText(t, bx + w/2, by + 6 + i*lineH));
+  ctx.restore();
+}
+
+function drawWindTriangle(ctx, cx, cy, r, minDeg, maxDeg, color){
+  const minAng = (minDeg-90)*Math.PI/180;
+  const maxAng = (maxDeg-90)*Math.PI/180;
+
+  const points = [
+    {x: cx + r * Math.cos(minAng), y: cy + r * Math.sin(minAng)},
+    {x: cx + r * Math.cos(maxAng), y: cy + r * Math.sin(maxAng)},
+    {x: cx, y: cy}
+  ];
+
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  grad.addColorStop(0, color + '44'); 
+  grad.addColorStop(0.8, color + '22'); 
+  grad.addColorStop(1, color + '00');   
+
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  ctx.lineTo(points[1].x, points[1].y);
+  ctx.lineTo(points[2].x, points[2].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function updateWindHistory(){
+  windGemessenHistory.push(state.winddir_gemessen);
+  windBerechnetHistory.push(state.winddir_berechnet);
+  if(windGemessenHistory.length > WIND_HISTORY_SEC) windGemessenHistory.shift();
+  if(windBerechnetHistory.length > WIND_HISTORY_SEC) windBerechnetHistory.shift();
+  windGemessenMin = Math.min(...windGemessenHistory);
+  windGemessenMax = Math.max(...windGemessenHistory);
+  windBerechnetMin = Math.min(...windBerechnetHistory);
+  windBerechnetMax = Math.max(...windBerechnetHistory);
+}
+
+// ================= Draw Compass =================
+function drawCompass(){
+  const cx=cCanvas.width/2,cy=cCanvas.height/2+10;
+  const r=Math.min(cx,cy)-10;
+  cctx.clearRect(0,0,cCanvas.width,cCanvas.height);
+
+  const baseGrad=cctx.createRadialGradient(cx,cy,40,cx,cy,r);
+  baseGrad.addColorStop(0,'#3a3f44'); baseGrad.addColorStop(1,'#111214');
+  cctx.fillStyle=baseGrad; cctx.beginPath(); cctx.arc(cx,cy,r,0,Math.PI*2); cctx.fill();
+
+  cctx.save(); cctx.beginPath(); cctx.arc(cx,cy,r,0,Math.PI*2);
+  cctx.fillStyle='rgba(80,200,100,0.18)';
+  cctx.fill(); cctx.restore();
+
+  const startDeg=315,endDeg=45;
+  const start=(startDeg-90)*Math.PI/180,end=(endDeg-90)*Math.PI/180;
+  cctx.save(); cctx.beginPath(); cctx.moveTo(cx,cy);
+  cctx.arc(cx,cy,r,start,end+Math.PI*2,false); cctx.closePath();
+  const redGrad=cctx.createRadialGradient(cx,cy,r*0.4,cx,cy,r);
+  redGrad.addColorStop(0,'rgba(255,80,80,0.05)');
+  redGrad.addColorStop(1,'rgba(255,80,80,0.55)');
+  cctx.fillStyle=redGrad; cctx.fill(); cctx.restore();
+
+  cctx.save(); cctx.translate(cx,cy); cctx.rotate(-state.kompass*Math.PI/180);
+  for(let i=0;i<360;i+=10){
+    const ang=(i-90)*Math.PI/180;
+    const inner=(i%30===0)?r-25:r-12;
+    cctx.beginPath(); cctx.moveTo(inner*Math.cos(ang),inner*Math.sin(ang));
+    cctx.lineTo(r*Math.cos(ang),r*Math.sin(ang));
+    cctx.strokeStyle='#8b8f92'; cctx.lineWidth=(i%30===0)?2:1; cctx.stroke();
+  }
+  const labelAngles=[0,30,60,90,120,150,180,210,240,270,300,330];
+  labelAngles.forEach(a=>{
+    const ang=(a-90)*Math.PI/180;
+    const lx=(r-45)*Math.cos(ang),ly=(r-45)*Math.sin(ang);
+    cctx.save(); cctx.translate(lx,ly); cctx.rotate(state.kompass*Math.PI/180);
+    cctx.fillStyle='#e6e9eb';
+    cctx.font=(a%90===0)?'bold 14px Segoe UI':'12px Segoe UI';
+    const lab=(a%90===0)?(a===0?'N':a===90?'E':a===180?'S':'W'):String(a);
+    cctx.textAlign='center';cctx.textBaseline='middle';cctx.fillText(lab,0,0); cctx.restore();
+  });
+  cctx.restore();
+
+  const upAng=-Math.PI/2;
+  drawArrow(cctx,cx,cy,cx+r*0.68*Math.cos(upAng),cy+r*0.68*Math.sin(upAng),'#00aaff',12,4,2);
+
+  const appAng=(state.winddir_gemessen-90)*Math.PI/180;
+  const trueAng=(state.winddir_berechnet-90)*Math.PI/180;
+
+  drawWindTriangle(cctx, cx, cy, r*0.78, windGemessenMin, windGemessenMax, '#ffcc33');
+  drawWindTriangle(cctx, cx, cy, r*0.78, windBerechnetMin, windBerechnetMax, '#ff5555');
+
+  drawArrow(cctx,cx+r*0.78*Math.cos(appAng),cy+r*0.78*Math.sin(appAng),cx,cy,'#ffcc33',10,3,2);
+  drawArrow(cctx,cx+r*0.78*Math.cos(trueAng),cy+r*0.78*Math.sin(trueAng),cx,cy,'#ff5555',10,3,2);
+
+  drawLabelBox(cctx,cx,cy-(r-48),'#00aaff',[
+    `Kurs: ${target.kompass.toFixed(0)}°`,
+    `Speed: ${state.gps_speed.toFixed(1)} kn`
+  ]);
+  drawLabelBox(cctx,cx+(r-90)*Math.cos(appAng),cy+(r-90)*Math.sin(appAng),'#ffcc33',[
+    `App. Wind: ${state.winddir_gemessen.toFixed(0)}°`,
+    `${state.windspeed_gemessen.toFixed(1)} kn`
+  ]);
+  drawLabelBox(cctx,cx+(r-70)*Math.cos(trueAng),cy+(r-70)*Math.sin(trueAng),'#ff5555',[
+    `True Wind: ${state.winddir_berechnet.toFixed(0)}°`,
+    `${state.windspeed_berechnet.toFixed(1)} kn`
+  ]);
+}
+
+// ================= Integration =================
+const lerpAngle = (a, b, t) => {
+  let diff = b - a;
+  if(diff > 180) diff -= 360;
+  if(diff < -180) diff += 360;
+  return a + diff * t;
+};
+
+let lastTime = performance.now();
+function integrate(now){
+  const dt = (now - lastTime)/1000;
+  lastTime = now;
+  const sm = 1 - Math.exp(-2*dt);
+
+  for(const k in state){
+    if(typeof target[k] === 'number'){
+      if(k === 'kompass' || k === 'winddir_gemessen' || k === 'winddir_berechnet'){
+        state[k] = lerpAngle(state[k], target[k], sm);
+      } else {
+        state[k] = state[k] + (target[k] - state[k]) * sm;
+      }
+    }
+  }
+  updateWindHistory();
+  drawCompass();
+  requestAnimationFrame(integrate);
+}
+requestAnimationFrame(integrate);
+
+// ================= WebSocket =================
+let ws = new WebSocket(WS_URL);
+ws.onmessage = (event) => {
+  try{
+    const json = JSON.parse(event.data);
+    Object.assign(target,json);
+  } catch(e){
+    console.warn("WebSocket JSON Fehler", e);
+  }
+};
+ws.onclose = ()=> setTimeout(()=>{ws = new WebSocket(WS_URL);},1000);
+
+</script>
+</body>
+</html>
