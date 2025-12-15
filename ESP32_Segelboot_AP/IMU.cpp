@@ -1,205 +1,266 @@
-#include <Wire.h>
-#include <LittleFS.h>
-#include <ArduinoJson.h>
-#include "ICM_20948.h"
 #include "IMU.h"
-#include <MadgwickAHRS.h>
 
-// -------------------- Konfiguration --------------------
-#define IMU_ADDR 0x69
-#define IMU_LOOP_HZ 200
-#define MAG_HZ 10
-#define MAG_INTERVAL (1000 / MAG_HZ)  // ms
 
-ICM_20948_I2C myICM;
-Madgwick filter;
-
-// -------------------- Offsets --------------------
-static float gyroXoffset=0, gyroYoffset=0, gyroZoffset=0;
-static float magXoffset=0, magYoffset=0, magZoffset=0;
-
-// -------------------- NAVIS Koordinaten --------------------
-static float ax_t, ay_t, az_t;
-static float gx_t, gy_t, gz_t;
-static float mx_t, my_t, mz_t;
-
-static unsigned long lastMagMs = 0;
-
-// -------------------- Skalierung --------------------
-static const float ACC_SCALE  = 2.0f / 32768.0f;              // g
-static const float GYRO_SCALE = 250.0f / 32768.0f * (PI/180); // rad/s
-static const float MAG_SCALE  = 0.15f;                        // µT
-
-// -------------------- Low-Level Transform Test-Ergebnisse --------------------
-static void transform_to_navis(float raw_ax,float raw_ay,float raw_az,
-                               float raw_gx,float raw_gy,float raw_gz,
-                               float raw_mx,float raw_my,float raw_mz,
-                               float &out_ax,float &out_ay,float &out_az,
-                               float &out_gx,float &out_gy,float &out_gz,
-                               float &out_mx,float &out_my,float &out_mz)
-{
-    // --- ACHSEN ZUORDNUNG NACH TESTDATEN ---
-    // ACC
-    out_ax = raw_ax;  // Pitch
-    out_ay = raw_ay;  // Quer
-    out_az = raw_az;  // Roll
-
-    // GYRO
-    out_gx = raw_gx;  // Pitch
-    out_gy = raw_gy;  // Quer
-    out_gz = raw_gz;  // Roll
-
-    // MAG
-    out_mx = raw_mx;  // Nord
-    out_my = raw_my;  // Quer
-    out_mz = raw_mz;  // Hoch
-}
-
+// --- Definition der Konstante fuer den Dateinamen ---
 // -------------------- FS Save/Load --------------------
 #define CAL_FILE "/settings/IMU_gyro.json"
 #define MAG_CAL_FILE "/settings/IMU_mag.json"
 
+// --- Instanzen ---
+static ICM_20948_I2C myICM;
+static Madgwick filter;
+static bool imu_initialized = false;
+
+// --- Skalierung / Konstanten ---
+float MAG_SCALE = 0.15; // µT pro LSB
+
+// --- veränderbare Hard-Iron Offsets ---
+float mag_offset_x = 64.0;
+float mag_offset_y = 40.0;
+float mag_offset_z = -203.0;
+
+// --- veränderbare Gyro Offsets ---
+float gyro_offset_x = 0.0;
+float gyro_offset_y = 0.0;
+float gyro_offset_z = 0.0;
+
+
+// -------------------- Gyro Calibration Load --------------------
 static void load_gyro_cal() {
-  if(!LittleFS.exists(CAL_FILE)) return;
-  File f=LittleFS.open(CAL_FILE,"r");
-  StaticJsonDocument<128> doc;
-  deserializeJson(doc,f);
-  f.close();
-  gyroXoffset=doc["gx"]|0.0f;
-  gyroYoffset=doc["gy"]|0.0f;
-  gyroZoffset=doc["gz"]|0.0f;
-}
+  // Stellen Sie sicher, dass LittleFS.begin(true) in setup() aufgerufen wurde!
 
-static void save_gyro_cal() {
-  if(!LittleFS.exists("/settings")) LittleFS.mkdir("/settings");
-  File f=LittleFS.open(CAL_FILE,"w");
-  StaticJsonDocument<128> doc;
-  doc["gx"]=gyroXoffset; doc["gy"]=gyroYoffset; doc["gz"]=gyroZoffset;
-  serializeJson(doc,f); f.close();
-}
-
-static void load_mag_cal() {
-  if(!LittleFS.exists(MAG_CAL_FILE)) return;
-  File f=LittleFS.open(MAG_CAL_FILE,"r");
-  StaticJsonDocument<128> doc;
-  deserializeJson(doc,f); f.close();
-  magXoffset=doc["xOff"]|0.0f;
-  magYoffset=doc["yOff"]|0.0f;
-  magZoffset=doc["zOff"]|0.0f;
-}
-
-static void save_mag_cal() {
-  if(!LittleFS.exists("/settings")) LittleFS.mkdir("/settings");
-  File f=LittleFS.open(MAG_CAL_FILE,"w");
-  StaticJsonDocument<128> doc;
-  doc["xOff"]=magXoffset; doc["yOff"]=magYoffset; doc["zOff"]=magZoffset;
-  serializeJson(doc,f); f.close();
-}
-
-// -------------------- Setup IMU --------------------
-void setup_imu() {
-  Wire.begin();
-  if(!LittleFS.begin(true)) Serial.println("LittleFS init failed");
+  if(!LittleFS.exists(CAL_FILE)) {
+    Serial.println("Info: Gyro-Kalibrierungsdatei nicht gefunden, verwende Standardwerte (0.0).");
+    return;
+  }
   
-  if(myICM.begin(Wire,IMU_ADDR)!=ICM_20948_Stat_Ok) {
-    Serial.println("ICM-20948 nicht gefunden!");
-    while(1);
+  File f = LittleFS.open(CAL_FILE, "r");
+  if (!f) {
+    Serial.println("Fehler beim Öffnen der Kalibrierungsdatei zum Lesen.");
+    return;
+  }
+  
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, f); 
+  f.close();
+
+  if (error) {
+    Serial.print("Fehler beim Deserialisieren der Gyro-Kalibrierung: ");
+    Serial.println(error.c_str());
+    return;
+  }
+  
+  // Lese Werte aus JSON und weise sie den neuen Variablen zu
+  gyro_offset_x = doc["gx"] | 0.0f;
+  gyro_offset_y = doc["gy"] | 0.0f;
+  gyro_offset_z = doc["gz"] | 0.0f;
+  
+  Serial.println("Gyroskop Kalibrierung geladen.");
+}
+
+// -------------------- Gyro Calibration Save --------------------
+static void save_gyro_cal() {
+  if(!LittleFS.exists("/settings")) {
+    LittleFS.mkdir("/settings");
+  }
+  
+  File f = LittleFS.open(CAL_FILE, "w");
+  if (!f) {
+    Serial.println("Fehler beim Öffnen der Gyro-Kalibrierungsdatei zum Schreiben.");
+    return;
   }
 
-  load_gyro_cal();
-  load_mag_cal();
-
-  filter.begin(IMU_LOOP_HZ);
-
-  Serial.println("IMU setup done");
+  StaticJsonDocument<128> doc;
+  // Schreibe Werte der neuen Variablen in das JSON-Dokument
+  doc["gx"] = gyro_offset_x; 
+  doc["gy"] = gyro_offset_y; 
+  doc["gz"] = gyro_offset_z;
+  
+  if (serializeJson(doc, f) == 0) {
+    Serial.println("Fehler beim Schreiben der Gyro-Kalibrierung in die Datei.");
+  }
+  f.close();
+  Serial.println("Gyroskop Kalibrierung gespeichert.");
 }
 
 // -------------------- Gyro Calibration --------------------
 void calibrate_gyro() {
   Serial.println("Gyro calibration: keep sensor still...");
-  const int N=200;
-  float sumX=0,sumY=0,sumZ=0;
-  int valid=0;
-  for(int i=0;i<N;i++){
-    if(myICM.dataReady()){
-      myICM.getAGMT();
-      sumX+=myICM.gyrX();
-      sumY+=myICM.gyrY();
-      sumZ+=myICM.gyrZ();
+  const int N = 200;
+  float sumX = 0, sumY = 0, sumZ = 0;
+  int valid = 0;
+  
+  for(int i = 0; i < N; i++) {
+    if(myICM.dataReady()) {
+      myICM.getAGMT(); // Daten lesen (befüllt die internen Strukturen)
+      
+      // Die SparkFun Library liefert hier die skalierten DPS (Degrees per Second)
+      sumX += myICM.gyrX(); 
+      sumY += myICM.gyrY();
+      sumZ += myICM.gyrZ();
       valid++;
-    }else delay(2);
+    } else {
+      delay(2); // Gibt der Hardware Zeit, neue Daten bereitzustellen
+    }
   }
-  if(valid==0) valid=1;
-  gyroXoffset=sumX/valid;
-  gyroYoffset=sumY/valid;
-  gyroZoffset=sumZ/valid;
-  save_gyro_cal();
+  
+  if(valid == 0) valid = 1; // Division durch Null verhindern
+
+  // Berechne die Offsets (Durchschnitt der Ruhewerte) und weise sie den globalen Variablen zu:
+  gyro_offset_x = sumX / valid;
+  gyro_offset_y = sumY / valid;
+  gyro_offset_z = sumZ / valid;
+
+  save_gyro_cal(); // Ruft Ihre Speicherfunktion auf
   Serial.println("Gyro calibration done");
+}
+
+// -------------------- Mag Calibration Load --------------------
+static void load_mag_cal() {
+  
+  if(!LittleFS.exists(MAG_CAL_FILE)) {
+    Serial.println("Info: Kalibrierungsdatei nicht gefunden, verwende Standardwerte.");
+    return;
+  }
+  
+  File f = LittleFS.open(MAG_CAL_FILE, "r");
+  if (!f) {
+    Serial.println("Fehler beim Öffnen der Kalibrierungsdatei zum Lesen.");
+    return;
+  }
+  
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, f); 
+  f.close();
+
+  if (error) {
+    Serial.print("Fehler beim Deserialisieren der Kalibrierung: ");
+    Serial.println(error.c_str());
+    return;
+  }
+  
+  // Lese Werte aus JSON und weise sie den neuen Variablen zu
+  mag_offset_x = doc["xOff"] | 0.0f;
+  mag_offset_y = doc["yOff"] | 0.0f;
+  mag_offset_z = doc["zOff"] | 0.0f;
+  
+  Serial.println("Magnetometer Kalibrierung geladen.");
+}
+
+// -------------------- Mag Calibration Save --------------------
+static void save_mag_cal() {
+  if(!LittleFS.exists("/settings")) {
+    LittleFS.mkdir("/settings");
+  }
+  
+  File f = LittleFS.open(MAG_CAL_FILE, "w");
+  if (!f) {
+    Serial.println("Fehler beim Öffnen der Kalibrierungsdatei zum Schreiben.");
+    return;
+  }
+
+  StaticJsonDocument<128> doc;
+  // Schreibe Werte der neuen Variablen in das JSON-Dokument
+  doc["xOff"] = mag_offset_x; 
+  doc["yOff"] = mag_offset_y; 
+  doc["zOff"] = mag_offset_z;
+  
+  if (serializeJson(doc, f) == 0) {
+    Serial.println("Fehler beim Schreiben der Kalibrierung in die Datei.");
+  }
+  f.close();
+  Serial.println("Magnetometer Kalibrierung gespeichert.");
 }
 
 // -------------------- Mag Calibration --------------------
 void calibrate_magnetometer(int durationSeconds) {
   Serial.println("Mag calibration: slowly rotate sensor for duration...");
-  unsigned long startMs=millis();
-  float mxmin=1e6,mxmax=-1e6;
-  float mymin=1e6,mymax=-1e6;
-  float mzmin=1e6,mzmax=-1e6;
+  unsigned long startMs = millis();
   
-  while(millis()-startMs<durationSeconds*1000){
-    if(myICM.dataReady()){
-      myICM.getAGMT();
-      float mx=myICM.magX(), myy=myICM.magY(), mz=myICM.magZ();
-      if(mx<mxmin) mxmin=mx; if(mx>mxmax) mxmax=mx;
-      if(myy<mymin) mymin=myy; if(myy>mymax) mymax=myy;
-      if(mz<mzmin) mzmin=mz; if(mz>mzmax) mzmax=mz;
+  // Initialisiere Min/Max Werte
+  float mxmin = 1e6, mxmax = -1e6;
+  float mymin = 1e6, mymax = -1e6;
+  float mzmin = 1e6, mzmax = -1e6;
+  
+  while(millis() - startMs < durationSeconds * 1000) {
+    if(myICM.dataReady()) {
+      myICM.getAGMT(); // Daten lesen (befüllt myICM.agmt Struktur)
+      
+      // Lesen der Rohdaten aus der myICM.agmt Struktur
+      // Die SparkFun Library liefert hier int16_t Rohwerte
+      float mx = myICM.agmt.mag.axes.x; 
+      float my = myICM.agmt.mag.axes.y; 
+      float mz = myICM.agmt.mag.axes.z; 
+
+      if(mx < mxmin) mxmin = mx; if(mx > mxmax) mxmax = mx;
+      if(my < mymin) mymin = my; if(my > mymax) mymax = my;
+      if(mz < mzmin) mzmin = mz; if(mz > mzmax) mzmax = mz;
     }
-    delay(10);
+    delay(10); // Verhindert blockieren der Loop zu 100%
   }
 
-  magXoffset=(mxmin+mxmax)/2.0f;
-  magYoffset=(mymin+mymax)/2.0f;
-  magZoffset=(mzmin+mzmax)/2.0f;
-  save_mag_cal();
+  // Berechne die Offsets und weise sie den globalen Variablen zu:
+  mag_offset_x = (mxmin + mxmax) / 2.0f;
+  mag_offset_y = (mymin + mymax) / 2.0f;
+  mag_offset_z = (mzmin + mzmax) / 2.0f;
+
+  save_mag_cal(); // Ruft Ihre Speicherfunktion auf
   Serial.println("Mag calibration done");
 }
 
-// -------------------- Read IMU --------------------
-void read_imu() {
-  if(!myICM.dataReady()) return;
-  myICM.getAGMT();
+void setup_imu(TwoWire &wirePort) {
+    wirePort.begin(8, 9); // SDA, SCL
+    wirePort.setClock(400000);
+    int ad0_val = 1;       // feste Adresse 0x69
 
-  float raw_ax=myICM.accX();
-  float raw_ay=myICM.accY();
-  float raw_az=myICM.accZ();
-
-  float raw_gx=myICM.gyrX()-gyroXoffset;
-  float raw_gy=myICM.gyrY()-gyroYoffset;
-  float raw_gz=myICM.gyrZ()-gyroZoffset;
-
-  float raw_mx=myICM.magX()-magXoffset;
-  float raw_my=myICM.magY()-magYoffset;
-  float raw_mz=myICM.magZ()-magZoffset;
-
-  transform_to_navis(raw_ax,raw_ay,raw_az,
-                     raw_gx,raw_gy,raw_gz,
-                     raw_mx,raw_my,raw_mz,
-                     ax_t,ay_t,az_t,
-                     gx_t,gy_t,gz_t,
-                     mx_t,my_t,mz_t);
-
-  // --- Skalieren ---
-  ax_t *= ACC_SCALE; ay_t *= ACC_SCALE; az_t *= ACC_SCALE;
-  gx_t *= GYRO_SCALE; gy_t *= GYRO_SCALE; gz_t *= GYRO_SCALE;
-  mx_t *= MAG_SCALE; my_t *= MAG_SCALE; mz_t *= MAG_SCALE;
-
-  // --- Filterupdate ---
-  filter.update(gx_t, gy_t, gz_t, ax_t, ay_t, az_t, mx_t, my_t, mz_t);
-
-  // --- Winkel in Grad ---
-  float roll  = filter.getRoll();
-  float pitch = filter.getPitch();
-  float yaw   = filter.getYaw();
-  if(yaw<0) yaw+=360.0f; // Kompass 0-360°
-
-  Serial.printf("ROLL: %.2f PITCH: %.2f YAW: %.2f\n", roll, pitch, yaw);
+    while (!imu_initialized) {
+        myICM.begin(wirePort, ad0_val);
+        if (myICM.status == ICM_20948_Stat_Ok) {
+            imu_initialized = true;
+        } else {
+            delay(500);
+        }
+    }
+    filter.begin(100); // 100 Hz Update-Rate
 }
+
+void read_imu() {
+    if (!imu_initialized) return;
+    if (!myICM.dataReady()) return;
+
+    myICM.getAGMT();
+
+    // --- Beschleunigung ---
+    float ax = myICM.accX() / 1000.0;
+    float ay = myICM.accY() / 1000.0;
+    float az = myICM.accZ() / 1000.0;
+
+    // --- Gyroskop ---
+    float gx = (myICM.gyrX() - gyro_offset_x) * DEG_TO_RAD;
+    float gy = (myICM.gyrY() - gyro_offset_y) * DEG_TO_RAD;
+    float gz = (myICM.gyrZ() - gyro_offset_z) * DEG_TO_RAD;
+
+    // --- Magnetometer Rohdaten + Skalierung + Hard-Iron ---
+    float mx_raw = (myICM.agmt.mag.axes.x - mag_offset_x) * MAG_SCALE;
+    float my_raw = (myICM.agmt.mag.axes.y - mag_offset_y) * MAG_SCALE;
+    float mz_raw = (myICM.agmt.mag.axes.z - mag_offset_z) * MAG_SCALE;
+
+    // --- Achsen-Mapping (Axis_Map 2) ---
+    float mx_korr = mx_raw;
+    float my_korr = -my_raw;
+    float mz_korr = -mz_raw;
+
+    // --- Madgwick Filter Update ---
+    filter.update(gx, gy, gz, ax, ay, az, mx_korr, my_korr, mz_korr);
+
+    // --- Ergebnisse direkt in sensorData schreiben ---
+    sensorData.roll    = filter.getRoll();
+    sensorData.pitch   = filter.getPitch();
+    sensorData.kompass = -filter.getYaw(); // Kompass-Richtung korrigieren
+
+    // --- Normalisierung Yaw 0..360° ---
+    if (sensorData.kompass < 0)   sensorData.kompass += 360.0;
+    if (sensorData.kompass > 360) sensorData.kompass -= 360.0;
+}
+
+
