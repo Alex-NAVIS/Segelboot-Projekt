@@ -48,7 +48,7 @@ float WINDDIR_UPDATE_HZ = 2.0f;
 float WINDSPEED_UPDATE_HZ = 1.0f;
 float LICHT_UPDATE_HZ = 3.0f;
 float SD_UPDATE_HZ = 1.0f;
-float SENSOR_UPDATE_HZ = 1.0f;
+float SENSOR_UPDATE_HZ = 20.0f;
 
 // ==========================================================
 // 8. Berechnete Intervalle (ms)

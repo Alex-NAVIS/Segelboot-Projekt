@@ -36,7 +36,6 @@ struct GPS_Point {
 static GPS_Point gpsBuffer[GPS_BUFFER_SIZE];
 static int gpsWriteIndex = 0;
 
-
 // ==========================================================
 // setupGPS()
 // ---------------------------------------------------------
@@ -105,7 +104,7 @@ void readGPS() {
     }
 
     // --- Optional: Debug-Ausgabe ---
-    if (DEBUG_MODE) {
+    if (DEBUG_MODE_GPS) {
       Serial.println(F("[GPS] Neue Daten empfangen:"));
       Serial.print(F("  Lat: "));
       Serial.println(sensorData.gps_lat, 6);
@@ -121,9 +120,13 @@ void readGPS() {
   // --- Nur wenn gültiges Datum & Zeit vorhanden ---
   if (gps.date.isValid() && gps.time.isValid()) {
     // Berechne lokale Zeit basierend auf GPS-Koordinaten
-    updateLocalTime(
-      gps.date.year(), gps.date.month(), gps.date.day(),
-      gps.time.hour(), gps.time.minute(), gps.time.second());
+    updateLocalTime(gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second());
+    
+    //Systemzeit auf Zeitzone 0
+    time_t now = time(nullptr);
+    if (now < 1600000000) {  // Systemzeit noch ungültig
+      setSystemTimeFromGPS(gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second());
+    }
 
     // --- Debug-Ausgabe der Zeit ---
     if (DEBUG_MODE) {
@@ -133,8 +136,6 @@ void readGPS() {
       Serial.print(sensorData.gps_monat);
       Serial.print(F("."));
       Serial.println(sensorData.gps_jahr);
-
-
       Serial.print(F("  Zeit (lokal): "));
       Serial.print(sensorData.gps_stunde);
       Serial.print(F(":"));
@@ -204,6 +205,23 @@ void updateLocalTime(int utcYear, int utcMonth, int utcDay,
   sensorData.gps_sekunde = second;
 }
 
+//Setze die Systemzeit
+void setSystemTimeFromGPS(int year, int month, int day, int hour, int minute, int second) {
+  struct tm tm = {};
+  tm.tm_year = year - 1900;
+  tm.tm_mon = month - 1;
+  tm.tm_mday = day;
+  tm.tm_hour = hour;
+  tm.tm_min = minute;
+  tm.tm_sec = second;
+  tm.tm_isdst = 0;  // GPS = UTC
+  time_t t = mktime(&tm);
+  if (t < 1600000000) return;  // Schutz gegen Müllzeit (optional)
+  struct timeval tv;
+  tv.tv_sec = t;
+  tv.tv_usec = 0;
+  settimeofday(&tv, nullptr);
+}
 
 //-----------------------------------------------------------------------------------------------
 // -----------------------------------AHRS System für GPS----------------------------------------

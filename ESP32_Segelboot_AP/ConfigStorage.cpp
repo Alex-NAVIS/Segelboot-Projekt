@@ -123,7 +123,7 @@ void ConfigStorage_saveSystem() {
   doc["windspeed_hz"] = WINDSPEED_UPDATE_HZ;
   doc["licht_hz"] = LICHT_UPDATE_HZ;
   doc["sd_hz"] = SD_UPDATE_HZ;
-  doc["sensor_hz"] = SENSOR_UPDATE_HZ;
+  doc["sensor_update_hz"] = SENSOR_UPDATE_HZ;
 
   doc["use_decl_compass"] = USE_DECLINATION_FOR_COMPASS;
   doc["use_decl_wind"] = USE_DECLINATION_FOR_WIND;
@@ -183,7 +183,7 @@ void ConfigStorage_loadSystem() {
   WINDSPEED_UPDATE_HZ = doc["windspeed_hz"] | WINDSPEED_UPDATE_HZ;
   LICHT_UPDATE_HZ = doc["licht_hz"] | LICHT_UPDATE_HZ;
   SD_UPDATE_HZ = doc["sd_hz"] | SD_UPDATE_HZ;
-  SENSOR_UPDATE_HZ = doc["sensor_hz"] | SENSOR_UPDATE_HZ;
+  SENSOR_UPDATE_HZ = doc["sensor_update_hz"] | SENSOR_UPDATE_HZ;
 
   USE_DECLINATION_FOR_COMPASS = doc["use_decl_compass"] | USE_DECLINATION_FOR_COMPASS;
   USE_DECLINATION_FOR_WIND = doc["use_decl_wind"] | USE_DECLINATION_FOR_WIND;

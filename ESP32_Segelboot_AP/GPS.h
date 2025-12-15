@@ -38,6 +38,8 @@
 #include "Config.h"       // Enthält Pinbelegung und Baudrate für GPS
 #include "Sensor_Data.h"  // Zugriff auf die globale Sensorstruktur
 #include <TinyGPSPlus.h>  // GPS-NMEA-Parser-Bibliothek
+#include <time.h>
+#include <sys/time.h>
 
 // ----------------------------------------------------------
 // Funktionsprototypen
@@ -78,6 +80,8 @@ void updateLocalTime(int utcYear, int utcMonth, int utcDay, int utcHour, int utc
 //   - Wird von updateLocalTime() verwendet, um Sommerzeitkorrektur zu berücksichtigen.
 bool isDST(int year, int month, int day);
 
+// setzt die Systemzeit (UTC) aus GPS-Daten
+void setSystemTimeFromGPS(int year, int month, int day, int hour, int minute, int second);
 
 // gps_ahrs():
 //   - Berechnet interpolierte GPS-Koordinaten basierend auf den im Ringpuffer

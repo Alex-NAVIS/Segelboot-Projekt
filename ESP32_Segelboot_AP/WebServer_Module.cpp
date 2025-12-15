@@ -70,6 +70,7 @@ void handleGetSystem(AsyncWebServerRequest *request) {
   doc["mpu_hz"] = MPU_UPDATE_HZ;
   doc["wind_hz"] = WINDDIR_UPDATE_HZ;  // HTML erwartet wind_hz
   doc["sd_hz"] = SD_UPDATE_HZ;
+  doc["sensor_update_hz"] = SENSOR_UPDATE_HZ;
 
   doc["use_decl_compass"] = USE_DECLINATION_FOR_COMPASS;
   doc["use_decl_wind"] = USE_DECLINATION_FOR_WIND;
@@ -96,6 +97,8 @@ void handleSetSystem(AsyncWebServerRequest *request) {
   if (request->hasParam("mpu_hz")) MPU_UPDATE_HZ = request->getParam("mpu_hz")->value().toFloat();
   if (request->hasParam("wind_hz")) WINDDIR_UPDATE_HZ = request->getParam("wind_hz")->value().toFloat();
   if (request->hasParam("sd_hz")) SD_UPDATE_HZ = request->getParam("sd_hz")->value().toFloat();
+  if (request->hasParam("sensor_update_hz")) SENSOR_UPDATE_HZ = request->getParam("sensor_update_hz")->value().toFloat();  // <— NEU
+
 
   if (request->hasParam("use_decl_compass")) USE_DECLINATION_FOR_COMPASS = request->getParam("use_decl_compass")->value().toInt() != 0;
   if (request->hasParam("use_decl_wind")) USE_DECLINATION_FOR_WIND = request->getParam("use_decl_wind")->value().toInt() != 0;
@@ -232,6 +235,51 @@ void handleSetTarget(AsyncWebServerRequest *request) {
   pinnenautopilotData.autopilot_lat = request->getParam("lat")->value().toDouble();
   pinnenautopilotData.autopilot_lon = request->getParam("lon")->value().toDouble();
   request->send(200, "text/plain", "OK");
+}
+
+// ======================================================================
+// Tide Werte abfragen zu Koordinaten
+// ======================================================================
+void handleTide(AsyncWebServerRequest *request) {
+  if (!request->hasParam("lat") || !request->hasParam("lon")) {
+    request->send(400, "application/json",
+      "{\"error\":\"missing lat/lon\"}");
+    return;
+  }
+
+  double lat = request->getParam("lat")->value().toDouble();
+  double lon = request->getParam("lon")->value().toDouble();
+  time_t now = time(nullptr);
+
+  if (!tide_query(lat, lon, now)) {
+    request->send(500, "application/json",
+      "{\"error\":\"tide computation failed\"}");
+    return;
+  }
+
+  char json[512];
+  snprintf(json, sizeof(json),
+    "{"
+      "\"now\":%.2f,"
+      "\"high\":{"
+        "\"time\":%ld,"
+        "\"height\":%.2f"
+      "},"
+      "\"low\":{"
+        "\"time\":%ld,"
+        "\"height\":%.2f"
+      "},"
+      "\"quality\":%d"
+    "}",
+    tide_height_now,
+    (long)tide_next_high_time,
+    tide_next_high_height,
+    (long)tide_next_low_time,
+    tide_next_low_height,
+    tide_quality
+  );
+
+  request->send(200, "application/json", json);
 }
 
 
@@ -398,8 +446,8 @@ void setupWebServer() {
   server.on("/autopilot", HTTP_GET, [](AsyncWebServerRequest *r) {
     handleSetTarget(r);
   });
-  server.on("/autopilot", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleSetTarget(r);
+  server.on("/tide", HTTP_GET, [](AsyncWebServerRequest *r) {
+    handleTide(r);
   });
   // ===========================
   //  SYSTEM CONFIG API

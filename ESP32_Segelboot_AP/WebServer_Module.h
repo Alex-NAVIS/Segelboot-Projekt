@@ -13,6 +13,7 @@
 #include "Config.h"
 #include "ConfigStorage.h"
 #include "LightControl_Module.h"
+#include "tide.h"
 
 // ----------------------------------------------------------------------
 // Zugriff auf den Webserver und WebSocket
@@ -43,6 +44,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len);
 void handleFile(AsyncWebServerRequest *request, const char *path);
 void handleSetConfig(AsyncWebServerRequest *request);                                                        // PID-Konfiguration setzen
 void handleSetTarget(AsyncWebServerRequest *request);                                                        // Zielpunkt Autopilot setzen
+void handleTide(AsyncWebServerRequest *request);                                                             // Abfrage zu einer Koordinate zum Tide Zeitpunkt Hochwasser Niedrigwasser
 void handleMastBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);  // Mast Sensor GPS Wind Sensordaten
 void handleTiles(AsyncWebServerRequest *request);                                                            // PNG-Kacheln liefern
 void closeConnection();
