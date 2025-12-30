@@ -51,7 +51,10 @@ body{
   box-shadow:0 8px 28px rgba(0,0,0,0.6);
   margin-top:8px;
 }
-#horizonCanvas{width:90vmin;height:90vmin;display:block;border-radius:50%;}
+#horizonCanvas{
+  display:block;
+  border-radius:50%;
+}
 </style>
 </head>
 <body>
@@ -65,7 +68,7 @@ body{
 </div>
 
 <div class="panel">
-  <canvas id="horizonCanvas" width="400" height="400"></canvas>
+  <canvas id="horizonCanvas"></canvas>
 </div>
 
 <script>
@@ -99,6 +102,11 @@ socket.onclose = () => {
 
 
 const hCanvas = document.getElementById('horizonCanvas');
+const size = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+hCanvas.width = size;   
+hCanvas.height = size;
+hCanvas.style.width = size + 'px';
+hCanvas.style.height = size + 'px';
 const hctx = hCanvas.getContext('2d');
 
 function drawHorizon(){
@@ -113,7 +121,7 @@ function drawHorizon(){
 
   hctx.save();
   hctx.translate(cx, cy);
-  hctx.rotate(-state.roll * Math.PI/180);
+  hctx.rotate(state.roll * Math.PI/180);
 
   const maxPitch = 45;
   const pitchPixels = (state.pitch / maxPitch) * (r * 0.6);
@@ -121,7 +129,7 @@ function drawHorizon(){
   // Himmel
   const skyTop = -r*2 + pitchPixels;
   const skyGrad = hctx.createLinearGradient(0, skyTop, 0, r*2 + pitchPixels);
-  skyGrad.addColorStop(0, '#204b9b');
+  skyGrad.addColorStop(0, '#102b9b');
   skyGrad.addColorStop(0.6, '#3c7fd0');
   hctx.fillStyle = skyGrad;
   hctx.fillRect(-r*2, skyTop, r*4, r*2);
@@ -130,12 +138,12 @@ function drawHorizon(){
   const seaTop = 0 + pitchPixels;
   const seaGrad = hctx.createLinearGradient(0, seaTop, 0, r*2 + pitchPixels);
   seaGrad.addColorStop(0, '#15301a');
-  seaGrad.addColorStop(1, '#07140a');
+  seaGrad.addColorStop(1, '#271103');
   hctx.fillStyle = seaGrad;
   hctx.fillRect(-r*2, seaTop, r*4, r*4);
 
   // Horizontlinie
-  hctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  hctx.strokeStyle = 'rgba(200,200,200,0.85)';
   hctx.lineWidth = 3;
   hctx.beginPath();
   hctx.moveTo(-r*1.15, pitchPixels);
@@ -143,8 +151,8 @@ function drawHorizon(){
   hctx.stroke();
 
   // Pitch-Ticks
-  hctx.lineWidth = 1.2;
-  hctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  hctx.lineWidth = 1.7;
+  hctx.strokeStyle = 'rgba(255,255,255,0.85)';
   hctx.fillStyle = '#fff';
   hctx.font = '12px Segoe UI';
   const pitchStep = 5;
@@ -180,7 +188,7 @@ function drawHorizon(){
     hctx.beginPath();
     hctx.moveTo(x1, y1);
     hctx.lineTo(x2, y2);
-    hctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    hctx.strokeStyle = 'rgba(255,255,255,0.95)';
     hctx.lineWidth = 1;
     hctx.stroke();
 
@@ -203,18 +211,18 @@ function drawHorizon(){
   // Dreieck Mittelpunkt
   hctx.save();
   hctx.rotate(-state.roll * Math.PI/180);
-  const triTipRadius = r - 4;
-  const triBaseRadius = r - 22;
-  const triHalfWidth = 10;
+  const triTipRadius = r - 10;
+  const triBaseRadius = r - 26;
+  const triHalfWidth = 5;
   hctx.beginPath();
   hctx.moveTo(0, -triTipRadius);
   hctx.lineTo(-triHalfWidth, -triBaseRadius);
   hctx.lineTo(triHalfWidth, -triBaseRadius);
   hctx.closePath();
-  hctx.fillStyle = '#ffcc33';
+  hctx.fillStyle = '#ff1213';
   hctx.fill();
-  hctx.strokeStyle = 'rgba(0,0,0,0.45)';
-  hctx.lineWidth = 1;
+  hctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  hctx.lineWidth = 2;
   hctx.stroke();
   hctx.restore();
 
@@ -222,13 +230,13 @@ function drawHorizon(){
 
   // Zentrumskreuz
   hctx.save();
-  hctx.strokeStyle = '#ffcc33';
-  hctx.lineWidth = 2;
+  hctx.strokeStyle = '#ff1213';
+  hctx.lineWidth = 3;
   hctx.beginPath();
-  hctx.moveTo(cx - 12, cy);
-  hctx.lineTo(cx + 12, cy);
+  hctx.moveTo(cx - 32, cy);
+  hctx.lineTo(cx + 32, cy);
   hctx.moveTo(cx, cy);
-  hctx.lineTo(cx, cy - 12);
+  hctx.lineTo(cx, cy - 18);
   hctx.stroke();
   hctx.restore();
 }

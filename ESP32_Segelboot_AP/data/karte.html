@@ -26,7 +26,7 @@
         #saveTrack { position:absolute; right:14px; top:48px; z-index:1000; }
         #anchorWatch { position:absolute; right:14px; top:82px; z-index:1000; }
         #modeRoute { position:absolute; right:14px; top:116px; z-index:1000; }
-        #nightToggle { position:absolute; right:14px; top:150px; z-index:1000; }
+		#nightToggle { position:absolute; right:14px; top:150px; z-index:1000; }
 
         /* 🟫 INFOBOXEN, LEGENDE UND ALARME */
         #waypointInfo { position:absolute; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:10px; font-size:13px; z-index:1000; transition:background 0.6s,color 0.6s; }
@@ -88,6 +88,10 @@
     <div id="waypointInfo"></div>
     <div id="alarmOverlay">🚨 ANKERWACHE ALARM 🚨<br>Boot hat den Radius verlassen!<br><br>(Klick zum Bestätigen)</div>
     <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
+	
+	<div id="tideInfo" style="position: absolute; bottom: 10px; right: 10px; background: rgba(0, 0, 0, 0.4); color: white; padding: 10px; border-radius: 5px; z-index: 1000; font-size: 13px;">
+		<p>Tidezeiten: <span id="tideTimes">Lade...</span></p>
+	</div>
 </div>
 <script src="leaflet/leaflet.js"></script>
 <script>
@@ -134,26 +138,24 @@ const map = L.map('map', { zoomControl: true, attributionControl: false })
 
   .setView([state.gps_lat, state.gps_lon], 10);
 
-// Lokale Tile-Layer
 const layerOSM = L.tileLayer('tiles/osm/{z}/{x}/{y}.png', {
   maxZoom: 18,
-  attribution: '© OpenStreetMap contributors'
+  attribution: '© OpenStreetMap contributors',
+
+  // ===============================
+  // 🔴 Tile-Request-Drosselung
+  // ===============================
+  updateWhenIdle: true,        // erst laden wenn Bewegung fertig
+  updateWhenZooming: false,    // kein Parallel-Zoom-Laden
+  keepBuffer: 1,               // nur 1 Tile Rand vorhalten
+  tileSize: 256                // Standard – wichtig für Berechnung
 });
+
 
 // Standard Layer hinzufügen
 layerOSM.addTo(map);
 
-// Layer Control (Nur OSM)
-L.control.layers(
-  {
-    "OpenStreetMap": layerOSM,
-  },
-  {},
-  {
-    collapsed: false,
-    position: 'bottomright'
-  }
-).addTo(map);
+
 
 /* ------------------------------
    Grid, CoordBox, Geodesy etc.
@@ -306,23 +308,42 @@ document.addEventListener('keydown',()=> stopAlarm(true));
 /* ------------------------------
    OGPS Marker & Track Export (unverändert)
    ------------------------------ */
-function addOGPSMarker(pos){
-  const date = new Date();
-  const hh = String(date.getHours()).padStart(2,'0');
-  const mm = String(date.getMinutes()).padStart(2,'0');
-  const label = `OGPS\n${hh}:${mm}\n${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')}`;
-  const marker = L.circleMarker(pos, { radius:5, color:'black', fillColor:'black', fillOpacity:1 })
-    .addTo(map)
-    .bindTooltip(label, { permanent:true, direction:'top', offset:[0,-10] });
-  ogpsMarkers.push({ marker: marker, lat: pos[0], lon: pos[1], time: `${hh}:${mm}`, date: `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')}` });
-  if(ogpsMarkers.length > 200){ const r = ogpsMarkers.shift(); try{ map.removeLayer(r.marker); }catch(e){} }
+function addOGPSMarker(pos) {
+    const date = new Date();
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const label = `OGPS\n${hh}:${mm}\n${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+    // Erstellen Sie den Marker ohne Tooltip
+    const marker = L.circleMarker(pos, { radius: 5, color: 'black', fillColor: 'black', fillOpacity: 1 })
+        .addTo(map);
+    // Tooltip hinzufügen, das nur bei Hover oder Klick angezeigt wird
+    marker.bindTooltip(label, { permanent: false, direction: 'top', offset: [0, -10] });
+    // Tooltip nur bei Mouseover anzeigen
+    marker.on('mouseover', function () {
+        this.openTooltip();
+    });
+    marker.on('mouseout', function () {
+        this.closeTooltip();
+    });
+    // Tooltip bei Klick anzeigen
+    marker.on('click', function () {
+        this.openTooltip();
+    });
+    ogpsMarkers.push({ marker: marker, lat: pos[0], lon: pos[1], time: `${hh}:${mm}`, date: `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}` });
+    if (ogpsMarkers.length > 200) {
+        const r = ogpsMarkers.shift();
+        try { map.removeLayer(r.marker); } catch (e) { }
+    }
 }
+
 
 /* ------------------------------
    Klickverhalten: Peilmodus vs Routenmodus
    ------------------------------ */
 let waypointMarker = null;
 let anchorCircle = null;
+
+let waypointLine = null; // Globale Variable für die Linie
 
 // Icon-Funktion für offline Marker (Raute)
 function createDiamondIcon(color = 'red', size = 16) {
@@ -342,18 +363,73 @@ function createDiamondIcon(color = 'red', size = 16) {
 map.on('click', e => {
   if (anchorActive) return;
 
-  if (!routeMode) {
+
+if (!routeMode) {
     // Peilmodus: einzelner Zielmarker
     if (waypointMarker) { 
-      try { map.removeLayer(waypointMarker); } catch(e){} 
-      waypointMarker = null; 
+        try { 
+            map.removeLayer(waypointMarker); 
+            if (waypointLine) { // Entferne die alte Linie, wenn vorhanden
+                map.removeLayer(waypointLine);
+                waypointLine = null; // Setze die Linie auf null
+            }
+        } catch(e){} 
+        waypointMarker = null; 
     }
+    
+    // Koordinaten des Bootes
+    const boatLat = state.gps_lat;
+    const boatLon = state.gps_lon;
+
+    // Berechnung der Entfernung und des Winkels
+    const { bearing, distance } = bearingAndDistance(boatLat, boatLon, e.latlng.lat, e.latlng.lng);
+
+    // Erstellen des Markers mit den neuen Informationen
     waypointMarker = L.marker(e.latlng, {icon: createDiamondIcon('red')})
-                        .addTo(map)
-                        .bindPopup("Peilziel")
-                        .openPopup();
+        .addTo(map)
+        .bindPopup(`Peilziel<br>Koordinaten: ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}<br>Winkel: ${bearing.toFixed(1)}°<br>Entfernung: ${(distance / 1852).toFixed(2)} sm`)
+        .openPopup();
+
+    // Hinzufügen der gestrichelten Linie
+    waypointLine = L.polyline([[boatLat, boatLon], [e.latlng.lat, e.latlng.lng]], { 
+        color: 'red', 
+        weight: 2, 
+        opacity: 0.7, 
+        dashArray: '5, 5' // Gestrichelte Linie
+    }).addTo(map);
+    
+	// Abfrage der Tidezeiten für den neuen Peilmarker
+        fetchTideTimes(e.latlng.lat, e.latlng.lng);
     return;
-  }
+}
+
+// Beim Umschalten des Modus (von Peilmodus zu Wegpunktmodus)
+modeRouteBtn.onclick = () => {
+    routeMode = !routeMode;
+    modeRouteBtn.style.background = routeMode ? 'rgba(0,100,100,0.6)' : 'rgba(0,0,0,0.4)';
+    
+    if (!routeMode) { // Wenn wir zurück zum Peilmodus wechseln
+        if (waypointLine) { // Entferne die gestrichelte Linie, falls vorhanden
+            map.removeLayer(waypointLine);
+            waypointLine = null; // Setze die Linie auf null
+        }
+        // Weitere Logik für den Peilmodus, falls erforderlich
+    } else { // Wenn wir in den Wegpunktmodus wechseln
+        if (waypointMarker) { // Entferne den Marker, wenn vorhanden
+            try {
+			map.removeLayer(waypointMarker); 
+            if (waypointLine) { // Entferne die alte Linie, wenn vorhanden
+                map.removeLayer(waypointLine);
+                waypointLine = null; // Setze die Linie auf null
+            }
+			} catch(e) {}
+            waypointMarker = null;
+        }
+    }
+};
+
+
+
 
   // Routenmodus: neuen Wegpunkt anlegen
   const latlng = e.latlng;
@@ -550,7 +626,44 @@ saveTrackBtn.onclick = ()=>{ if(ogpsMarkers.length === 0){ alert("Keine OGPS-Mar
 
 anchorWatchBtn.onclick = ()=>{ if(!anchorActive){ const chainLength = parseFloat(prompt("Ankerkette in Metern:", 30)); if(isNaN(chainLength) || chainLength <= 0) return; const [aLat,aLon] = destinationPoint(state.gps_lat, state.gps_lon, state.kompass, chainLength); anchorPos = { lat: aLat, lon: aLon }; anchorRadius = chainLength + GPS_UNGENAUIGKEIT; if(anchorCircle){ try{ map.removeLayer(anchorCircle); }catch(e){} anchorCircle=null; } anchorCircle = L.circle([aLat,aLon], { radius: anchorRadius, color:'red', fill:false }).addTo(map); anchorActive = true; anchorWatchBtn.style.background = 'rgba(100,0,0,0.6)'; alert("Anker gesetzt! Überwachung aktiv."); } else { anchorActive = false; if(anchorCircle){ try{ map.removeLayer(anchorCircle); }catch(e){} anchorCircle=null; } stopAlarm(); anchorWatchBtn.style.background = 'rgba(0,0,0,0.4)'; } };
 
-modeRouteBtn.onclick = ()=>{ routeMode = !routeMode; modeRouteBtn.style.background = routeMode ? 'rgba(0,100,100,0.6)' : 'rgba(0,0,0,0.4)'; if(!routeMode){ routeMarkers.forEach(m => { try{ map.removeLayer(m); }catch(e){} }); routeMarkers = []; routePoints = []; if(routeLine) try{ map.removeLayer(routeLine); }catch(e){} routeLine = null; waypointInfo.innerHTML = ""; } else { if(waypointMarker){ try{ map.removeLayer(waypointMarker); }catch(e){} waypointMarker = null; } } };
+modeRouteBtn.onclick = () => {
+    routeMode = !routeMode;
+    
+    modeRouteBtn.style.background = routeMode 
+        ? 'rgba(0,100,100,0.6)' 
+        : 'rgba(0,0,0,0.4)';
+
+    if (!routeMode) {
+        routeMarkers.forEach(m => {
+            try {
+                map.removeLayer(m);
+            } catch (e) {}
+        });
+        
+        routeMarkers = [];
+        routePoints = [];
+
+        if (routeLine) {
+            try {
+                map.removeLayer(routeLine);
+            } catch (e) {}
+        }
+
+        routeLine = null;
+        waypointInfo.innerHTML = "";
+    } else {
+        if (waypointMarker) {
+            try {
+                map.removeLayer(waypointMarker);
+				if (waypointLine) { // Entferne die alte Linie, wenn vorhanden
+                map.removeLayer(waypointLine);
+                waypointLine = null; // Setze die Linie auf null
+            }
+            } catch (e) {}
+            waypointMarker = null;
+        }
+    }
+};
 
 /* ------------------------------
    Tag/Nachtmodus
@@ -594,12 +707,12 @@ function updateBoat() {
   headingLineWind.setLatLngs([pos, windEnd]);
 
   ogpsCounter++;
-  if (ogpsCounter % 20 === 0) {
+  if (ogpsCounter % 1200 === 0) {
     trackPoints.push(pos);
     if (trackPoints.length > 200) trackPoints.shift();
     courseLine.setLatLngs(trackPoints);
   }
-  if (ogpsCounter % 300 === 0) addOGPSMarker(pos);
+  if (ogpsCounter % 6000 === 0) addOGPSMarker(pos);
 
   if (followMode) map.setView(pos, map.getZoom(), { animate: true });
 
@@ -820,6 +933,56 @@ function sendAutopilotWP(lat, lon) {
     .then(txt => console.log(`ESP-Antwort: ${txt}`))
     .catch(err => console.error("Fehler beim Senden an ESP:", err));
 }
+
+
+function formatTime(unixSeconds) {
+    const d = new Date(unixSeconds * 1000);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Funktion zur Abfrage der Tidezeiten
+// ===============================
+// Funktion zur Abfrage der Tidezeiten
+// ===============================
+async function fetchTideTimes(lat, lon) {
+    const output = document.getElementById('tideTimes');
+    output.textContent = "Lade...";
+
+    try {
+        const response = await fetch(`/tide?lat=${lat}&lon=${lon}`);
+        if (!response.ok) throw new Error('Fehler beim Abrufen der Tidezeiten');
+
+        const data = await response.json();
+
+        switch (data.status) {
+            case "ok":
+                const highTime = new Date(data.high.time * 1000);
+                const lowTime = new Date(data.low.time * 1000);
+                output.textContent = `Hochwasser: ${highTime.toLocaleTimeString()}, Niedrigwasser: ${lowTime.toLocaleTimeString()}`;
+                break;
+
+            case "no_data":
+                output.textContent = "Keine Tidedaten für diese Region verfügbar.";
+                break;
+
+            case "flat":
+                output.textContent = "Tide vernachlässigbar (z. B. Binnengewässer/Ostsee).";
+                break;
+
+            case "error":
+            default:
+                output.textContent = "Fehler bei der Tideberechnung.";
+                console.error("Tide-Fehler:", data.message);
+                break;
+        }
+
+    } catch (err) {
+        output.textContent = "Fehler beim Laden der Tidezeiten.";
+        console.error("Fetch-Fehler:", err);
+    }
+}
+
+
 
 /* ------------------------------
    End
