@@ -46,6 +46,18 @@ extern double tide_height_now;
 extern int tide_quality;
 
 // ==========================================================
+// Status der Tide-Berechnung
+// ==========================================================
+enum TideStatus {
+  TIDE_OK = 0,
+  TIDE_NO_TILES,          // Keine Stationsdaten in Umgebung
+  TIDE_NO_CONSTITUENTS    // Stationsdaten vorhanden, aber nicht interpolierbar
+};
+
+// Letzter Status der Berechnung
+extern TideStatus tide_status;
+
+// ==========================================================
 // API
 // ==========================================================
 

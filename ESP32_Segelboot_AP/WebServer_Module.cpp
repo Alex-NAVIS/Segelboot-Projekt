@@ -132,30 +132,23 @@ void handleFile(AsyncWebServerRequest *request, const char *path) {
 // tiles aus SD Karte ausliefern
 // ======================================================================
 void handleTiles(AsyncWebServerRequest *request) {
-  String path = request->url();  // z.B. "/tiles/osm/12/345/678.png"
-  Serial.print("[DEBUG] Original URL: ");
-  Serial.println(path);
+  String path = request->url();
 
-  if (USE_SD_TILES) {
-    // Prüfen ob SD verfügbar
-    if (!sd_file_exists(path)) {
-      Serial.println("[DEBUG] Datei existiert nicht auf SD!");
-      request->send(404, "text/plain", "Tile nicht gefunden: " + path);
-      return;
-    }
-
-    // Direkt senden, ohne die Datei vorher zu öffnen
-    Serial.println("[DEBUG] Datei existiert auf SD, sende an Client...");
-    AsyncWebServerResponse *response = request->beginResponse(SD, path, "image/png", false);
-    response->addHeader("Connection", "close");
-    request->send(response);
-    Serial.println("[DEBUG] Tile gesendet!");
+  if (!USE_SD_TILES) {
+    request->send(404, "text/plain", "Tiles nicht verfügbar");
     return;
   }
 
-  request->send(404, "text/plain", "Tiles nicht verfügbar.");
-}
+  if (!sd_file_exists(path)) {
+    request->send(404, "text/plain", "Tile nicht gefunden");
+    return;
+  }
 
+  AsyncWebServerResponse *response = request->beginResponse(SD, path, "image/png", false);
+
+  response->addHeader("Cache-Control", "public, max-age=86400");
+  request->send(response);
+}
 
 void wsBroadcastSensorData() {
   static char buffer[768];  // fester, stackfreier Buffer
@@ -241,46 +234,67 @@ void handleSetTarget(AsyncWebServerRequest *request) {
 // Tide Werte abfragen zu Koordinaten
 // ======================================================================
 void handleTide(AsyncWebServerRequest *request) {
+  Serial.println("[TIDE] Anfrage eingegangen");
+
+  // lat/lon prüfen
   if (!request->hasParam("lat") || !request->hasParam("lon")) {
     request->send(400, "application/json",
-      "{\"error\":\"missing lat/lon\"}");
+                  "{\"status\":\"error\",\"message\":\"missing lat/lon\"}");
     return;
   }
 
   double lat = request->getParam("lat")->value().toDouble();
   double lon = request->getParam("lon")->value().toDouble();
-  time_t now = time(nullptr);
 
+  time_t now = time(nullptr);
+  Serial.print("[TIDE] time(): "); Serial.println(now);
+
+  // Tide-Berechnung durchführen
   if (!tide_query(lat, lon, now)) {
-    request->send(500, "application/json",
-      "{\"error\":\"tide computation failed\"}");
+    // Fehler oder keine Daten
+    if (tide_status == TIDE_NO_TILES) {
+      request->send(200, "application/json",
+                    "{\"status\":\"no_data\",\"message\":\"Keine Tidedaten in dieser Region.\"}");
+    } else if (tide_status == TIDE_NO_CONSTITUENTS) {
+      request->send(200, "application/json",
+                    "{\"status\":\"flat\",\"message\":\"Tide vernachlässigbar (z. B. Ostsee).\"}");
+    } else {
+      request->send(500, "application/json",
+                    "{\"status\":\"error\",\"message\":\"Interner Tidefehler.\"}");
+    }
+    Serial.println("[TIDE] tide_query() fehlgeschlagen");
+    Serial.print("[TIDE] lat="); Serial.println(lat, 6);
+    Serial.print("[TIDE] lon="); Serial.println(lon, 6);
     return;
   }
 
+  // Tide erfolgreich berechnet
   char json[512];
   snprintf(json, sizeof(json),
-    "{"
-      "\"now\":%.2f,"
-      "\"high\":{"
-        "\"time\":%ld,"
-        "\"height\":%.2f"
-      "},"
-      "\"low\":{"
-        "\"time\":%ld,"
-        "\"height\":%.2f"
-      "},"
-      "\"quality\":%d"
-    "}",
-    tide_height_now,
-    (long)tide_next_high_time,
-    tide_next_high_height,
-    (long)tide_next_low_time,
-    tide_next_low_height,
-    tide_quality
-  );
+           "{"
+           "\"status\":\"ok\","
+           "\"now\":%.2f,"
+           "\"high\":{"
+           "\"time\":%ld,"
+           "\"height\":%.2f"
+           "},"
+           "\"low\":{"
+           "\"time\":%ld,"
+           "\"height\":%.2f"
+           "},"
+           "\"quality\":%d"
+           "}",
+           tide_height_now,
+           (long)tide_next_high_time,
+           tide_next_high_height,
+           (long)tide_next_low_time,
+           tide_next_low_height,
+           tide_quality);
 
   request->send(200, "application/json", json);
+  Serial.println("[TIDE] Tide berechnet");
 }
+
 
 
 // ======================================================================
@@ -406,6 +420,7 @@ void handleSetConfig(AsyncWebServerRequest *request) {
   request->send(200, "text/plain", "✅ Konfiguration gespeichert");
 }
 
+
 // ======================================================================
 // Setup Webserver + WebSocket
 // ======================================================================
@@ -471,6 +486,24 @@ void setupWebServer() {
     handleTiles(request);
   });
 
+  // Kalibrierungs-Endpunkt
+  server.on("/calibrate", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("type")) {
+      String type = request->getParam("type")->value();
+
+      if (type == "compass") {
+        mag_start_cal = true;
+        request->send(200, "text/plain", "Kompass Kalibrierung gestartet");
+      } else if (type == "gyro") {
+        gyro_start_cal = true;
+        request->send(200, "text/plain", "Gyro Kalibrierung gestartet");
+      } else {
+        request->send(400, "text/plain", "Unbekannter Typ");
+      }
+    } else {
+      request->send(400, "text/plain", "Parameter fehlt");
+    }
+  });
 
   server.begin();
   if (DEBUG_MODE_SERVER) Serial.println("✅ Async Webserver + WebSocket gestartet");

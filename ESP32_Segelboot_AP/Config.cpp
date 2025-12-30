@@ -61,7 +61,6 @@ float WINDSPEED_UPDATE_INTERVAL_MS = 1000.0f / WINDSPEED_UPDATE_HZ;
 float LICHTSCHALTER_UPDATE_INTERVAL_MS = 1000.0f / LICHT_UPDATE_HZ;
 float LOG_UPDATE_INTERVAL_MS = 1000.0f * 60 * SD_UPDATE_HZ;
 float SENSOR_UPDATE_INTERVAL_MS = 1000.0f / SENSOR_UPDATE_HZ;
-
 // ==========================================================
 // 9. Navigation / Missweisung
 // ==========================================================
@@ -80,3 +79,9 @@ double Tiefgang_Boot = 1.15;       // Meter: Bootstiefgang
 double Wassertemperatur = 20.0;                // °C
 double Salzgehalt = 35.0;                      // ‰
 double Schallgeschwindigkeit_Wasser = 1520.0;  // initial, wird berechnet
+
+// =========================
+// 12. Kalibrierung Gyro und Mag
+// =========================
+bool gyro_start_cal = false;
+bool mag_start_cal = false;

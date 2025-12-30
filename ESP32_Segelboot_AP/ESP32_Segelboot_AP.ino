@@ -22,8 +22,8 @@ unsigned long lastGPSRead = 0;
 int gpsreadcount = 300;
 unsigned long lastgpsahrs = 0;
 unsigned long lastMPURead = 0;
-unsigned long lastWindDirRead = 0;
 unsigned long lastWindSpeedRead = 0;
+unsigned long lastMastupdate = 0;
 unsigned long lastLichtRead = 0;
 unsigned long lastsdwrite = 0;
 int write_SD_log = 450;
@@ -48,10 +48,10 @@ void setup() {
   lastGPSRead = millis();
   lastgpsahrs = millis() + 5;
   lastMPURead = millis() + 10;
-  lastWindDirRead = millis() + 20;
+  lastMastupdate = millis() + 20;
   lastWindSpeedRead = millis() + 30;
   lastLichtRead = millis() + 40;
-  lastsensor = millis() + 40;
+  lastsensor = millis() + 50;
 
   if (DEBUG_MODE) Serial.println(F("=== Initialisierung abgeschlossen ==="));
 }
@@ -94,8 +94,12 @@ void loop() {
   if (currentMillis - lastWindSpeedRead >= WINDSPEED_UPDATE_INTERVAL_MS) {
     lastWindSpeedRead = currentMillis;
     berechneWahrenWind();
+  }
 
-    //Abfrage des Status des Mast Sensors
+
+  //Sicherheitscheck für verbundenen Mastseensor.
+  if (currentMillis - lastMastupdate >= MASTCHECK_UPDATE_INTERVAL_MS) {
+    lastMastupdate = currentMillis;
     checkMastOnlineStatus();
   }
 
@@ -120,5 +124,15 @@ void loop() {
   if (currentMillis - lastsensor >= SENSOR_UPDATE_INTERVAL_MS) {
     lastsensor = currentMillis;
     wsBroadcastSensorData();
+  }
+
+  //Kalibrierung Gyro und Mag
+  if (gyro_start_cal == true) {
+    gyro_start_cal = false;
+    calibrate_gyro();
+  }
+  if (mag_start_cal == true) {
+    mag_start_cal = false;
+    calibrate_magnetometer(30);
   }
 }

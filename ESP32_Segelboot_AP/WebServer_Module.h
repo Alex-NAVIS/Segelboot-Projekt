@@ -46,10 +46,17 @@ void handleSetConfig(AsyncWebServerRequest *request);                           
 void handleSetTarget(AsyncWebServerRequest *request);                                                        // Zielpunkt Autopilot setzen
 void handleTide(AsyncWebServerRequest *request);                                                             // Abfrage zu einer Koordinate zum Tide Zeitpunkt Hochwasser Niedrigwasser
 void handleMastBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);  // Mast Sensor GPS Wind Sensordaten
-void handleTiles(AsyncWebServerRequest *request);                                                            // PNG-Kacheln liefern
+void handleTiles(AsyncWebServerRequest *request);                                                            // PNG-Kacheln liefern                                                  //Tile Zeiten abfragen und zurück geben
 void closeConnection();
 
+// ----------------------------------------------------------------------
 // Abfrage vom Main loop
+// ----------------------------------------------------------------------
 void checkMastOnlineStatus();
+
+// ----------------------------------------------------------------------
+// Fehlerabfrage bei Tiles anfrage, zurücksetzen der Anfragezahl
+// ----------------------------------------------------------------------
+void checkTileTransferWatchdog();
 
 #endif  // WEBSERVER_MODULE_H

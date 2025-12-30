@@ -10,6 +10,7 @@ double tide_next_high_height = 0.0;
 double tide_next_low_height = 0.0;
 double tide_height_now = 0.0;
 int tide_quality = 0;
+TideStatus tide_status = TIDE_OK;
 
 // -------------------- Structures --------------------
 struct Constituent {
@@ -51,12 +52,9 @@ static double haversine_m(double lat1, double lon1, double lat2, double lon2) {
 
 // -------------------- Tile helpers --------------------
 static void tile_indices(double lat, double lon, int &ix, int &iy) {
-  // identisch zur Python-Logik:
-  // ix = floor((lon + 180) / TILE_SIZE)
-  // iy = floor((lat + 90)  / TILE_SIZE)
-
-  ix = (int)floor(lon / TIDE_TILE_SIZE_DEG);
-  iy = (int)floor(lat / TIDE_TILE_SIZE_DEG);
+    ix = (int)floor((lon + 180.0) / TIDE_TILE_SIZE_DEG);
+    iy = (int)floor((lat + 90.0)  / TIDE_TILE_SIZE_DEG);
+    Serial.printf("[TIDE] Zentrum Tile: ix=%d, iy=%d\n", ix, iy); // Debug
 }
 
 
@@ -68,53 +66,76 @@ static String tile_filename_for(int ix, int iy) {
 
 // -------------------- CSV parsing --------------------
 static bool parse_tile(const String &path, std::vector<Station> &out) {
-  if (!SD.exists(path)) return false;
-  File f = SD.open(path);
-  if (!f) return false;
-  f.readStringUntil('\n');  // header
-
-  while (f.available()) {
-    String l = f.readStringUntil('\n');
-    l.trim();
-    if (!l.length()) continue;
-    int i1 = l.indexOf(','), i2 = l.indexOf(',', i1 + 1), i3 = l.indexOf(',', i2 + 1), i4 = l.indexOf(',', i3 + 1);
-    if (i4 < 0) continue;
-    double lat = l.substring(0, i1).toDouble();
-    double lon = l.substring(i1 + 1, i2).toDouble();
-    String con = l.substring(i2 + 1, i3);
-    double amp = l.substring(i3 + 1, i4).toDouble();
-    double pha = l.substring(i4 + 1).toDouble();
-
-    Station *st = nullptr;
-    for (auto &s : out)
-      if (fabs(s.lat - lat) < 1e-6 && fabs(s.lon - lon) < 1e-6) {
-        st = &s;
-        break;
-      }
-    if (!st) {
-      Station ns;
-      ns.lat = lat;
-      ns.lon = lon;
-      out.push_back(ns);
-      st = &out.back();
+    Serial.printf("[TIDE] Prüfe Datei: %s\n", path.c_str());
+    if (!SD.exists(path)) {
+        Serial.println("[TIDE] Datei nicht gefunden!");
+        return false;
     }
-    st->cons[con] = { con, amp, pha };
-  }
-  f.close();
-  return true;
+    File f = SD.open(path);
+    if (!f) {
+        Serial.println("[TIDE] Datei konnte nicht geöffnet werden!");
+        return false;
+    }
+
+    Serial.println("[TIDE] Datei geöffnet, lese Inhalt...");
+    f.readStringUntil('\n');  // header
+
+    int stations_loaded = 0;
+    while (f.available()) {
+        String l = f.readStringUntil('\n');
+        l.trim();
+        if (!l.length()) continue;
+        int i1 = l.indexOf(','), i2 = l.indexOf(',', i1 + 1), i3 = l.indexOf(',', i2 + 1), i4 = l.indexOf(',', i3 + 1);
+        if (i4 < 0) continue;
+        double lat = l.substring(0, i1).toDouble();
+        double lon = l.substring(i1 + 1, i2).toDouble();
+        String con = l.substring(i2 + 1, i3);
+        double amp = l.substring(i3 + 1, i4).toDouble();
+        double pha = l.substring(i4 + 1).toDouble();
+
+        Station *st = nullptr;
+        for (auto &s : out)
+            if (fabs(s.lat - lat) < 1e-6 && fabs(s.lon - lon) < 1e-6) {
+                st = &s;
+                break;
+            }
+        if (!st) {
+            Station ns;
+            ns.lat = lat;
+            ns.lon = lon;
+            out.push_back(ns);
+            st = &out.back();
+        }
+        st->cons[con] = { con, amp, pha };
+        stations_loaded++;
+    }
+    f.close();
+    Serial.printf("[TIDE] %d Stationen geladen\n", stations_loaded);
+    return stations_loaded > 0;
 }
 
 static void load_9_tiles(double lat, double lon, std::vector<Station> &out) {
-  out.clear();
-  int ix, iy;
-  tile_indices(lat, lon, ix, iy);
-  for (int dy = -1; dy <= 1; dy++)
-    for (int dx = -1; dx <= 1; dx++) {
-      std::vector<Station> tmp;
-      if (parse_tile(tile_filename_for(ix + dx, iy + dy), tmp))
-        out.insert(out.end(), tmp.begin(), tmp.end());
-    }
+    out.clear();
+    int ix, iy;
+    tile_indices(lat, lon, ix, iy);
+    Serial.printf("[TIDE] Zentrum Tile: ix=%d, iy=%d\n", ix, iy);
+
+    int total_loaded = 0;
+    for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 1; dx++) {
+            std::vector<Station> tmp;
+            String fname = tile_filename_for(ix + dx, iy + dy);
+            if (parse_tile(fname, tmp)) {
+                total_loaded += tmp.size();
+                out.insert(out.end(), tmp.begin(), tmp.end());
+                Serial.printf("[TIDE] Tile %s: %d Stationen geladen\n", fname.c_str(), (int)tmp.size());
+            } else {
+                Serial.printf("[TIDE] Tile %s: keine Stationen gefunden\n", fname.c_str());
+            }
+        }
+    Serial.printf("[TIDE] Gesamtstationen nach Laden 9 Tiles: %d\n", total_loaded);
 }
+
 
 // -------------------- Interpolation --------------------
 struct Phasor {
@@ -150,7 +171,13 @@ static void interpolate(const std::vector<Station> &all, const std::vector<int> 
 // -------------------- Tide synthesis --------------------
 static double tide_at(const std::map<String, Constituent> &c, time_t t) {
   double h = 0;
-  double tt = (double)t;
+
+  // Referenzepoche der CSV-Phasen: 1900-01-01 00:00 UTC
+  static const time_t REF_1900 = -2208988800;
+
+  // Zeit in STUNDEN seit Referenz
+  double tt_hours = (double)(t - REF_1900) / 3600.0;
+
   for (auto &kv : c) {
     double degph = 0;
     for (int i = 0; freqTable[i].name; i++)
@@ -159,11 +186,13 @@ static double tide_at(const std::map<String, Constituent> &c, time_t t) {
         break;
       }
     if (!degph) continue;
-    double w = degph * (M_PI / 180.0) / 3600.0;
-    h += kv.second.amp * cos(w * tt + deg2rad(kv.second.pha));
+
+    double w = deg2rad(degph);   // rad / Stunde
+    h += kv.second.amp * cos(w * tt_hours + deg2rad(kv.second.pha));
   }
   return h;
 }
+
 
 static void refine(time_t tc, double h0, double h1, double h2, int step, time_t &tr, double &hr) {
   double a = (h0 + h2 - 2 * h1) / 2.0;
@@ -197,17 +226,23 @@ static void find_extrema(const std::map<String, Constituent> &c, time_t now, tim
 
 // -------------------- Public API --------------------
 void tide_map_init() {
-  
 }
 
+
 bool tide_query(double lat, double lon, time_t now) {
+  tide_status = TIDE_OK;
+
   std::vector<Station> all;
   load_9_tiles(lat, lon, all);
-  if (all.empty()) return false;
+  if (all.empty()) {
+    tide_status = TIDE_NO_TILES;
+    return false;
+  }
 
-  // nearest stations
   std::vector<std::pair<double, int>> d;
-  for (int i = 0; i < (int)all.size(); i++) d.push_back({ haversine_m(lat, lon, all[i].lat, all[i].lon), i });
+  for (int i = 0; i < (int)all.size(); i++)
+    d.push_back({ haversine_m(lat, lon, all[i].lat, all[i].lon), i });
+
   std::sort(d.begin(), d.end());
   int n = min(TIDE_MAX_NEAREST_STATIONS, (int)d.size());
   std::vector<int> idx;
@@ -215,10 +250,15 @@ bool tide_query(double lat, double lon, time_t now) {
 
   std::map<String, Constituent> cons;
   interpolate(all, idx, lat, lon, cons);
-  if (cons.empty()) return false;
+  if (cons.empty()) {
+    tide_status = TIDE_NO_CONSTITUENTS;
+    return false;
+  }
 
   tide_height_now = tide_at(cons, now);
-  find_extrema(cons, now, tide_next_high_time, tide_next_high_height, tide_next_low_time, tide_next_low_height);
+  find_extrema(cons, now,
+               tide_next_high_time, tide_next_high_height,
+               tide_next_low_time, tide_next_low_height);
 
   double maxD = 50 * 1852.0;
   double q = 100 * (1.0 - d[0].first / maxD);

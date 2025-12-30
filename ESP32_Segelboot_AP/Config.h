@@ -116,7 +116,7 @@ extern float WINDSPEED_UPDATE_INTERVAL_MS;
 extern float LICHTSCHALTER_UPDATE_INTERVAL_MS;
 extern float LOG_UPDATE_INTERVAL_MS;
 extern float SENSOR_UPDATE_INTERVAL_MS;
-
+#define MASTCHECK_UPDATE_INTERVAL_MS 1000
 
 // ==========================================================
 // 9. Navigation / Missweisung
@@ -146,6 +146,13 @@ extern double Salzgehalt;        // PSU / ‰, z.B. 35.0
 
 // Berechnete Schallgeschwindigkeit Wasser (m/s)
 extern double Schallgeschwindigkeit_Wasser;
+
+// ==========================================================
+// 12. Kalibrierung Gyro und Mag
+// ==========================================================
+extern bool gyro_start_cal;
+extern bool mag_start_cal;
+
 // ==========================================================
 // ENDE
 // ==========================================================
