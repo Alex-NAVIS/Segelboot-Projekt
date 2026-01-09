@@ -23,6 +23,7 @@ void recalc_intervals();
 #define DEBUG_MODE_SD false
 #define DEBUG_MODE_SERVER false
 #define DEBUG_MODE_GPS false
+#define DEBUG_MODE_Tile true
 
 
 // ==========================================================

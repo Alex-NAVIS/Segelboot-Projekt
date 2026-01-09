@@ -90,6 +90,26 @@
     <button id="cancelBtn" onclick="cancelConfig()">❌ Abbrechen</button>
   </div>
 
+<!-- ===================== Abschnitt D: Gespeicherte Autopilot-Config ===================== -->
+<h2>D&nbsp;–&nbsp;Gespeicherte Konfiguration (LittleFS)</h2>
+
+<div id="autopilotConfigBox"
+     style="
+       max-width:600px;
+       margin:20px auto;
+       background:#002b3a;
+       border:1px solid #007d91;
+       border-radius:10px;
+       padding:12px;
+       text-align:left;
+       font-family:monospace;
+       font-size:13px;
+       white-space:pre;
+       overflow-x:auto;
+     ">
+  Lade Konfiguration …
+</div>
+
   <script>
     // ===================== Funktion: Bootslänge wählen =====================
     function setBoatSize(length) {
@@ -143,7 +163,28 @@
     function cancelConfig() {
       window.location.href = "index.html"; // ohne Änderungen zurück
     }
-  </script>
+	
+	
+  // ===================== Autopilot Config aus LittleFS laden =====================
+  function loadAutopilotConfig() {
+    fetch("/fs/autopilot_config")
+      .then(r => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(json => {
+        document.getElementById("autopilotConfigBox").textContent =
+          JSON.stringify(json, null, 2);
+      })
+      .catch(err => {
+        document.getElementById("autopilotConfigBox").textContent =
+          "❌ Fehler beim Laden der Autopilot-Konfiguration\n" + err;
+      });
+  }
+
+  // Beim Laden der Seite automatisch ausführen
+  window.addEventListener("load", loadAutopilotConfig);
+</script>
 
 </body>
 </html>

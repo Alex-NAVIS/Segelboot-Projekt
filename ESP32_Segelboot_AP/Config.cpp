@@ -42,9 +42,9 @@ uint32_t LOG_UPDATE_INTERVAL_SEKUNDEN = 60 * 10;
 // 7. Sensor-Timings (Hz)
 // ==========================================================
 float GPS_UPDATE_HZ = 1.0f;
-float GPS_AHRS_UPDATE_HZ = 5.0f;
-float MPU_UPDATE_HZ = 15.0f;
-float WINDDIR_UPDATE_HZ = 2.0f;
+float GPS_AHRS_UPDATE_HZ = 10.0f;
+float MPU_UPDATE_HZ = 200.0f;
+float WINDDIR_UPDATE_HZ = 1.0f;
 float WINDSPEED_UPDATE_HZ = 1.0f;
 float LICHT_UPDATE_HZ = 3.0f;
 float SD_UPDATE_HZ = 1.0f;

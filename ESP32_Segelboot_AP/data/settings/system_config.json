@@ -1,0 +1,19 @@
+{
+  "ap_ssid": "Mein_Boot",
+  "ap_pass": "12345678",
+  "log_interval_sec": 600,
+  "gps_hz": 1,
+  "gps_ahrs_hz": 10,
+  "mpu_hz": 200,
+  "winddir_hz": 1,
+  "windspeed_hz": 1,
+  "licht_hz": 3,
+  "sd_hz": 1,
+  "sensor_update_hz": 20,
+  "use_decl_compass": true,
+  "use_decl_wind": true,
+  "wassertiefe_einbau": 0.45,
+  "tiefgang_boot": 1.15,
+  "wassertemp": 20,
+  "salz": 35
+}

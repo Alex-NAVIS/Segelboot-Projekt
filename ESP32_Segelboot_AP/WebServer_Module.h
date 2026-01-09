@@ -55,8 +55,9 @@ void closeConnection();
 void checkMastOnlineStatus();
 
 // ----------------------------------------------------------------------
-// Fehlerabfrage bei Tiles anfrage, zurücksetzen der Anfragezahl
+// Sendet die Kurve idx an die vorher gespeicherte Anfrage
 // ----------------------------------------------------------------------
-void checkTileTransferWatchdog();
+void send_tide_curve(int idx);
+void wsSendTideCurve(int idx);
 
 #endif  // WEBSERVER_MODULE_H

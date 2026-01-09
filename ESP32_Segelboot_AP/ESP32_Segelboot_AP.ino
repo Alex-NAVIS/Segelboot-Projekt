@@ -135,4 +135,38 @@ void loop() {
     mag_start_cal = false;
     calibrate_magnetometer(30);
   }
+
+  //Tide Berechnen
+  switch (tideState) {
+    case TIDE_IDLE: break;
+    case TIDE_FIND_STATIONS:
+      if (find_stations()) tideState = TIDE_CALC_CURVE_1;
+      else tideState = TIDE_IDLE;
+      break;
+    case TIDE_CALC_CURVE_1:
+      berechne_tide_kurve(0);
+      tideState = TIDE_CALC_CURVE_2;
+      break;
+    case TIDE_CALC_CURVE_2:
+      berechne_tide_kurve(1);
+      tideState = TIDE_CALC_CURVE_3;
+      break;
+    case TIDE_CALC_CURVE_3:
+      berechne_tide_kurve(2);
+      tideState = TIDE_READY_TO_SEND_1;
+      break;
+    case TIDE_READY_TO_SEND_1:
+      wsSendTideCurve(0);
+      tideState = TIDE_READY_TO_SEND_2;
+      break;
+    case TIDE_READY_TO_SEND_2:
+      wsSendTideCurve(1);
+      tideState = TIDE_READY_TO_SEND_3;
+      break;
+    case TIDE_READY_TO_SEND_3:
+
+      wsSendTideCurve(2);
+      tideState = TIDE_IDLE;
+      break;
+  }
 }

@@ -118,6 +118,50 @@
     <button id="saveBtn" onclick="saveSystem()">💾 Einstellungen Speichern</button>
     <button id="cancelBtn" onclick="cancel()">❌ Abbrechen</button>
   </div>
+<h2>📂 Gespeicherte Systemdateien (Filesystem)</h2>
+
+<table>
+  <tr>
+    <th>Datei</th>
+    <th>Inhalt (Read-Only)</th>
+  </tr>
+
+  <tr>
+    <td>/system_config.json</td>
+    <td>
+      <textarea id="fs_system"
+        rows="10"
+        readonly
+        style="width:100%; background:#001820; color:#0fd; font-family:monospace;">
+Lade…
+      </textarea>
+    </td>
+  </tr>
+
+  <tr>
+    <td>/settings/IMU_mag.json</td>
+    <td>
+      <textarea id="fs_mag"
+        rows="8"
+        readonly
+        style="width:100%; background:#001820; color:#ffd54f; font-family:monospace;">
+Lade…
+      </textarea>
+    </td>
+  </tr>
+
+  <tr>
+    <td>/settings/IMU_gyro.json</td>
+    <td>
+      <textarea id="fs_gyro"
+        rows="8"
+        readonly
+        style="width:100%; background:#001820; color:#ff8a80; font-family:monospace;">
+Lade…
+      </textarea>
+    </td>
+  </tr>
+</table>
 
   <script>
     // Laden der vorhandenen System Config
@@ -217,8 +261,26 @@ function calibrate(type) {
     .catch(() => alert("❌ Fehler beim Starten"));
 }
 
+function loadFSFile(url, targetId) {
+  fetch(url)
+    .then(r => {
+      if (!r.ok) throw "Datei nicht vorhanden";
+      return r.text();
+    })
+    .then(txt => {
+      document.getElementById(targetId).value = txt;
+    })
+    .catch(() => {
+      document.getElementById(targetId).value =
+        "❌ Datei nicht vorhanden oder leer";
+    });
+}
 
-  </script>
+// FS Dateien laden
+loadFSFile("/fs/system_config", "fs_system");
+loadFSFile("/fs/imu_mag", "fs_mag");
+loadFSFile("/fs/imu_gyro", "fs_gyro");
+</script>
 
 </body>
 </html>

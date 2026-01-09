@@ -2,8 +2,8 @@
 
 // Pfad für die Konfigurationsdatei auf LittleFS
 // Datei-Pfade
-const char* FILE_AUTOPILOT = "/autopilot_config.json";
-const char* FILE_SYSTEM = "/system_config.json";
+const char* FILE_AUTOPILOT = "/settings/autopilot_config.json";
+const char* FILE_SYSTEM = "/settings/system_config.json";
 
 // ----------------------------------------------------------
 // Initialisierung: mounten + laden
@@ -112,10 +112,8 @@ void ConfigStorage_saveSystem() {
   // Strings (Arduino String)
   doc["ap_ssid"] = AP_SSID;
   doc["ap_pass"] = AP_PASSWORD;
-
   // numerische Einstellungen
   doc["log_interval_sec"] = LOG_UPDATE_INTERVAL_SEKUNDEN;
-
   doc["gps_hz"] = GPS_UPDATE_HZ;
   doc["gps_ahrs_hz"] = GPS_AHRS_UPDATE_HZ;
   doc["mpu_hz"] = MPU_UPDATE_HZ;
@@ -124,14 +122,11 @@ void ConfigStorage_saveSystem() {
   doc["licht_hz"] = LICHT_UPDATE_HZ;
   doc["sd_hz"] = SD_UPDATE_HZ;
   doc["sensor_update_hz"] = SENSOR_UPDATE_HZ;
-
   doc["use_decl_compass"] = USE_DECLINATION_FOR_COMPASS;
   doc["use_decl_wind"] = USE_DECLINATION_FOR_WIND;
-
   // Echolot / Boot
   doc["wassertiefe_einbau"] = Wassertiefe_Einbau;
   doc["tiefgang_boot"] = Tiefgang_Boot;
-
   // Wasser-Parameter
   doc["wassertemp"] = Wassertemperatur;
   doc["salz"] = Salzgehalt;

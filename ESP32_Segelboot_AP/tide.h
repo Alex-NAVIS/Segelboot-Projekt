@@ -1,71 +1,38 @@
-// ==========================================================
-// Tide Map – Gezeitenberechnung aus Stations-Tiles
-// (CSV-Tiles auf SD-Karte, 0.5° Raster)
-// ==========================================================
-
 #pragma once
 #include <Arduino.h>
-#include <SD.h>
-#include <time.h>
-#include <vector>
-#include <map>
 
-// ==========================================================
-// Konfiguration
-// ==========================================================
+#define TIDE_POINTS 96  // 24h * 4 (15min)
 
-// Ordner mit Tide-Tiles auf der SD-Karte
-#define TIDE_TILE_FOLDER "/tide"
-
-// Tile-Größe in Grad (muss zum Python-Skript passen!)
-#define TIDE_TILE_SIZE_DEG 0.5
-
-// Maximale Anzahl berücksichtigter Stationen
-#define TIDE_MAX_NEAREST_STATIONS 8
-
-// Suchparameter für Extremwertsuche
-#define TIDE_SEARCH_STEP_SECONDS 300  // 5 Minuten Raster
-#define TIDE_SEARCH_WINDOW_HOURS 36   // +/- 36h Suchfenster
-
-// ==========================================================
-// Öffentliche Ergebniswerte (globale Bootsdaten)
-// ==========================================================
-
-// Nächstes Hochwasser
-extern time_t tide_next_high_time;
-extern double tide_next_high_height;
-
-// Nächstes Niedrigwasser
-extern time_t tide_next_low_time;
-extern double tide_next_low_height;
-
-// Aktueller Wasserstand
-extern double tide_height_now;
-
-// Qualitätsmetrik der Berechnung (0 .. 100)
-extern int tide_quality;
-
-// ==========================================================
-// Status der Tide-Berechnung
-// ==========================================================
-enum TideStatus {
-  TIDE_OK = 0,
-  TIDE_NO_TILES,          // Keine Stationsdaten in Umgebung
-  TIDE_NO_CONSTITUENTS    // Stationsdaten vorhanden, aber nicht interpolierbar
+// =================== Zustände ===================
+enum TideState {
+  TIDE_IDLE = 0,
+  TIDE_FIND_STATIONS = 1,
+  TIDE_CALC_CURVE_1 = 2,
+  TIDE_CALC_CURVE_2 = 3,
+  TIDE_CALC_CURVE_3 = 4,
+  TIDE_READY_TO_SEND_1 = 5,
+  TIDE_READY_TO_SEND_2 = 6,
+  TIDE_READY_TO_SEND_3 = 7
 };
 
-// Letzter Status der Berechnung
-extern TideStatus tide_status;
+// =================== Steuer-Variablen ===================
+extern volatile int tideState;
 
-// ==========================================================
-// API
-// ==========================================================
+// =================== Anfrage ===================
+extern double tideQueryLat;
+extern double tideQueryLon;
+extern void* tideRequest;
 
-// Initialisierung (z. B. SD-Check, interne Tabellen)
-void tide_map_init();
+// =================== Station-Infos ===================
+extern double tideStationLat[3];
+extern double tideStationLon[3];
+extern double tideStationDist[3];
+extern double tideStationBearing[3];
 
-// Hauptabfrage:
-//  lat / lon  : aktuelle Bootsposition
-//  now        : aktuelle Zeit (Unix time_t, UTC)
-//  Rückgabe   : true = gültige Tidewerte berechnet
-bool tide_query(double lat, double lon, time_t now);
+// =================== Tide-Kurven (cm) ===================
+extern int16_t tideCurve[3][TIDE_POINTS];
+
+// =================== Funktionen ===================
+void tide_reset();                  // 🔄 alles auf Anfang
+bool find_stations();               // Liest CSV, füllt tideStationLat/Lon/Dist/Bearing
+void berechne_tide_kurve(int idx);  // Berechnet tideCurve[idx] für Station idx

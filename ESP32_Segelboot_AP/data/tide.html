@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>NAVIS – Tideanalyse (Debug)</title>
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<style>
+body { font-family: Arial, sans-serif; background:#f4f4f4; text-align:center; margin:20px; }
+#map { width:900px; height:420px; margin:auto; border-radius:8px; }
+#chartContainer { width:900px; height:420px; margin:20px auto; }
+#log { width:900px; margin:auto; background:#222; color:#0f0; font-family:monospace; text-align:left; padding:8px; height:200px; overflow:auto; border-radius:8px; }
+canvas { width:100%!important; height:100%!important; }
+</style>
+</head>
+
+<body>
+<h1>NAVIS – Tidekurven (Debug)</h1>
+
+<div id="map"></div>
+<div id="chartContainer"><canvas id="tideChart"></canvas></div>
+<div id="log">Log:</div>
+
+<script src="leaflet/leaflet.js"></script>
+<script src="leaflet/navis-tilelayer.js"></script> <!-- Standardisierte NAVIS TileLayer -->
+<script src="js/chart.min.js"></script>
+
+<script>
+/* =====================================================
+   Modus-Erkennung
+   ===================================================== */
+const IS_FILE = location.protocol === "file:";
+const BASE_PATH = IS_FILE ? location.pathname.replace(/\/[^\/]*$/, "") : "";
+
+function log(msg){
+    const el = document.getElementById('log');
+    el.innerText += "\n" + msg;
+    el.scrollTop = el.scrollHeight;
+}
+
+log(IS_FILE ? "FILE-MODUS aktiv" : "HTTP-MODUS aktiv");
+
+/* =====================================================
+   WebSocket (nur bei HTTP)
+   ===================================================== */
+let ws = null;
+if(!IS_FILE){
+    ws = new WebSocket(`ws://${location.hostname}/ws`);
+    ws.onmessage = event => {
+        try {
+            const json = JSON.parse(event.data);
+            log(JSON.stringify(json));
+            if(json.type === "tide") handleTide(json);
+        } catch(e) { log("WS JSON Fehler: " + e); }
+    };
+    ws.onclose = () => log("WebSocket geschlossen");
+}else{
+    log("WebSocket deaktiviert (file://)");
+}
+
+/* =====================================================
+   Karte
+   ===================================================== */
+const map = L.map('map').setView([54.0, 10.0], 6);
+
+const TILE_URL = `${BASE_PATH}/tiles/osm/{z}/{x}/{y}.png`;
+log("Tile-URL: " + TILE_URL);
+
+const tiles = new L.TileLayer.Throttled(
+    TILE_URL,
+    {
+        minZoom: 1,
+        maxZoom: 18,
+        attribution: '© OSM (offline)',
+        throttleDelay: 250
+    }
+);
+tiles.addTo(map);
+
+let userMarker = null;
+let stationMarkers = [];
+
+/* =====================================================
+   Chart
+   ===================================================== */
+const ctx = document.getElementById('tideChart').getContext('2d');
+const tideChart = new Chart(ctx,{
+    type:'line',
+    data:{ labels:[], datasets:[] },
+    options:{
+        responsive:false,
+        plugins:{ title:{ display:true, text:'Tide (cm)' } },
+        scales:{
+            x:{ title:{display:true,text:'Uhrzeit'} },
+            y:{ title:{display:true,text:'cm'} }
+        }
+    }
+});
+
+const colors = ["red","blue","green"];
+let tideLabels = null;
+
+/* =====================================================
+   Klick → Anfrage
+   ===================================================== */
+map.on('click', e => {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+
+    // Marker zurücksetzen
+    if(userMarker) map.removeLayer(userMarker);
+    stationMarkers.forEach(m => map.removeLayer(m));
+    stationMarkers = [];
+
+    tideChart.data.labels = [];
+    tideChart.data.datasets = [];
+    tideChart.update();
+    tideLabels = null;
+
+    userMarker = L.marker([lat, lon])
+        .addTo(map)
+        .bindPopup("Abfragepunkt")
+        .openPopup();
+
+    if(!IS_FILE){
+        fetch(`/tide_curve?lat=${lat}&lon=${lon}`)
+            .catch(err => console.warn("Tide-Request Fehler", err));
+    } else {
+        log(`Klick bei ${lat.toFixed(4)}, ${lon.toFixed(4)} (file://)`);
+    }
+});
+
+/* =====================================================
+   Tide-Daten
+   ===================================================== */
+function handleTide(data){
+    const idx = data.station_index - 1;
+
+    if(!tideLabels){
+        const start = new Date();
+        start.setHours(0,0,0,0);
+        tideLabels = Array.from({length:96}, (_,i)=>{
+            const t = new Date(start.getTime() + i*900000);
+            return t.getHours().toString().padStart(2,'0') + ':' +
+                   t.getMinutes().toString().padStart(2,'0');
+        });
+        tideChart.data.labels = tideLabels;
+    }
+
+    const lat = data.station.lat ?? data.query?.lat;
+    const lon = data.station.lon ?? data.query?.lon;
+
+    const m = L.circleMarker([lat, lon], {
+        radius:8,
+        color:colors[idx],
+        fillOpacity:0.8
+    }).addTo(map);
+
+    stationMarkers.push(m);
+
+    tideChart.data.datasets[idx] = {
+        label:`Station ${data.station_index}`,
+        data:data.curve,
+        borderColor:colors[idx],
+        borderWidth:2,
+        tension:0.35,
+        pointRadius:0
+    };
+    tideChart.update();
+}
+</script>
+
+</body>
+</html>

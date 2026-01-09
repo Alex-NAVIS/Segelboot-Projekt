@@ -4,6 +4,7 @@
 // Tracking Mast sensor
 unsigned long lastReceiveTime = 0;
 int noReceiveCounter = 0;
+SemaphoreHandle_t sdMutex;
 
 // ======================================================================
 // Globale Instanzen
@@ -15,9 +16,10 @@ AsyncWebSocket ws("/ws");
 // Access Point starten
 // ======================================================================
 void setupWiFiAP() {
+  sdMutex = xSemaphoreCreateMutex();
   WiFi.mode(WIFI_AP);
   bool success = WiFi.softAP(AP_SSID, AP_PASSWORD);
-  WiFi.setTxPower(WIFI_POWER_5dBm);  // reduzierte Sendeleistung
+  WiFi.setTxPower(WIFI_POWER_11dBm);  // reduzierte Sendeleistung
 
   if (success) {
     if (DEBUG_MODE_SERVER) Serial.println("✅ Access Point gestartet!");
@@ -133,22 +135,29 @@ void handleFile(AsyncWebServerRequest *request, const char *path) {
 // ======================================================================
 void handleTiles(AsyncWebServerRequest *request) {
   String path = request->url();
-
   if (!USE_SD_TILES) {
     request->send(404, "text/plain", "Tiles nicht verfügbar");
     return;
   }
-
+  // 🔧 NEU: SD-Zugriffe serialisieren
+  if (xSemaphoreTake(sdMutex, pdMS_TO_TICKS(250)) != pdTRUE) {
+    request->send(503, "text/plain", "SD busy");
+    return;
+  }
   if (!sd_file_exists(path)) {
+    xSemaphoreGive(sdMutex);
     request->send(404, "text/plain", "Tile nicht gefunden");
     return;
   }
-
-  AsyncWebServerResponse *response = request->beginResponse(SD, path, "image/png", false);
-
-  response->addHeader("Cache-Control", "public, max-age=86400");
+  AsyncWebServerResponse *response =
+    request->beginResponse(SD, path, "image/png", false);
+  // 🔧 NEU: stabile HTTP-Header
+  response->addHeader("Cache-Control", "public, max-age=604800, immutable");
+  response->addHeader("Connection", "close");
   request->send(response);
+  xSemaphoreGive(sdMutex);
 }
+
 
 void wsBroadcastSensorData() {
   static char buffer[768];  // fester, stackfreier Buffer
@@ -182,6 +191,100 @@ void wsBroadcastSensorData() {
   size_t len = serializeJson(doc, buffer, sizeof(buffer));
   ws.textAll(buffer, len);  // zero-copy WebSocket send
 }
+
+void wsSendTideCurve(int idx) {
+  // ❌ if (!ws) return; // Entfernen, da ws eine Instanz ist
+
+  if (idx < 0 || idx > 2) return;
+
+  StaticJsonDocument<4000> doc;
+  doc["type"] = "tide";
+  doc["station_index"] = idx + 1;
+
+  // Query-Koordinaten
+  JsonObject q = doc.createNestedObject("query");
+  q["lat"] = tideQueryLat;
+  q["lon"] = tideQueryLon;
+
+  // Stationsdaten
+  JsonObject s = doc.createNestedObject("station");
+  s["distance_km"] = tideStationDist[idx];
+  s["bearing_deg"] = tideStationBearing[idx];
+  s["lat"] = tideStationLat[idx]; // optional
+  s["lon"] = tideStationLon[idx]; // optional
+
+  // Curve
+  JsonArray curve = doc.createNestedArray("curve");
+  for (int i = 0; i < 96; i++) curve.add(tideCurve[idx][i]);
+
+  String output;
+  serializeJson(doc, output);
+
+  ws.textAll(output); // Push an alle Clients
+
+  Serial.printf("[TIDE WS] Kurve %d gesendet\n", idx + 1);
+}
+
+
+// ----------------------------
+// Funktion um Kurven zu senden
+// ----------------------------
+void send_tide_curve(int idx) {
+  if (!tideRequest) return;
+  if (idx < 0 || idx > 2) return;
+  AsyncWebServerRequest* req =    static_cast<AsyncWebServerRequest*>(tideRequest);
+  String json;
+  json.reserve(2500);  // wichtig → Heap schonen
+  json += "{";
+  // --------------------
+  // Meta
+  // --------------------
+  json += "\"station_index\":";
+  json += String(idx + 1);
+  json += ",";
+
+  // --------------------
+  // Anfragekoordinate
+  // --------------------
+  json += "\"query\":{";
+  json += "\"lat\":";
+  json += String(tideQueryLat, 6);
+  json += ",";
+  json += "\"lon\":";
+  json += String(tideQueryLon, 6);
+  json += "},";
+
+  // --------------------
+  // Stationsdaten
+  // --------------------
+  json += "\"station\":{";
+  json += "\"distance_km\":";
+  json += String(tideStationDist[idx], 2);
+  json += ",";
+  json += "\"bearing_deg\":";
+  json += String(tideStationBearing[idx], 1);
+  json += "},";
+
+  // --------------------
+  // Tidekurve
+  // --------------------
+  json += "\"curve\":[";
+  for (int i = 0; i < 96; i++) {
+    json += String(tideCurve[idx][i], 2);
+    if (i < 95) json += ",";
+  }
+  json += "]";
+
+  json += "}";
+  req->send(200, "application/json", json);
+  Serial.printf(
+    "[TIDE] JSON Kurve %d gesendet (Dist %.2f km, Brg %.1f°)\n",
+    idx + 1,
+    tideStationDist[idx],
+    tideStationBearing[idx]
+  );
+}
+
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo *)arg;
@@ -229,73 +332,6 @@ void handleSetTarget(AsyncWebServerRequest *request) {
   pinnenautopilotData.autopilot_lon = request->getParam("lon")->value().toDouble();
   request->send(200, "text/plain", "OK");
 }
-
-// ======================================================================
-// Tide Werte abfragen zu Koordinaten
-// ======================================================================
-void handleTide(AsyncWebServerRequest *request) {
-  Serial.println("[TIDE] Anfrage eingegangen");
-
-  // lat/lon prüfen
-  if (!request->hasParam("lat") || !request->hasParam("lon")) {
-    request->send(400, "application/json",
-                  "{\"status\":\"error\",\"message\":\"missing lat/lon\"}");
-    return;
-  }
-
-  double lat = request->getParam("lat")->value().toDouble();
-  double lon = request->getParam("lon")->value().toDouble();
-
-  time_t now = time(nullptr);
-  Serial.print("[TIDE] time(): "); Serial.println(now);
-
-  // Tide-Berechnung durchführen
-  if (!tide_query(lat, lon, now)) {
-    // Fehler oder keine Daten
-    if (tide_status == TIDE_NO_TILES) {
-      request->send(200, "application/json",
-                    "{\"status\":\"no_data\",\"message\":\"Keine Tidedaten in dieser Region.\"}");
-    } else if (tide_status == TIDE_NO_CONSTITUENTS) {
-      request->send(200, "application/json",
-                    "{\"status\":\"flat\",\"message\":\"Tide vernachlässigbar (z. B. Ostsee).\"}");
-    } else {
-      request->send(500, "application/json",
-                    "{\"status\":\"error\",\"message\":\"Interner Tidefehler.\"}");
-    }
-    Serial.println("[TIDE] tide_query() fehlgeschlagen");
-    Serial.print("[TIDE] lat="); Serial.println(lat, 6);
-    Serial.print("[TIDE] lon="); Serial.println(lon, 6);
-    return;
-  }
-
-  // Tide erfolgreich berechnet
-  char json[512];
-  snprintf(json, sizeof(json),
-           "{"
-           "\"status\":\"ok\","
-           "\"now\":%.2f,"
-           "\"high\":{"
-           "\"time\":%ld,"
-           "\"height\":%.2f"
-           "},"
-           "\"low\":{"
-           "\"time\":%ld,"
-           "\"height\":%.2f"
-           "},"
-           "\"quality\":%d"
-           "}",
-           tide_height_now,
-           (long)tide_next_high_time,
-           tide_next_high_height,
-           (long)tide_next_low_time,
-           tide_next_low_height,
-           tide_quality);
-
-  request->send(200, "application/json", json);
-  Serial.println("[TIDE] Tide berechnet");
-}
-
-
 
 // ======================================================================
 // Mast-Sensor Daten
@@ -393,7 +429,22 @@ void checkMastOnlineStatus() {
   }
 }
 
+// ======================================================================
+// File.system Datei anzeigen
+// ======================================================================
+void handleGetFSFile(AsyncWebServerRequest *request, const char *path) {
+  if (!LittleFS.exists(path)) {
+    request->send(404, "application/json",
+                  "{\"error\":\"file not found\"}");
+    return;
+  }
 
+  AsyncWebServerResponse *response =
+    request->beginResponse(LittleFS, path, "application/json");
+
+  response->addHeader("Cache-Control", "no-store");
+  request->send(response);
+}
 
 // ======================================================================
 // PID-Konfiguration
@@ -447,8 +498,25 @@ void setupWebServer() {
   server.on("/autopilot.html", HTTP_GET, [](AsyncWebServerRequest *r) {
     handleFile(r, "/autopilot.html");
   });
+  server.on("/tide.html", HTTP_GET, [](AsyncWebServerRequest *r) {
+    handleFile(r, "/tide.html");
+  });
   server.on("/system_settings.html", HTTP_GET, [](AsyncWebServerRequest *r) {
     handleFile(r, "/system_settings.html");
+  });
+
+  // Filesystem Dateien anzeigen
+  server.on("/fs/system_config", HTTP_GET, [](AsyncWebServerRequest *r) {
+    handleGetFSFile(r, "/settings/system_config.json");
+  });
+  server.on("/fs/autopilot_config", HTTP_GET, [](AsyncWebServerRequest *r) {
+    handleGetFSFile(r, "/settings/autopilot_config.json");
+  });
+  server.on("/fs/imu_mag", HTTP_GET, [](AsyncWebServerRequest *r) {
+    handleGetFSFile(r, "/settings/IMU_mag.json");
+  });
+  server.on("/fs/imu_gyro", HTTP_GET, [](AsyncWebServerRequest *r) {
+    handleGetFSFile(r, "/settings/IMU_gyro.json");
   });
 
   // Leaflet
@@ -461,9 +529,29 @@ void setupWebServer() {
   server.on("/autopilot", HTTP_GET, [](AsyncWebServerRequest *r) {
     handleSetTarget(r);
   });
-  server.on("/tide", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleTide(r);
+
+  //Berechnung der Tide Kurve
+  server.on("/tide_curve", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // Parameter prüfen
+    if (!request->hasParam("lat") || !request->hasParam("lon")) {
+      request->send(400, "text/plain", "missing lat/lon");
+      return;
+    }
+    // Alte Anfrage ggf. abbrechen
+    tideRequest = nullptr;
+    tideState = TIDE_IDLE;
+    // Koordinaten speichern
+    tideQueryLat = request->getParam("lat")->value().toDouble();
+    tideQueryLon = request->getParam("lon")->value().toDouble();
+    // Aktuelle Anfrage speichern
+    tideRequest = static_cast<void *>(request);
+    // Loop-Flag starten
+    tideState = TIDE_FIND_STATIONS;
+    Serial.printf("[TIDE] Neue Anfrage: Lat=%.6f Lon=%.6f\n", tideQueryLat, tideQueryLon);
+    // Sofortige 200-OK Rückmeldung, weitere Daten kommen aus Loop
+    request->send(200, "text/plain", "OK");
   });
+
   // ===========================
   //  SYSTEM CONFIG API
   // ===========================
