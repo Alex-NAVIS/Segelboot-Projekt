@@ -1,227 +1,263 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Autopilot Steuerung</title>
-  <style>
-    body {
-      background-color: #001a26;
-      color: #00e6e6;
-      font-family: "Segoe UI", Arial, sans-serif;
-      margin: 0;
-      overflow-x: hidden;
-      text-align: center;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autopilot Steuerung</title>
 
-    header {
-      background-color: #002b3a;
-      color: #00ffff;
-      padding: 15px;
-      font-size: 1.8em;
-      font-weight: bold;
-      border-bottom: 2px solid #005566;
-    }
+<style>
+body { background:#001a26; color:#00e6e6; font-family:"Segoe UI",Arial,sans-serif; margin:0; text-align:center; }
+header { background:#002b3a; color:#00ffff; padding:15px; font-size:1.8em; font-weight:bold; border-bottom:2px solid #005566; }
+.section-title { color:#00ffff; margin-top:30px; font-size:1.4em; border-bottom:1px solid #007a99; display:inline-block; padding-bottom:4px; }
 
-    #navbar {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      background-color: #002b3a;
-      padding: 6px 0;
-      border-bottom: 1px solid #005566;
-    }
-    .navbtn {
-      background-color: #003d52;
-      color: #00ffff;
-      border: 1px solid #007a99;
-      border-radius: 5px;
-      padding: 3px 10px;
-      text-decoration: none;
-      font-size: 0.9em;
-      font-weight: bold;
-      transition: 0.2s;
-    }
-    .navbtn:hover {
-      background-color: #00b8d4;
-      color: #001a26;
-      border-color: #00e6e6;
-    }
+.switch-section { margin-top:40px; padding:25px 0; background:linear-gradient(180deg,#00141d,#00242f); border-top:2px solid #005566; border-bottom:2px solid #005566; display:flex; flex-direction:column; align-items:center; }
+.switch { border:2px solid #007a99; border-radius:12px; width:200px; padding:15px; font-size:18px; font-weight:bold; cursor:pointer; transition:.3s; margin:10px 0; background:#0b2a38; }
+.switch.active { background:#00ff00 !important; color:#001a26; }
 
-    .section-title {
-      color: #00ffff;
-      margin-top: 30px;
-      font-size: 1.4em;
-      border-bottom: 1px solid #007a99;
-      display: inline-block;
-      padding-bottom: 4px;
-    }
+.rotary-encoder { width:340px; height:340px; margin:30px auto; position:relative; }
+.angle-display { font-size:1.8em; color:#66ffff; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
+#rotary-svg { width:100%; height:100%; }
 
-    .switch-section {
-      margin-top: 40px;
-      padding: 25px 0;
-      background: linear-gradient(180deg, #00141d, #00242f);
-      border-top: 2px solid #005566;
-      border-bottom: 2px solid #005566;
-      box-shadow: inset 0 0 20px rgba(0, 255, 255, 0.05);
-      display: flex;
-      justify-content: center;
-      flex-direction: column;
-      align-items: center;
-    }
+.marker { stroke:#00ffff; stroke-width:5; stroke-linecap:round; }
+.scale-small { stroke:#008899; stroke-width:1.2; }
+.scale-major { stroke:#00cccc; stroke-width:2; }
+.warning { stroke:yellow; stroke-width:3; }
+.zero-line { stroke:#00ffff; stroke-width:4; }
+.boot { fill:#00b8d4; transform-origin:100px 100px; transition:transform .1s linear; }
 
-    .switch {
-      background-color: #0b2a38;
-      border: 2px solid #007a99;
-      border-radius: 12px;
-      width: 180px;
-      padding: 15px;
-      color: #fff;
-      font-size: 18px;
-      font-weight: bold;
-      text-align: center;
-      cursor: pointer;
-      box-shadow: 0 0 10px rgba(0,255,255,0.2);
-      transition: 0.3s;
-      margin: 10px 0;
-    }
+.slider { width:200px; margin-top:20px; appearance:none; background:#004d66; height:10px; border-radius:5px; }
+.slider::-webkit-slider-thumb { appearance:none; width:20px; height:20px; background:#00b8d4; border-radius:50%; cursor:pointer; }
 
-    .switch:hover {
-      background-color: #104a5f;
-    }
+footer { margin:40px 0 20px; padding-top:10px; border-top:1px solid #005566; color:#00b8d4; font-size:.9em; }
 
-    .rotary-encoder {
-      width: 200px;
-      height: 200px;
-      border: 10px solid #007a99;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 20px auto;
-      position: relative;
-    }
-
-    .angle-display {
-      font-size: 1.5em;
-      color: #66ffff;
-      position: absolute;
-    }
-
-    .slider {
-      width: 150px; /* Kürzere Breite */
-      margin-top: 20px;
-      appearance: none;
-      background: #004d66;
-      height: 10px;
-      border-radius: 5px;
-    }
-
-    .slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      background: #00b8d4;
-      border-radius: 50%;
-      cursor: pointer;
-    }
-
-    .slider::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
-      background: #00b8d4;
-      border-radius: 50%;
-      cursor: pointer;
-    }
-
-    footer {
-      margin: 40px 0 20px 0;
-      padding-top: 10px;
-      border-top: 1px solid #005566;
-      color: #00b8d4;
-      font-size: 0.9em;
-      text-align: center;
-      opacity: 0.9;
-    }
-  </style>
+#navbar { display:flex; justify-content:center; gap:8px; background:#002b3a; padding:4px 0; border-bottom:1px solid #005566; }
+.navbtn { background:#003d52; color:#00ffff; border:1px solid #007a99; border-radius:5px; padding:3px 10px; text-decoration:none; font-size:.9em; font-weight:bold; transition:.2s; }
+.navbtn:hover { background:#00b8d4; color:#001a26; border-color:#00e6e6; }
+</style>
 </head>
+
 <body>
 
-  <header>Autopilot Steuerung</header>
+<div id="navbar">
+<a href="index.html" class="navbtn">NAVIS</a>
+<a href="kompass.html" class="navbtn">Kompass</a>
+<a href="karte.html" class="navbtn">Karte</a>
+<a href="horizont.html" class="navbtn">Horizont</a>
+</div>
 
-  <div id="navbar">
-    <a href="index.html" class="navbtn">NAVIS</a>
-    <a href="kompass.html" class="navbtn">Kompass</a>
-    <a href="karte.html" class="navbtn">Karte</a>
-    <a href="horizont.html" class="navbtn">Horizont</a>
-    <a href="settings.html" class="navbtn">Settings</a>
-  </div>
+<header>Autopilot Steuerung</header>
 
-  <h2 class="section-title">Kursübersteuerung</h2>
-  <div class="rotary-encoder" id="rotary_encoder">
-    <div class="angle-display" id="angle_value">0°</div>
-  </div>
-  <input type="range" min="-45" max="45" value="0" step="5" id="angle_input" class="slider">
-  
-  <div class="switch-section">
-  <h2 class="section-title">Modus Auswahl</h2>
-    <div class="switch" id="modus_kompass">Kompass Kurs</div>
-    <div class="switch" id="modus_gps">GPS Koordinate</div>
-    <div class="switch" id="modus_wind">Windsteuerung</div>
-  </div>
-  
-  <div class="switch-section">
-  <h2 class="section-title">Pinne Steuerung</h2>
-    <div class="switch" id="pinnen_einfahren">Pinne Einfahren</div>
-    <div class="switch" id="pinnen_aussfahren">Pinne Ausfahren</div>
-    <div class="switch" id="pinnen_stop">Stop</div> <!-- Neuer Stop-Button -->
-  </div>
+<div class="switch-section">
+<h2 class="section-title">Modus Auswahl</h2>
+<div class="switch" id="modus_kompass">Kompass Kurs</div>
+<div class="switch" id="modus_gps">GPS Koordinate</div>
+<div class="switch" id="modus_wind">Windsteuerung</div>
+<div class="switch" id="modus_off">OFF</div>
+</div>
 
+<h2 class="section-title">Kursübersteuerung</h2>
+<div class="rotary-encoder">
+<svg id="rotary-svg" viewBox="0 0 200 200">
 
+<!-- Halbkreis Farben -->
+<path d="M100 10 A90 90 0 0 0 100 190" fill="none" stroke="red" stroke-width="7"/>
+<path d="M100 10 A90 90 0 0 1 100 190" fill="none" stroke="green" stroke-width="7"/>
 
-  <footer>
-    <strong>NAVIS Marine Dashboard v1.1</strong><br>
-    Entwickelt von <span style="color:#00ffff;">Alex</span> & <span style="color:#00ffff;">NAVIS</span><br>
-    © 2025 – Bootssystem ESP32 • Live Monitoring
-  </footer>
+<path id="activeSegment" fill="none"/>
 
-  <script>
-    // --- Steuerungslogik ---
-    document.getElementById('pinnen_einfahren').addEventListener('click', async () => {
-      await fetch('/setPinnen?state=einfahren');
-    });
+<g id="scale"></g>
 
-    document.getElementById('pinnen_aussfahren').addEventListener('click', async () => {
-      await fetch('/setPinnen?state=aussfahren');
-    });
+<line x1="100" y1="15" x2="100" y2="35" class="zero-line"/>
+<line id="warnL" x1="100" y1="20" x2="100" y2="5" class="warning"/>
+<line id="warnR" x1="100" y1="20" x2="100" y2="5" class="warning"/>
 
-    document.getElementById('pinnen_stop').addEventListener('click', async () => {
-      await fetch('/setPinnen?state=stop'); // Stop-Logik
-    });
+<line id="marker" x1="100" y1="100" x2="100" y2="35" class="marker"/>
+<polygon class="boot" points="100,85 94,115 106,115"/>
 
-    document.getElementById('modus_kompass').addEventListener('click', async () => {
-      await fetch('/setModus?state=kompass');
-    });
+</svg>
+<div class="angle-display" id="angle_value">0°</div>
+</div>
 
-    document.getElementById('modus_gps').addEventListener('click', async () => {
-      await fetch('/setModus?state=gps');
-    });
+<input type="range" min="-45" max="45" value="0" step="5" id="angle_input" class="slider">
 
-    document.getElementById('modus_wind').addEventListener('click', async () => {
-      await fetch('/setModus?state=wind');
-    });
+<div class="switch-section">
+<h2 class="section-title">Pinne Steuerung</h2>
+<div class="switch" id="pinnen_einfahren">Pinne Einfahren</div>
+<div class="switch" id="pinnen_ausfahren">Pinne Ausfahren</div>
+<div class="switch" id="pinnen_stop">Stop</div>
+</div>
 
-    // --- Rotary Encoder Logik ---
-    const angleInput = document.getElementById('angle_input');
-    const angleDisplay = document.getElementById('angle_value');
+<footer>
+<strong>NAVIS Marine Dashboard</strong><br>
+Autopilot • ESP32
+</footer>
 
-    angleInput.addEventListener('input', () => {
-      const angle = angleInput.value;
-      angleDisplay.textContent = angle + '°';
-      // Hier kannst du den Wert an den ESP32 senden
-      fetch(`/setKurs?angle=${angle}`);
-    });
-  </script>
+<script>
+const MODE = { off:0, kompass:1, gps:2, wind:3 };
+const PINNE = { stop:0, einfahren:1, ausfahren:2 };
+
+let lastSendTime=0;
+const THROTTLE_MS=100;
+let lastSentAngle=null;
+
+const svg=document.getElementById("rotary-svg");
+const scaleGroup=document.getElementById("scale");
+
+// Skala erzeugen
+for(let a=-45;a<=45;a+=5){
+ let inner=80, outer=90;
+ let line=document.createElementNS("http://www.w3.org/2000/svg","line");
+ line.setAttribute("x1",100);
+ line.setAttribute("y1",100-outer);
+ line.setAttribute("x2",100);
+ line.setAttribute("y2",100-inner);
+ line.setAttribute("transform",`rotate(${a} 100 100)`);
+ line.setAttribute("class",(a%15===0)?"scale-major":"scale-small");
+ scaleGroup.appendChild(line);
+}
+document.getElementById("warnL").setAttribute("transform","rotate(-30 100 100)");
+document.getElementById("warnR").setAttribute("transform","rotate(30 100 100)");
+
+function updateMarker(angle){
+ document.getElementById("marker").setAttribute("transform",`rotate(${angle} 100 100)`);
+ document.querySelector(".boot").style.transform=`rotate(${angle}deg)`;
+}
+function updateMarker(angle){
+ document.getElementById("marker").setAttribute("transform",`rotate(${angle} 100 100)`);
+ document.querySelector(".boot").style.transform=`rotate(${angle}deg)`;
+ updateActiveSegment(angle);
+}
+
+async function fetchStatus(){
+ try{
+  const r=await fetch("/autopilot_status");
+  const s=await r.json();
+  updateUI(s);
+  updateMarker(s.offset);
+ }catch(e){console.log(e);}
+}
+
+function updateUI(s){
+ document.getElementById("angle_input").value=s.offset;
+ document.getElementById("angle_value").textContent=s.offset+"°";
+ Object.keys(MODE).forEach(m=>{
+  document.getElementById("modus_"+m)
+   .classList.toggle("active",s.mode===MODE[m]);
+ });
+ if(s.pinne!==undefined){
+  Object.keys(PINNE).forEach(p=>{
+   document.getElementById("pinnen_"+p)
+    .classList.toggle("active",s.pinne===PINNE[p]);
+  });
+ }
+}
+
+async function send(params){
+ const now=Date.now();
+ if(now-lastSendTime<THROTTLE_MS){
+  if(send.timeout)clearTimeout(send.timeout);
+  send.timeout=setTimeout(()=>send(params),THROTTLE_MS);
+  return;
+ }
+ lastSendTime=now;
+ await fetch("/autopilot_data?"+params);
+ fetchStatus();
+}
+
+Object.keys(MODE).forEach(m=>{
+ document.getElementById("modus_"+m)
+  .addEventListener("click",()=>send("modus="+MODE[m]));
+});
+Object.keys(PINNE).forEach(p=>{
+ document.getElementById("pinnen_"+p)
+  .addEventListener("click",()=>send("pinne="+PINNE[p]));
+});
+
+document.getElementById("angle_input").addEventListener("input",(e)=>{
+ let val=Math.round(parseInt(e.target.value)/5)*5;
+ document.getElementById("angle_value").textContent=val+"°";
+ updateMarker(val);
+ if(val!==lastSentAngle){
+  lastSentAngle=val;
+  send("winkel="+val);
+ }
+});
+
+function updateActiveSegment(angle){
+ const segment=document.getElementById("activeSegment");
+
+ if(angle===0){
+  segment.setAttribute("d","");
+  return;
+ }
+
+ const r=78;        // leicht innerhalb der Skala
+ const cx=100;
+ const cy=100;
+
+ const startAngle=0;
+ const endAngle=angle;
+
+ const startRad=(startAngle-90)*Math.PI/180;
+ const endRad=(endAngle-90)*Math.PI/180;
+
+ const x1=cx+r*Math.cos(startRad);
+ const y1=cy+r*Math.sin(startRad);
+ const x2=cx+r*Math.cos(endRad);
+ const y2=cy+r*Math.sin(endRad);
+
+ const largeArc=Math.abs(angle)>180?1:0;
+ const sweep=angle>0?1:0;
+
+ const d=`
+   M ${cx} ${cy}
+   L ${x1} ${y1}
+   A ${r} ${r} 0 ${largeArc} ${sweep} ${x2} ${y2}
+   Z
+ `;
+
+ segment.setAttribute("d",d);
+
+ let intensity=Math.abs(angle)/45;
+ let alpha=0.15+0.45*intensity;
+
+if(angle>0){
+  segment.setAttribute("fill",`rgba(0,160,0,${alpha})`);
+}else{
+  segment.setAttribute("fill",`rgba(220,0,0,${alpha})`);
+}
+}
+
+// Kreis-Interaktion
+let dragging=false;
+function setAngleFromEvent(x){
+ const rect=svg.getBoundingClientRect();
+ const cx=rect.left+rect.width/2;
+ let dx=x-cx;
+ let angle=dx/(rect.width/2)*45;
+ angle=Math.max(-45,Math.min(45,angle));
+ angle=Math.round(angle/5)*5;
+
+ document.getElementById("angle_input").value=angle;
+ document.getElementById("angle_value").textContent=angle+"°";
+ updateMarker(angle);
+
+ if(angle!==lastSentAngle){
+  lastSentAngle=angle;
+  send("winkel="+angle);
+ }
+}
+
+svg.addEventListener("mousedown",(e)=>{dragging=true;setAngleFromEvent(e.clientX);});
+window.addEventListener("mousemove",(e)=>{if(dragging)setAngleFromEvent(e.clientX);});
+window.addEventListener("mouseup",()=>dragging=false);
+
+svg.addEventListener("touchstart",(e)=>{dragging=true;setAngleFromEvent(e.touches[0].clientX);});
+window.addEventListener("touchmove",(e)=>{if(dragging)setAngleFromEvent(e.touches[0].clientX);});
+window.addEventListener("touchend",()=>dragging=false);
+
+window.onload=fetchStatus;
+</script>
+
 </body>
 </html>

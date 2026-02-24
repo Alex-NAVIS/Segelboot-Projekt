@@ -6,44 +6,36 @@
   <title>System Einstellungen</title>
 
   <style>
-    body { background:#001d26; color:#fff; font-family:sans-serif; text-align:center; padding:20px; line-height: 1.4; }
-    h1 { color:#00bcd4; }
-    h2 { color:#00bcd4; margin-top:25px; }
+  body { background: #0f1218; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; line-height: 1.4; margin: 0; }
+  h1 { color: #00bcd4; margin-bottom: 0.5rem; }
+  h2 { color: #00bcd4; margin-top: 25px; font-size: 1.2rem; }
 
-    table { margin:20px auto; border-collapse:collapse; width:90%; max-width:700px; }
-    th, td { border:1px solid #007d91; padding:10px; text-align: left; }
-    th { background: #002b3a; color: #00bcd4; text-align: center; }
-    
-    .info-text { font-size: 0.85em; color: #ccc; margin-top: 4px; display: block; }
-    
-    input[type="number"], input[type="text"] {
-      width:100%;
-      box-sizing: border-box;
-      background:#002b3a;
-      color:#fff;
-      border:1px solid #007d91;
-      padding:6px;
-    }
-    input[type="checkbox"] { transform: scale(1.2); margin-right:8px; }
+  table { margin: 20px auto; border-collapse: collapse; width: 90%; max-width: 700px; background: #1a1f28; border-radius: 8px; overflow: hidden; }
+  th, td { border: 1px solid #252a38; padding: 12px; text-align: left; }
+  th { background: #00bcd4; color: #0f1218; text-align: center; font-weight: bold; }
+  
+  .info-text { font-size: 0.85em; color: #aaa; margin-top: 4px; display: block; }
+  
+  input[type="number"], input[type="text"] { width: 100%; box-sizing: border-box; background: #252a38; color: #fff; border: 1px solid #007d91; padding: 8px; border-radius: 4px; }
+  input[type="checkbox"] { transform: scale(1.2); margin-right: 8px; cursor: pointer; }
 
-    .buttonBar { margin-top:30px; padding: 20px; border-top: 1px solid #007d91; }
-    button {
-      margin:5px;
-      padding:12px 20px;
-      font-size:15px;
-      font-weight: bold;
-      border:none;
-      border-radius:8px;
-      cursor:pointer;
-      min-width: 180px;
-    }
-    #saveBtn { background:#00bcd4; color:#000; }
-    #cancelBtn { background:#444; color:#fff; }
-    #calibCompassBtn { background:#ff9800; color:#000; } 
-    #calibGyroBtn { background:#f44336; color:#fff; }    
-    
-    .calib-cell { text-align: center; vertical-align: middle; width: 220px; }
-  </style>
+  .buttonBar { margin-top: 30px; padding: 20px; border-top: 1px solid #252a38; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  
+  button { padding: 12px 20px; font-size: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; min-width: 180px; transition: all 0.2s ease; }
+  button:hover { transform: translateY(-2px); filter: brightness(1.1); }
+  
+  #saveBtn { background: #00bcd4; color: #0f1218; }
+  #cancelBtn { background: #333; color: #fff; }
+  #calibCompassBtn { background: #ff9800; color: #000; } 
+  #calibGyroBtn { background: #f44336; color: #fff; }    
+  
+  .calib-cell { text-align: center; vertical-align: middle; width: 220px; }
+
+  .fileupdatebtn { display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #1a2a35 0%, #003d52 100%); color: #00d4ff; text-decoration: none; font-family: 'Segoe UI', sans-serif; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; border-radius: 12px; border: 1px solid rgba(0, 212, 255, 0.3); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); transition: all 0.3s ease; cursor: pointer; }
+  .fileupdatebtn:hover { background: #00bcd4; color: #0f1218; border-color: #00e5ff; box-shadow: 0 0 20px rgba(0, 212, 255, 0.6); transform: translateY(-2px); }
+  .fileupdatebtn:active { transform: translateY(0); }
+</style>
+
 </head>
 <body>
 
@@ -100,6 +92,7 @@
         <span class="info-text">Hinweis: Nur bei ruhigem Wasser und ohne große Metallschiffe in der Nähe durchführen.</span>
       </td>
     </tr>
+	
     <!-- Gyro -->
     <tr>
       <td class="calib-cell">
@@ -112,6 +105,16 @@
       </td>
     </tr>
   </table>
+  <!-- 3D Ansicht Kalibrieren -->
+	<div id="mag3dContainer" style="
+		width:100%;
+		max-width:520px;
+		height:320px;
+		margin:15px auto;
+		background:#001a26;
+		border:1px solid #007a99;
+		border-radius:10px;
+	"></div>
 
   <!-- ===================== Haupt-Buttons ===================== -->
   <div class="buttonBar">
@@ -163,6 +166,10 @@ Lade…
   </tr>
 </table>
 
+<h1>ESP File Manager</h1>
+<a href="upload.html" class="fileupdatebtn">Datei upload</a>
+
+<script src="js/three.min.js"></script>
   <script>
     // Laden der vorhandenen System Config
     fetch("/getSystem")
@@ -200,7 +207,7 @@ Lade…
         wassertiefe_einbau: document.getElementById('wassertiefe_einbau').value,
         tiefgang_boot: document.getElementById('tiefgang_boot').value,
         wassertemperatur: document.getElementById('wassertemperatur').value,
-        water_salinity: document.getElementById('waterSalinity').value
+        waterSalinity: document.getElementById('waterSalinity').value
       });
 
       fetch(`/setSystem?${params.toString()}`)
@@ -276,10 +283,172 @@ function loadFSFile(url, targetId) {
     });
 }
 
-// FS Dateien laden
-loadFSFile("/fs/system_config", "fs_system");
-loadFSFile("/fs/imu_mag", "fs_mag");
-loadFSFile("/fs/imu_gyro", "fs_gyro");
+// ===============================
+// MAG 3D VISUALISIERUNG + WS
+// ===============================
+let scene, camera, renderer;
+let pointGeometry, pointCloud;
+let ws;
+let magPointIndex = 0;
+const maxMagPoints = 5000;
+let autoScale = 1.0;
+let radiusAvg = 0;
+const targetRadius = 90;   // passt zu deiner Referenzkugel
+
+function initMag3D() {
+  const container = document.getElementById("mag3dContainer");
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(
+    60,
+    container.clientWidth / container.clientHeight,
+    0.1,
+    2000
+  );
+  camera.position.z = 200;
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  container.appendChild(renderer.domElement);
+
+  // Referenz-Kugel
+  const sphereGeo = new THREE.SphereGeometry(90, 24, 24);
+const sphereMat = new THREE.MeshBasicMaterial({
+    color: 0x004477,   // kräftiges Blau
+    wireframe: true,   // nur Drahtmodell
+    transparent: true,
+    opacity: 0.6       // leicht durchsichtig, damit Punkte durchscheinen
+});
+  scene.add(new THREE.Mesh(sphereGeo, sphereMat));
+
+  // Punktwolke mit Farben
+  pointGeometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(3 * maxMagPoints);
+  const colors = new Float32Array(3 * maxMagPoints); // RGB pro Punkt
+
+  pointGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  pointGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  pointGeometry.setDrawRange(0, 0);
+
+ pointMaterial = new THREE.PointsMaterial({
+    color: 0xff0000,  // leuchtendes Rot
+    size: 5,           // gut sichtbar
+    transparent: true,
+    opacity: 0.9,
+    vertexColors: true
+});
+
+  pointCloud = new THREE.Points(pointGeometry, pointMaterial);
+  scene.add(pointCloud);
+
+  animateMag3D();
+}
+
+
+function animateMag3D() {
+  requestAnimationFrame(animateMag3D);
+  scene.rotation.y += 0.003;
+  renderer.render(scene, camera);
+}
+
+// Punkte hinzufügen (Ringbuffer)
+function addMagPoint(x, y, z) {
+    if (!pointGeometry) return;
+
+    const positions = pointGeometry.attributes.position.array;
+    const colors = pointGeometry.attributes.color.array;
+    const i = magPointIndex % maxMagPoints * 3;
+
+    // ===============================
+    // AUTO-SCALE BERECHNUNG
+    // ===============================
+    const r = Math.sqrt(x*x + y*y + z*z);
+
+    // ===============================
+// Radius-Mittelwert (schneller Lock)
+// ===============================
+if (radiusAvg === 0) {
+    radiusAvg = r;
+} else {
+    radiusAvg = radiusAvg * 0.95 + r * 0.05; // etwas schneller
+}
+
+// ===============================
+// Skalierung berechnen
+// ===============================
+const desiredScale = targetRadius / Math.max(radiusAvg, 1);
+
+// Während der ersten Punkte schneller einregeln
+if (magPointIndex < 200) {
+    autoScale = desiredScale; // harter Lock am Anfang
+} else {
+    autoScale = autoScale * 0.97 + desiredScale * 0.03; // später weich
+}
+
+
+    // ===============================
+    // Punktposition skalieren
+    // ===============================
+    const px = x * autoScale;
+    const py = y * autoScale;
+    const pz = z * autoScale;
+
+    positions[i]     = px;
+    positions[i + 1] = py;
+    positions[i + 2] = pz;
+
+    // ===============================
+    // Farbabstufung nach Z
+    // ===============================
+    const zNormalized = (pz + 100) / 200;
+    const brightness = 0.3 + 0.7 * (1 - zNormalized);
+
+    colors[i]     = 1.0 * brightness;
+    colors[i + 1] = 0.0;
+    colors[i + 2] = 0.0;
+
+    magPointIndex++;
+    const drawCount = Math.min(magPointIndex, maxMagPoints);
+    pointGeometry.setDrawRange(0, drawCount);
+    pointGeometry.attributes.position.needsUpdate = true;
+    pointGeometry.attributes.color.needsUpdate = true;
+}
+
+// INIT
+window.addEventListener("load", function () {
+	// FS Dateien laden
+	loadFSFile("/fs/system_config", "fs_system");
+	loadFSFile("/fs/imu_mag", "fs_mag");
+	loadFSFile("/fs/imu_gyro", "fs_gyro");
+	// 3D mag Kugel
+	initMag3D();
+});
+
+window.addEventListener("resize", () => {
+  const container = document.getElementById("mag3dContainer");
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+
+// ===============================
+// SIMULATION VON MAGNETOMETER-PUNKTEN
+// ===============================
+function simulateMagPoints(count = 500) {
+  for (let i = 0; i < count; i++) {
+    // Zufällige Punkte innerhalb einer Kugelradius 80
+    const r = 80 * Math.cbrt(Math.random()); // gleichmäßige Verteilung im Volumen
+    const theta = Math.random() * 2 * Math.PI;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    const x = r * Math.sin(phi) * Math.cos(theta);
+    const y = r * Math.sin(phi) * Math.sin(theta);
+    const z = r * Math.cos(phi);
+
+    addMagPoint(x, y, z);
+  }
+  console.log(`Simuliert ${count} Punkte`);
+}
 </script>
 
 </body>

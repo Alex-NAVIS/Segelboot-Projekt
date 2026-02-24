@@ -246,15 +246,34 @@ void update_gps_tracks() {
   root.close();
 }
 
+    
 // ----------------------------------------------------------
-// Datei prüfen (für Webserver / Tiles)
+// Datei prüfen (für Webserver / Tiles / Tide)
 // ----------------------------------------------------------
 bool sd_file_exists(const String& path) {
-    if (DEBUG_MODE_SD) Serial.print("SD Karte Datei: ");
-    if (DEBUG_MODE_SD) Serial.println(path);
-  //if (!checkSD()) return false;
-  return SD.exists(path);
+  if (DEBUG_MODE_SD) {
+    if (DEBUG_MODE_SD)Serial.print("[SD] Prüfe Datei: ");
+    if (DEBUG_MODE_SD)Serial.println(path);
+  }
+
+  // SD grundsätzlich verfügbar?
+  if (!checkSD()) {
+    if (DEBUG_MODE_SD) Serial.println("[SD] checkSD() fehlgeschlagen");
+    return false;
+  }
+
+  // Existiert die Datei wirklich?
+  bool exists = SD.exists(path);
+  if (DEBUG_MODE_SD) {
+    if (exists) {
+      if (DEBUG_MODE_SD)Serial.println("[SD] Datei vorhanden");
+    } else {
+      if (DEBUG_MODE_SD)Serial.println("[SD] Datei NICHT vorhanden");
+    }
+  }
+  return exists;
 }
+
 
 // ----------------------------------------------------------
 // Datei öffnen (für Webserver / Tiles)

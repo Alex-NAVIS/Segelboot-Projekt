@@ -21,14 +21,36 @@
       font-weight: bold;
       border-bottom: 2px solid #005566;
     }
-    #navbar {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      background-color: #002b3a;
-      padding: 6px 0;
-      border-bottom: 1px solid #005566;
-    }
+		#navbar {
+		  display: flex;
+		  justify-content: center;
+		  gap: 8px;
+		  background-color: #002b3a;
+		  padding: 6px 0;
+		  border-bottom: 1px solid #005566;
+		  position: relative;
+		}
+
+		#wsStatus {
+		  position: absolute;
+		  left: 8px;
+		  top: 50%;
+		  transform: translateY(-50%);
+		  display: flex;
+		  align-items: center;
+		  gap: 6px;
+		  font-size: 0.75em;
+		  color: #ccc;
+		}
+
+		#wsLed {
+		  width: 12px;
+		  height: 12px;
+		  border-radius: 50%;
+		  background: #ff3333; /* rot = getrennt */
+		  box-shadow: 0 0 6px rgba(255,0,0,0.8);
+		}
+
     .navbtn {
       background-color: #003d52;
       color: #00ffff;
@@ -139,13 +161,18 @@
 <body>
   <header>Bootssystem Übersicht</header>
 
-  <div id="navbar">
-    <a href="kompass.html" class="navbtn">Kompass</a>
-    <a href="karte.html" class="navbtn">Karte</a>
-    <a href="horizont.html" class="navbtn">Horizont</a>
-    <a href="autopilot.html" class="navbtn">Autopilot</a>
-    <a href="system_settings.html" class="navbtn">System-Settings</a>
-  </div>
+	<div id="navbar">
+	  <div id="wsStatus">
+		<div id="wsLed"></div>
+		<span>WS</span>
+	  </div>
+	  <a href="kompass.html" class="navbtn">Kompass</a>
+	  <a href="karte.html" class="navbtn">Karte</a>
+	  <a href="horizont.html" class="navbtn">Horizont</a>
+	  <a href="autopilot.html" class="navbtn">Autopilot</a>
+	  <a href="system_settings.html" class="navbtn">System-Settings</a>
+	</div>
+
 
   <h2 class="section-title">Telemetrie-Daten</h2>
 
@@ -178,34 +205,68 @@
   </footer>
 
   <script>
-    // -------------------------------------------------------------
-    // WEBSOCKET initialisieren
-    // -------------------------------------------------------------
-    let ws;
+	// -------------------------------------------------------------
+	// WEBSOCKET initialisieren + Status LED
+	// -------------------------------------------------------------
+	const wsLed = document.getElementById("wsLed");
 
-    function initWebSocket() {
-      ws = new WebSocket(`ws://${window.location.host}/ws`);
+	function ledDisconnected() {
+	  wsLed.style.background = "#ff3333";
+	  wsLed.style.boxShadow = "0 0 6px rgba(255,0,0,0.8)";
+	}
+	function ledConnecting() {
+	  wsLed.style.background = "#ffcc00";
+	  wsLed.style.boxShadow = "0 0 6px rgba(255,204,0,0.8)";
+	}
+	function ledConnected() {
+	  wsLed.style.background = "#00ff66";
+	  wsLed.style.boxShadow = "0 0 6px rgba(0,255,102,0.9)";
+	}
 
-      ws.onopen = () => {
-        console.log("WebSocket verbunden");
-      };
+	let ws = null;
+	let reconnectTimer = null;
+	let reconnectDelay = 1000;
+	const MAX_RECONNECT_DELAY = 5000;
 
-      ws.onclose = () => {
-        console.warn("WebSocket getrennt – erneuter Versuch…");
-        setTimeout(initWebSocket, 1000);
-      };
+	function connectWS() {
+	  if (ws && ws.readyState === WebSocket.OPEN) return;
+	  ledConnecting();
+	  console.log("WS: Verbindungsversuch …");
+	  ws = new WebSocket(`ws://${window.location.host}/ws`);
 
-      ws.onmessage = (msg) => {
-        try {
-          const data = JSON.parse(msg.data);
-          updateTelemetry(data);
-        } catch (e) {
-          console.warn("Fehler im JSON:", e);
-        }
-      };
-    }
+	  ws.onopen = () => {
+		console.log("WS verbunden");
+		ledConnected();
+		reconnectDelay = 1000;
+	  };
 
-    initWebSocket();
+	  ws.onmessage = (event) => {
+		try {
+		  const data = JSON.parse(event.data);
+		  updateTelemetry(data);
+		} catch (e) {
+		  console.warn("WS JSON Fehler", e);
+		}
+	  };
+
+	  ws.onerror = () => ws.close();
+
+	  ws.onclose = () => {
+		console.warn("WS getrennt");
+		ledDisconnected();
+		ws = null;
+		if (!reconnectTimer) {
+		  reconnectTimer = setTimeout(() => {
+			reconnectTimer = null;
+			reconnectDelay = Math.min(reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+			connectWS();
+		  }, reconnectDelay);
+		}
+	  };
+	}
+
+	connectWS();
+
 
 
     // -------------------------------------------------------------

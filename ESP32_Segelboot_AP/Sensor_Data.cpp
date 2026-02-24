@@ -37,8 +37,8 @@ SensorData sensorData = {
   .gps_lon = 10.123987,
   .gps_speed = 8.6,   // 8.6 km/h = ca. 4.6 Knoten
   .gps_kurs = 210.5,  // Kurs nach Osten (°)
-  .gps_sats = 0,     // GPS Satanzahl
-  .gps_hdop = 99.9,  // gps hdop Fehlerwert
+  .gps_sats = 0,      // GPS Satanzahl
+  .gps_hdop = 99.9,   // gps hdop Fehlerwert
 
   // ------------------------------------------------------
   // GPS-Datum & Zeit (NMEA)
@@ -78,25 +78,11 @@ SensorData sensorData = {
 // ----------------------------------------------------------
 AutopilotData pinnenautopilotData = {
   // --------------------------------------------------------
-  // PID-Regler bei glatter See
+  // PID-Regler BasisWerte
   // --------------------------------------------------------
-  .P_welle_1 = 1.2,
-  .I_welle_1 = 0.8,
-  .D_welle_1 = 0.3,
-
-  // --------------------------------------------------------
-  // PID-Regler bei mäßiger See
-  // --------------------------------------------------------
-  .P_welle_2 = 1.6,
-  .I_welle_2 = 0.9,
-  .D_welle_2 = 0.4,
-
-  // --------------------------------------------------------
-  // PID-Regler bei rauer See
-  // --------------------------------------------------------
-  .P_welle_3 = 2.0,
-  .I_welle_3 = 1.1,
-  .D_welle_3 = 0.5,
+  .P_base = 1.2,
+  .I_base = 0.8,
+  .D_base = 0.3,
 
   // --------------------------------------------------------
   // Inverter der Pinnenbewegung
@@ -112,7 +98,7 @@ AutopilotData pinnenautopilotData = {
 
 int status_autopilot = 0;
 int rotary_offset = 0;
-int PID_wahl = 1; // oder Startwert
+int PID_wahl = 1;  // oder Startwert
 
 // ----------------------------------------------------------
 // Autopilot-Modus & Motor

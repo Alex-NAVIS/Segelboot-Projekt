@@ -20,10 +20,11 @@ void recalc_intervals();
 #define DEBUG_MODE false
 #define DEBUG_MODE_CONFIGSTORAGE false
 #define DEBUG_MODE_IMU false
-#define DEBUG_MODE_SD false
+#define DEBUG_MODE_SD true
 #define DEBUG_MODE_SERVER false
 #define DEBUG_MODE_GPS false
-#define DEBUG_MODE_Tile true
+#define DEBUG_MODE_Tile false
+#define DEBUG_MODE_Autopilot false
 
 
 // ==========================================================
@@ -85,12 +86,12 @@ extern uint32_t LOG_UPDATE_INTERVAL_SEKUNDEN;
 #define ENCODER_PIN 14
 
 // Stepper Motor (NEMA)
-#define STEPPER_STEP_PIN 18
-#define STEPPER_DIR_PIN 19  // ⚠️ doppelt mit RELAY_A_PIN? prüfen!
+#define STEPPER_STEP_PIN 35
+#define STEPPER_DIR_PIN 36
 
 // Endschalter
-#define END_LEFT_PIN 27
-#define END_RIGHT_PIN 14  // ⚠️ doppelt mit ENCODER_PIN → unbedingt klären!
+#define END_LEFT_PIN 37
+#define END_RIGHT_PIN 38
 
 
 // ==========================================================

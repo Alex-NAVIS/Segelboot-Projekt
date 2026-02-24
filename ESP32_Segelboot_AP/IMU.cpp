@@ -209,7 +209,7 @@ void calibrate_magnetometer(int durationSeconds) {
 }
 
 void setup_imu(TwoWire &wirePort) {
-    wirePort.begin(8, 9); // SDA, SCL
+    wirePort.begin(I2C_SDA_PIN, I2C_SCL_PIN); // SDA, SCL
     wirePort.setClock(400000);
     int ad0_val = 1;       // feste Adresse 0x69
 

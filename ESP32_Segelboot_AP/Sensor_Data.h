@@ -84,32 +84,16 @@ struct SensorData {
 // ----------------------------------------------------------
 extern SensorData sensorData;
 
-
-
 // -----------------------------------------------------------------------------------
 // Globale Instanz, von allen Modulen verwendbar Autopilot Pinnenautopilot Variablen
 // -----------------------------------------------------------------------------------
 
 //PID Werte für den Autopilot Pinnenautopilot für glatte; mäßig und raue See
 struct AutopilotData {
-  // --------------------------------------------------------
-  // PID Regler bei glatter See
-  // --------------------------------------------------------
-  double P_welle_1;
-  double I_welle_1;
-  double D_welle_1;
-  // --------------------------------------------------------
-  // PID Regler bei mäßiger See
-  // --------------------------------------------------------
-  double P_welle_2;
-  double I_welle_2;
-  double D_welle_2;
-  // --------------------------------------------------------
-  // PID Regler bei rauer See
-  // --------------------------------------------------------
-  double P_welle_3;
-  double I_welle_3;
-  double D_welle_3;
+    // Basis-PID Werte (werden im HTML gesetzt/berechnet)
+  double P_base;
+  double I_base;
+  double D_base;
 
   //Inverter der Pinnenbewegung
   int pinne_invertieren;

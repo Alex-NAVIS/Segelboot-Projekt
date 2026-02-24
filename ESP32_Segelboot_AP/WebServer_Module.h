@@ -46,7 +46,8 @@ void handleSetConfig(AsyncWebServerRequest *request);                           
 void handleSetTarget(AsyncWebServerRequest *request);                                                        // Zielpunkt Autopilot setzen
 void handleTide(AsyncWebServerRequest *request);                                                             // Abfrage zu einer Koordinate zum Tide Zeitpunkt Hochwasser Niedrigwasser
 void handleMastBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);  // Mast Sensor GPS Wind Sensordaten
-void handleTiles(AsyncWebServerRequest *request);                                                            // PNG-Kacheln liefern                                                  //Tile Zeiten abfragen und zurück geben
+void handleTiles(AsyncWebServerRequest *request); 
+void handleTideCurve(AsyncWebServerRequest *request);                                                           // PNG-Kacheln liefern                                                  //Tile Zeiten abfragen und zurück geben
 void closeConnection();
 
 // ----------------------------------------------------------------------
@@ -60,4 +61,8 @@ void checkMastOnlineStatus();
 void send_tide_curve(int idx);
 void wsSendTideCurve(int idx);
 
+// ----------------------------------------------------------------------
+// FS File System abfragen
+// ----------------------------------------------------------------------
+void listDir(fs::FS &fs, String dirname, String &json);
 #endif  // WEBSERVER_MODULE_H

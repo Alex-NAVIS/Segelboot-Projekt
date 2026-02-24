@@ -1,16 +1,16 @@
 
 
 #include "Config.h"               // Einstellungen Pin Belegung globale Einstellungen usw.
-#include "ConfigStorage.h"        // Einstellungen Pin Belegung globale Einstellungen usw.
+#include "ConfigStorage.h"        // Interner Speicher aller Files (Little File System)
 #include "WebServer_Module.h"     // Schnittstelle zu allen Webseiten Kartenplotter Horizont Kompass index.html usw.
 #include "Sensor_Data.h"          // Variablen zu allen Sensordaten
 #include "GPS.h"                  // GPS Sensor Empfänger Koordinate GPS Kurs & Speed
 #include "Mag_Dec.h"              // Berechnung der Missweisung Kompass
 #include "IMU.h"                  // I2C MPU9250 Roll Üitch Kompass
-#include "LightControl_Module.h"  //Relays für Licht
-#include "WB.h"                   //Relays für Licht
+#include "LightControl_Module.h"  // Relays für Licht
+#include "WB.h"                   // Wind-Berechnung
 #include "NAVIS_SD.h"             // SD Card Module für Karten
-#include "echolot.h"              // SD Card Module für Karten
+#include "echolot.h"              // Wassertiefe abfragen
 
 // ----------------------------------------------------------
 // Zeitvariablen für das millis()-basierte Sensor-Timing
@@ -37,11 +37,11 @@ void setup() {
   setupWebSocket();       // initialisiert ausschließlich WebSocket
   setupGPS();             // Initialisiert den GPS-Empfänger (UART, Pins 16/17)
   setupMagDeclination();  // Berechnung der Missweisung anhand der GPS Koordinate 1 mal am Tag
-  setup_imu();            // Initialisiert den MPU9250 (I²C: SDA=21, SCL=22)
+  setup_imu();            // Initialisiert den ICM_20948 (I²C: SDA=8, SCL=9)
   setupLightControl();    // Relays für Licht ansteuern
   setup_sd();             // Zugriff auf die SD Karte einrichten
   setup_echolot();        // Echolot einrichten
-
+  
   // Optionale Schutzfunktion:
   // Verhindert, dass alle Sensoren direkt nach dem Booten gleichzeitig
   // getriggert werden (reduziert Stromspitzen und I²C-Konflikte).
@@ -134,39 +134,5 @@ void loop() {
   if (mag_start_cal == true) {
     mag_start_cal = false;
     calibrate_magnetometer(30);
-  }
-
-  //Tide Berechnen
-  switch (tideState) {
-    case TIDE_IDLE: break;
-    case TIDE_FIND_STATIONS:
-      if (find_stations()) tideState = TIDE_CALC_CURVE_1;
-      else tideState = TIDE_IDLE;
-      break;
-    case TIDE_CALC_CURVE_1:
-      berechne_tide_kurve(0);
-      tideState = TIDE_CALC_CURVE_2;
-      break;
-    case TIDE_CALC_CURVE_2:
-      berechne_tide_kurve(1);
-      tideState = TIDE_CALC_CURVE_3;
-      break;
-    case TIDE_CALC_CURVE_3:
-      berechne_tide_kurve(2);
-      tideState = TIDE_READY_TO_SEND_1;
-      break;
-    case TIDE_READY_TO_SEND_1:
-      wsSendTideCurve(0);
-      tideState = TIDE_READY_TO_SEND_2;
-      break;
-    case TIDE_READY_TO_SEND_2:
-      wsSendTideCurve(1);
-      tideState = TIDE_READY_TO_SEND_3;
-      break;
-    case TIDE_READY_TO_SEND_3:
-
-      wsSendTideCurve(2);
-      tideState = TIDE_IDLE;
-      break;
   }
 }

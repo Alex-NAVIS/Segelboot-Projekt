@@ -22,7 +22,7 @@ void ConfigStorage_begin() {
 }
 
 // ==========================================================
-// AUTOPILOT SPEICHERN / LADEN
+// AUTOPILOT SPEICHERN / LADEN (nur Basis-PID)
 // ==========================================================
 void ConfigStorage_saveAutopilot() {
   File file = LittleFS.open(FILE_AUTOPILOT, "w");
@@ -30,29 +30,16 @@ void ConfigStorage_saveAutopilot() {
     if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("❌ Fehler beim Öffnen Autopilot-Config!");
     return;
   }
-
   StaticJsonDocument<512> doc;
-
   doc["pinne_invertieren"] = pinnenautopilotData.pinne_invertieren;
-
-  doc["P_w1"] = pinnenautopilotData.P_welle_1;
-  doc["I_w1"] = pinnenautopilotData.I_welle_1;
-  doc["D_w1"] = pinnenautopilotData.D_welle_1;
-
-  doc["P_w2"] = pinnenautopilotData.P_welle_2;
-  doc["I_w2"] = pinnenautopilotData.I_welle_2;
-  doc["D_w2"] = pinnenautopilotData.D_welle_2;
-
-  doc["P_w3"] = pinnenautopilotData.P_welle_3;
-  doc["I_w3"] = pinnenautopilotData.I_welle_3;
-  doc["D_w3"] = pinnenautopilotData.D_welle_3;
-
+  doc["P_base"] = pinnenautopilotData.P_base;
+  doc["I_base"] = pinnenautopilotData.I_base;
+  doc["D_base"] = pinnenautopilotData.D_base;
   doc["lat"] = pinnenautopilotData.autopilot_lat;
   doc["lon"] = pinnenautopilotData.autopilot_lon;
-
   serializeJson(doc, file);
   file.close();
-  if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("💾 Autopilot-Konfiguration gespeichert.");
+  if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("💾 Autopilot-Basis-PID gespeichert.");
 }
 
 void ConfigStorage_loadAutopilot() {
@@ -67,31 +54,21 @@ void ConfigStorage_loadAutopilot() {
   StaticJsonDocument<512> doc;
 
   if (deserializeJson(doc, file)) {
-    if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("❌ Fehler Autopilot JSON.");
+    if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("❌ Fehler beim Laden Autopilot JSON.");
     file.close();
     return;
   }
   file.close();
-
   pinnenautopilotData.pinne_invertieren = doc["pinne_invertieren"] | 0;
-
-  pinnenautopilotData.P_welle_1 = doc["P_w1"] | 0.0;
-  pinnenautopilotData.I_welle_1 = doc["I_w1"] | 0.0;
-  pinnenautopilotData.D_welle_1 = doc["D_w1"] | 0.0;
-
-  pinnenautopilotData.P_welle_2 = doc["P_w2"] | 0.0;
-  pinnenautopilotData.I_welle_2 = doc["I_w2"] | 0.0;
-  pinnenautopilotData.D_welle_2 = doc["D_w2"] | 0.0;
-
-  pinnenautopilotData.P_welle_3 = doc["P_w3"] | 0.0;
-  pinnenautopilotData.I_welle_3 = doc["I_w3"] | 0.0;
-  pinnenautopilotData.D_welle_3 = doc["D_w3"] | 0.0;
-
+  pinnenautopilotData.P_base = doc["P_base"] | 0.0;
+  pinnenautopilotData.I_base = doc["I_base"] | 0.0;
+  pinnenautopilotData.D_base = doc["D_base"] | 0.0;
   pinnenautopilotData.autopilot_lat = doc["lat"] | 0.0;
   pinnenautopilotData.autopilot_lon = doc["lon"] | 0.0;
 
-  if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("📥 Autopilot-Konfiguration geladen.");
+  if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("📥 Autopilot-Basis-PID geladen.");
 }
+
 
 // ==========================================================
 // SYSTEM SPEICHERN / LADEN

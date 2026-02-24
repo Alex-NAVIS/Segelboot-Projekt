@@ -12,6 +12,7 @@ SemaphoreHandle_t sdMutex;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
+
 // ======================================================================
 // Access Point starten
 // ======================================================================
@@ -158,6 +159,39 @@ void handleTiles(AsyncWebServerRequest *request) {
   xSemaphoreGive(sdMutex);
 }
 
+void handleTideStation(AsyncWebServerRequest *request) {
+  String path = request->url();
+  path.replace("/tide_station/", "");
+  String fullPath = "/tide/" + path;
+
+  if (DEBUG_MODE_SERVER) Serial.print("[TideStation] Request URL: ");
+  if (DEBUG_MODE_SERVER) Serial.println(request->url());
+  if (DEBUG_MODE_SERVER) Serial.print("[TideStation] Datei-Name extrahiert: ");
+  if (DEBUG_MODE_SERVER) Serial.println(path);
+  if (DEBUG_MODE_SERVER) Serial.print("[TideStation] Voller Pfad auf SD: ");
+  if (DEBUG_MODE_SERVER) Serial.println(fullPath);
+
+  // Prüfen, ob Datei existiert
+  if (!sd_file_exists(fullPath)) {
+    if (DEBUG_MODE_SERVER) Serial.println("[TideStation] Datei NICHT gefunden, sende 404");
+    request->send(404, "text/plain", "Datei nicht gefunden");
+    return;
+  }
+
+  // Zugriff auf SD absichern
+  if (xSemaphoreTake(sdMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+    if (DEBUG_MODE_SERVER) Serial.println("[TideStation] SD busy, sende 503");
+    request->send(503, "text/plain", "SD busy");
+    return;
+  }
+
+  if (DEBUG_MODE_SERVER) Serial.println("[TideStation] Datei existiert, sende Response");
+  AsyncWebServerResponse *response = request->beginResponse(SD, fullPath, "text/csv", false);
+  response->addHeader("Cache-Control", "no-cache");
+  request->send(response);
+  xSemaphoreGive(sdMutex);
+  if (DEBUG_MODE_SERVER) Serial.println("[TideStation] Datei gesendet, Mutex freigegeben");
+}
 
 void wsBroadcastSensorData() {
   static char buffer[768];  // fester, stackfreier Buffer
@@ -190,99 +224,6 @@ void wsBroadcastSensorData() {
 
   size_t len = serializeJson(doc, buffer, sizeof(buffer));
   ws.textAll(buffer, len);  // zero-copy WebSocket send
-}
-
-void wsSendTideCurve(int idx) {
-  // ❌ if (!ws) return; // Entfernen, da ws eine Instanz ist
-
-  if (idx < 0 || idx > 2) return;
-
-  StaticJsonDocument<4000> doc;
-  doc["type"] = "tide";
-  doc["station_index"] = idx + 1;
-
-  // Query-Koordinaten
-  JsonObject q = doc.createNestedObject("query");
-  q["lat"] = tideQueryLat;
-  q["lon"] = tideQueryLon;
-
-  // Stationsdaten
-  JsonObject s = doc.createNestedObject("station");
-  s["distance_km"] = tideStationDist[idx];
-  s["bearing_deg"] = tideStationBearing[idx];
-  s["lat"] = tideStationLat[idx]; // optional
-  s["lon"] = tideStationLon[idx]; // optional
-
-  // Curve
-  JsonArray curve = doc.createNestedArray("curve");
-  for (int i = 0; i < 96; i++) curve.add(tideCurve[idx][i]);
-
-  String output;
-  serializeJson(doc, output);
-
-  ws.textAll(output); // Push an alle Clients
-
-  Serial.printf("[TIDE WS] Kurve %d gesendet\n", idx + 1);
-}
-
-
-// ----------------------------
-// Funktion um Kurven zu senden
-// ----------------------------
-void send_tide_curve(int idx) {
-  if (!tideRequest) return;
-  if (idx < 0 || idx > 2) return;
-  AsyncWebServerRequest* req =    static_cast<AsyncWebServerRequest*>(tideRequest);
-  String json;
-  json.reserve(2500);  // wichtig → Heap schonen
-  json += "{";
-  // --------------------
-  // Meta
-  // --------------------
-  json += "\"station_index\":";
-  json += String(idx + 1);
-  json += ",";
-
-  // --------------------
-  // Anfragekoordinate
-  // --------------------
-  json += "\"query\":{";
-  json += "\"lat\":";
-  json += String(tideQueryLat, 6);
-  json += ",";
-  json += "\"lon\":";
-  json += String(tideQueryLon, 6);
-  json += "},";
-
-  // --------------------
-  // Stationsdaten
-  // --------------------
-  json += "\"station\":{";
-  json += "\"distance_km\":";
-  json += String(tideStationDist[idx], 2);
-  json += ",";
-  json += "\"bearing_deg\":";
-  json += String(tideStationBearing[idx], 1);
-  json += "},";
-
-  // --------------------
-  // Tidekurve
-  // --------------------
-  json += "\"curve\":[";
-  for (int i = 0; i < 96; i++) {
-    json += String(tideCurve[idx][i], 2);
-    if (i < 95) json += ",";
-  }
-  json += "]";
-
-  json += "}";
-  req->send(200, "application/json", json);
-  Serial.printf(
-    "[TIDE] JSON Kurve %d gesendet (Dist %.2f km, Brg %.1f°)\n",
-    idx + 1,
-    tideStationDist[idx],
-    tideStationBearing[idx]
-  );
 }
 
 
@@ -321,25 +262,9 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
 }
 
 // ======================================================================
-// Autopilot Ziel-Koordinate
-// ======================================================================
-void handleSetTarget(AsyncWebServerRequest *request) {
-  if (!request->hasParam("lat") || !request->hasParam("lon")) {
-    request->send(400, "text/plain", "❌ Fehlende Parameter");
-    return;
-  }
-  pinnenautopilotData.autopilot_lat = request->getParam("lat")->value().toDouble();
-  pinnenautopilotData.autopilot_lon = request->getParam("lon")->value().toDouble();
-  request->send(200, "text/plain", "OK");
-}
-
-// ======================================================================
 // Mast-Sensor Daten
 // ======================================================================
-void handleMastBody(AsyncWebServerRequest *request,
-                    uint8_t *data, size_t len,
-                    size_t index, size_t total) {
-
+void handleMastBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
   // Wir verarbeiten nur vollständige JSON-Pakete
   if (index == 0) {
     // optional: Start eines neuen Pakets
@@ -348,9 +273,7 @@ void handleMastBody(AsyncWebServerRequest *request,
     // noch nicht komplett
     return;
   }
-
   StaticJsonDocument<512> doc;
-
   DeserializationError error = deserializeJson(doc, data, total);
   if (error) {
     if (DEBUG_MODE_SERVER) {
@@ -360,7 +283,6 @@ void handleMastBody(AsyncWebServerRequest *request,
     request->send(400, "text/plain", "❌ Ungültiges JSON");
     return;
   }
-
   // Pflichtfelder prüfen
   const char *keys[] = {
     "winddir_gemessen", "windspeed_gemessen",
@@ -370,46 +292,38 @@ void handleMastBody(AsyncWebServerRequest *request,
     "gps_jahr", "gps_monat", "gps_tag",
     "gps_stunde", "gps_minute", "gps_sekunde"
   };
-
   for (const char *k : keys) {
     if (!doc.containsKey(k)) {
       request->send(400, "text/plain", String("❌ Wert fehlt: ") + k);
       return;
     }
   }
-
   // **GPS validieren**
   if (doc["gps_lat"].isNull() || doc["gps_lon"].isNull()) {
     request->send(400, "text/plain", "❌ Ungültige GPS-Koordinaten");
     return;
   }
-
   // In sensorData übernehmen:
   sensorData.winddir_gemessen = doc["winddir_gemessen"];
   sensorData.windspeed_gemessen = doc["windspeed_gemessen"];
-
   sensorData.gps_lat = doc["gps_lat"];
   sensorData.gps_lon = doc["gps_lon"];
   sensorData.gps_speed = doc["gps_speed"];
   sensorData.gps_kurs = doc["gps_kurs"];
   sensorData.gps_sats = doc["gps_sats"];
   sensorData.gps_hdop = doc["gps_hdop"];
-
   sensorData.gps_jahr = doc["gps_jahr"];
   sensorData.gps_monat = doc["gps_monat"];
   sensorData.gps_tag = doc["gps_tag"];
   sensorData.gps_stunde = doc["gps_stunde"];
   sensorData.gps_minute = doc["gps_minute"];
   sensorData.gps_sekunde = doc["gps_sekunde"];
-
   // Mast online setzen
   lastReceiveTime = millis();
   noReceiveCounter = 0;
   sensorData.mast_online = 1;
-
   request->send(200, "text/plain", "OK");
 }
-
 
 // ======================================================================
 // Zyklische Offline-Erkennung in loop() (alle 1000 ms)
@@ -447,152 +361,240 @@ void handleGetFSFile(AsyncWebServerRequest *request, const char *path) {
 }
 
 // ======================================================================
-// PID-Konfiguration
+// PID-Konfiguration (nur Basis-PID)
 // ======================================================================
 void handleSetConfig(AsyncWebServerRequest *request) {
-  if (!request->hasParam("invert") || !request->hasParam("p1")) {
+  // Prüfen, ob alle Basis-PID-Parameter vorhanden sind
+  if (!request->hasParam("invert") || !request->hasParam("P_base") || !request->hasParam("I_base") || !request->hasParam("D_base")) {
     request->send(400, "text/plain", "❌ Fehlende Parameter");
     return;
   }
-  pinnenautopilotData.pinne_invertieren = request->getParam("invert")->value().toInt();
-  pinnenautopilotData.P_welle_1 = request->getParam("p1")->value().toFloat();
-  pinnenautopilotData.I_welle_1 = request->getParam("i1")->value().toFloat();
-  pinnenautopilotData.D_welle_1 = request->getParam("d1")->value().toFloat();
-  pinnenautopilotData.P_welle_2 = request->getParam("p2")->value().toFloat();
-  pinnenautopilotData.I_welle_2 = request->getParam("i2")->value().toFloat();
-  pinnenautopilotData.D_welle_2 = request->getParam("d2")->value().toFloat();
-  pinnenautopilotData.P_welle_3 = request->getParam("p3")->value().toFloat();
-  pinnenautopilotData.I_welle_3 = request->getParam("i3")->value().toFloat();
-  pinnenautopilotData.D_welle_3 = request->getParam("d3")->value().toFloat();
 
-  // speichere die Autopiloteinstellungen in der Config Storage im little FileSystem
+  // Pinnenrichtung
+  pinnenautopilotData.pinne_invertieren = request->getParam("invert")->value().toInt();
+
+  // Basis-PID Werte
+  pinnenautopilotData.P_base = request->getParam("P_base")->value().toFloat();
+  pinnenautopilotData.I_base = request->getParam("I_base")->value().toFloat();
+  pinnenautopilotData.D_base = request->getParam("D_base")->value().toFloat();
+
+  // Speichern im LittleFS
   ConfigStorage_saveAutopilot();
 
   request->send(200, "text/plain", "✅ Konfiguration gespeichert");
 }
 
+// ======================================================================
+// Autopilot Einstellungen empfangen senden
+// ======================================================================
+void handleAutopilotData(AsyncWebServerRequest *request) {
+  if (request->hasParam("modus")) {
+    status_autopilot = request->getParam("modus")->value().toInt();
+  }
+  if (request->hasParam("pinne")) {
+    int p = request->getParam("pinne")->value().toInt();
+    motor_manuel_einfahren = (p == 1);
+    motor_manuel_ausfahren = (p == 2);
+  }
+  if (request->hasParam("winkel")) {
+    rotary_offset = request->getParam("winkel")->value().toInt();
+  }
+  request->send(200, "text/plain", "✔ Autopilot-Daten aktualisiert");
+}
+
 
 // ======================================================================
-// Setup Webserver + WebSocket
+// Autopilot Einstellungen senden
 // ======================================================================
+void handleAutopilotStatus(AsyncWebServerRequest *request) {
+  StaticJsonDocument<256> doc;
+
+  doc["mode"] = status_autopilot;  // entspricht JS: mode
+  doc["pinne"] = 0;                // Standard Stop
+  if (motor_manuel_einfahren) doc["pinne"] = 1;
+  else if (motor_manuel_ausfahren) doc["pinne"] = 2;
+
+  doc["offset"] = rotary_offset;  // entspricht JS: offset/winkel
+
+  String out;
+  serializeJson(doc, out);
+  request->send(200, "application/json", out);
+}
+
+void handleTideCurve(AsyncWebServerRequest *request) {
+  if (!request->hasParam("lat") || !request->hasParam("lon") || !request->hasParam("radius")) {
+    request->send(400, "text/plain", "missing lat/lon/radius");
+    return;
+  }
+
+  tideQueryLat = request->getParam("lat")->value().toDouble();
+  tideQueryLon = request->getParam("lon")->value().toDouble();
+  tideQueryRadiusSM = request->getParam("radius")->value().toDouble();
+  if (tideQueryRadiusSM < 1.0) tideQueryRadiusSM = 1.0;
+
+  if (!findTideStations()) {
+    request->send(200, "application/json", "[]");
+    return;
+  }
+
+  // Stream direkt an den Client senden spart RAM-Kopien
+  AsyncResponseStream *response = request->beginResponseStream("application/json");
+  StaticJsonDocument<4096> doc;
+  JsonArray arr = doc.to<JsonArray>();
+
+  for (uint8_t i = 0; i < tideStationCount; i++) {
+    JsonObject s = arr.createNestedObject();
+    s["name"] = tideStations[i].name;
+    s["lat"] = tideStations[i].lat;
+    s["lon"] = tideStations[i].lon;
+    s["dist"] = tideStations[i].distanceSM;
+  }
+
+  serializeJson(arr, *response);
+  request->send(response);
+}
+
+// ======================================================================
+// Autopilot Ziel-Koordinaten setzen
+// ======================================================================
+void handleAutopilotTarget(AsyncWebServerRequest *request) {
+  if (!request->hasParam("lat") || !request->hasParam("lon")) {
+    request->send(400, "text/plain", "❌ Fehlende Parameter lat/lon");
+    return;
+  }
+  pinnenautopilotData.autopilot_lat = request->getParam("lat")->value().toDouble();
+  pinnenautopilotData.autopilot_lon = request->getParam("lon")->value().toDouble();
+  request->send(200, "text/plain", "✅ Zielkoordinaten gesetzt");
+}
+
+// ======================================================================
+// Ordnerbaum abfragen und das JSON-Format aufbaut
+// ======================================================================
+void listDir(fs::FS &fs, String dirname, String &json) {
+  File root = fs.open(dirname);
+  if (!root || !root.isDirectory()) return;
+
+  File file = root.openNextFile();
+  while (file) {
+    if (json != "[") json += ",";
+
+    // JSON-Objekt für die aktuelle Datei/den Ordner
+    json += "{\"name\":\"" + String(file.path()) + "\",";  // Voller Pfad
+    json += "\"size\":" + String(file.size()) + ",";
+    json += "\"type\":\"" + String(file.isDirectory() ? "dir" : "file") + "\"}";
+
+    // Wenn es ein Ordner ist, rufe die Funktion rekursiv auf
+    if (file.isDirectory()) {
+      listDir(fs, file.path(), json);
+    }
+    file = root.openNextFile();
+  }
+}
+
 void setupWebServer() {
-  // Statische Seiten
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/index.html");
-  });
-  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/index.html");
-  });
-  server.on("/karte.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/karte.html");
-  });
-  server.on("/kompass.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/kompass.html");
-  });
-  server.on("/horizont.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/horizont.html");
-  });
-  server.on("/settings.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/settings.html");
-  });
-  server.on("/autopilot.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/autopilot.html");
-  });
-  server.on("/tide.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/tide.html");
-  });
-  server.on("/system_settings.html", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleFile(r, "/system_settings.html");
-  });
+  // 1. Dateisystem-API (Mapping über ein Array spart 4 separate Handler)
+  struct FileMapping {
+    const char *url;
+    const char *path;
+  };
+  FileMapping configs[] = {
+    { "/fs/system_config", "/settings/system_config.json" },
+    { "/fs/autopilot_config", "/settings/autopilot_config.json" },
+    { "/fs/imu_mag", "/settings/IMU_mag.json" },
+    { "/fs/imu_gyro", "/settings/IMU_gyro.json" }
+  };
+  for (auto const &cfg : configs) {
+    server.on(cfg.url, HTTP_GET, [cfg](AsyncWebServerRequest *r) {
+      handleGetFSFile(r, cfg.path);
+    });
+  }
 
-  // Filesystem Dateien anzeigen
-  server.on("/fs/system_config", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleGetFSFile(r, "/settings/system_config.json");
-  });
-  server.on("/fs/autopilot_config", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleGetFSFile(r, "/settings/autopilot_config.json");
-  });
-  server.on("/fs/imu_mag", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleGetFSFile(r, "/settings/IMU_mag.json");
-  });
-  server.on("/fs/imu_gyro", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleGetFSFile(r, "/settings/IMU_gyro.json");
-  });
+  // 2. Steuerungen & Autopilot
+  server.on("/setConfig", HTTP_GET, handleSetConfig);
+  server.on("/autopilot_data", HTTP_GET, handleAutopilotData);
+  server.on("/autopilot_status", HTTP_GET, handleAutopilotStatus);
+  server.on("/autopilot", HTTP_GET, handleAutopilotTarget);
 
-  // Leaflet
-  server.serveStatic("/leaflet", LittleFS, "/leaflet/");
+  // 3. Gezeiten-API (Hier war der Fehler - Logik wieder inline)
+  server.on("/tide_curve", HTTP_GET, handleTideCurve);
+  server.on("/tide_station/*", HTTP_GET, handleTideStation);
 
-  // JSON & Steuerungen
-  server.on("/setConfig", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleSetConfig(r);
-  });
-  server.on("/autopilot", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleSetTarget(r);
-  });
-
-  //Berechnung der Tide Kurve
-  server.on("/tide_curve", HTTP_GET, [](AsyncWebServerRequest *request) {
-    // Parameter prüfen
-    if (!request->hasParam("lat") || !request->hasParam("lon")) {
-      request->send(400, "text/plain", "missing lat/lon");
-      return;
-    }
-    // Alte Anfrage ggf. abbrechen
-    tideRequest = nullptr;
-    tideState = TIDE_IDLE;
-    // Koordinaten speichern
-    tideQueryLat = request->getParam("lat")->value().toDouble();
-    tideQueryLon = request->getParam("lon")->value().toDouble();
-    // Aktuelle Anfrage speichern
-    tideRequest = static_cast<void *>(request);
-    // Loop-Flag starten
-    tideState = TIDE_FIND_STATIONS;
-    Serial.printf("[TIDE] Neue Anfrage: Lat=%.6f Lon=%.6f\n", tideQueryLat, tideQueryLon);
-    // Sofortige 200-OK Rückmeldung, weitere Daten kommen aus Loop
-    request->send(200, "text/plain", "OK");
-  });
-
-  // ===========================
-  //  SYSTEM CONFIG API
-  // ===========================
-  server.on("/getSystem", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleGetSystem(r);
-  });
-
-  server.on("/setSystem", HTTP_GET, [](AsyncWebServerRequest *r) {
-    handleSetSystem(r);
-  });
-  // Mast Sensor Daten Empfang
+  // 4. System & Sensoren
+  server.on("/getSystem", HTTP_GET, handleGetSystem);
+  server.on("/setSystem", HTTP_GET, handleSetSystem);
   server.on(
-    "/mastdata", HTTP_POST,
-    [](AsyncWebServerRequest *request) {},
-    NULL,
-    handleMastBody);
+    "/mastdata", HTTP_POST, [](AsyncWebServerRequest *r) {}, NULL, handleMastBody);
+  server.on("/tiles/*", HTTP_GET, handleTiles);
 
-  // Debug-Handler für alle /tiles/... Anfragen
-  server.on("/tiles/*", HTTP_GET, [](AsyncWebServerRequest *request) {
-    handleTiles(request);
-  });
-
-  // Kalibrierungs-Endpunkt
+  // 5. Kompakte Kalibrierung
   server.on("/calibrate", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("type")) {
-      String type = request->getParam("type")->value();
+    if (!request->hasParam("type")) return request->send(400, "text/plain", "Parameter fehlt");
 
-      if (type == "compass") {
-        mag_start_cal = true;
-        request->send(200, "text/plain", "Kompass Kalibrierung gestartet");
-      } else if (type == "gyro") {
-        gyro_start_cal = true;
-        request->send(200, "text/plain", "Gyro Kalibrierung gestartet");
-      } else {
-        request->send(400, "text/plain", "Unbekannter Typ");
-      }
+    String type = request->getParam("type")->value();
+    if (type == "compass") {
+      mag_start_cal = true;
+      request->send(200, "text/plain", "Kompass OK");
+    } else if (type == "gyro") {
+      gyro_start_cal = true;
+      request->send(200, "text/plain", "Gyro OK");
     } else {
-      request->send(400, "text/plain", "Parameter fehlt");
+      request->send(400, "text/plain", "Unbekannter Typ");
     }
   });
+  // 6. Datei-Upload Endpunkt (LittleFS)
+  server.on(
+    "/upload", HTTP_POST,
+    [](AsyncWebServerRequest *request) {
+      if (request->_tempObject != nullptr) {
+        request->send(507, "text/plain", "Fehler: Speicher voll oder Schreibfehler");
+      } else {
+        request->send(200, "text/plain", "Upload erfolgreich");
+      }
+    },
+    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+      if (index == 0) {
+        size_t freeSpace = LittleFS.totalBytes() - LittleFS.usedBytes();
+        if (request->contentLength() > freeSpace) {
+          request->_tempObject = (void *)1;
+          return;
+        }
+      }
+      if (request->_tempObject == nullptr) {
+        String path = "/" + filename;
+        File file = LittleFS.open(path, index == 0 ? "w" : "a");
+        if (file) {
+          if (file.write(data, len) != len) request->_tempObject = (void *)1;
+          file.close();
+        } else {
+          request->_tempObject = (void *)1;
+        }
+      }
+    });
+  // 7. Dateien des FS auflisten
+  server.on("/list_files", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String json = "[";
+
+    // Rekursives Auslesen starten
+    listDir(LittleFS, "/", json);
+
+    // Speicherinfo hinzufügen (als letztes Element)
+    size_t total = LittleFS.totalBytes();
+    size_t used = LittleFS.usedBytes();
+    if (json != "[") json += ",";
+    json += "{\"fs_total\":" + String(total) + ",\"fs_used\":" + String(used) + "}";
+
+    json += "]";
+    request->send(200, "application/json", json);
+  });
+  // 8 WebSocket Handler registrieren (WICHTIG!)
+  // "ws" muss deine globale AsyncWebSocket Instanz sein
+  server.addHandler(&ws);
+  // 8. Statische HTML-Seiten & Verzeichnisse kompakt verwalten
+  // Nutze serveStatic für ganze Ordner und fange / ab
+  server.serveStatic("/leaflet", LittleFS, "/leaflet/");
+  server.serveStatic("/js", LittleFS, "/js/");
+  server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
   server.begin();
-  if (DEBUG_MODE_SERVER) Serial.println("✅ Async Webserver + WebSocket gestartet");
+  if (DEBUG_MODE_SERVER) Serial.println("✅ Server optimiert gestartet");
 }

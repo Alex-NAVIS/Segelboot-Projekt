@@ -91,7 +91,7 @@
     <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
 </div>
 <script src="leaflet/leaflet.js"></script>
-
+<script src="leaflet/navis-tilelayer.js"></script>
 
 <script>
 /* ------------------------------
@@ -137,24 +137,21 @@ const map = L.map('map', { zoomControl: true, attributionControl: false })
 
   .setView([state.gps_lat, state.gps_lon], 10);
 
-const layerOSM = L.tileLayer('tiles/osm/{z}/{x}/{y}.png', {
-  maxZoom: 16,
-  maxNativeZoom: 16,
-  attribution: '© OpenStreetMap contributors',
+const TILE_URL = 'tiles/osm/{z}/{x}/{y}.png';
 
-  // ===============================
-  // 🔴 Tile-Request-Drosselung
-  // ===============================
-  updateWhenIdle: true,        // erst laden wenn Bewegung fertig
-  updateWhenZooming: false,    // kein Parallel-Zoom-Laden
-  keepBuffer: 1,               // nur 1 Tile Rand vorhalten
-  updateInterval: 200,
-  tileSize: 256                // Standard – wichtig für Berechnung
-});
+const layerOSM = new L.TileLayer.Throttled(
+  TILE_URL,
+  {
+    minZoom: 1,
+    maxZoom: 16,
+    maxNativeZoom: 16,
+    attribution: '© OpenStreetMap contributors (offline)',
+    throttleDelay: 250
+  }
+);
 
-
-// Standard Layer hinzufügen
 layerOSM.addTo(map);
+
 
 
 
@@ -578,36 +575,50 @@ async function fetchLiveData(){
 }
 //setInterval(()=>{ if(!demoMode) fetchLiveData(); }, POLL_INTERVAL_MS);
 
+
+// ------------------------------
 // WebSocket zur kontinuierlichen Datenübertragung vom ESP
-let ws = new WebSocket(`ws://${location.hostname}/ws`);
+// WebSocket sicher
+// ------------------------------
+let ws = null;
+const WS_RECONNECT_MS = 3000;
 
-ws.onopen = () => {
-  console.log("WebSocket verbunden");
-};
+function attachWSHandlers(ws) {
+    ws.onopen = () => {
+        console.log("WebSocket verbunden");
+    };
 
-ws.onmessage = (event) => {
-  try {
-    const j = JSON.parse(event.data);
-    if('gps_lat' in j) target.gps_lat = Number(j.gps_lat);
-    if('gps_lon' in j) target.gps_lon = Number(j.gps_lon);
-    if('gps_speed' in j) target.gps_speed = Number(j.gps_speed);
-    if('gps_kurs' in j) target.gps_kurs = Number(j.gps_kurs);
-    if('kompass' in j) target.kompass = Number(j.kompass);
-    if('winddir_berechnet' in j) target.winddir_berechnet = Number(j.winddir_berechnet);
-    if('windspeed_berechnet' in j) target.windspeed_berechnet = Number(j.windspeed_berechnet);
-  } catch(e) {
-    console.warn("Fehler beim Parsen der WebSocket-Daten:", e);
-  }
-};
+    ws.onmessage = (event) => {
+        try {
+            const j = JSON.parse(event.data);
+            if ('gps_lat' in j) target.gps_lat = Number(j.gps_lat);
+            if ('gps_lon' in j) target.gps_lon = Number(j.gps_lon);
+            if ('gps_speed' in j) target.gps_speed = Number(j.gps_speed);
+            if ('gps_kurs' in j) target.gps_kurs = Number(j.gps_kurs);
+            if ('kompass' in j) target.kompass = Number(j.kompass);
+            if ('winddir_berechnet' in j) target.winddir_berechnet = Number(j.winddir_berechnet);
+            if ('windspeed_berechnet' in j) target.windspeed_berechnet = Number(j.windspeed_berechnet);
+        } catch(e) {
+            console.warn("WS JSON Fehler:", e, event.data);
+        }
+    };
 
-ws.onerror = (err) => { console.error("WebSocket-Fehler:", err); };
-ws.onclose = () => {
-    console.warn("WebSocket getrennt, reconnect in 3s");
-    setTimeout(() => {
-        ws = new WebSocket(`ws://${location.hostname}/ws`);
-        attachWSHandlers(ws); // Funktion, die onmessage, onopen etc. setzt
-    }, 3000);
-};
+    ws.onerror = (err) => { console.error("WebSocket Fehler:", err); };
+
+    ws.onclose = (ev) => {
+        console.warn("WebSocket getrennt, reconnect in " + WS_RECONNECT_MS/1000 + "s", ev.reason);
+        setTimeout(connectWS, WS_RECONNECT_MS);
+    };
+}
+
+function connectWS() {
+    ws = new WebSocket(`ws://${location.hostname}/ws`);
+    attachWSHandlers(ws);
+}
+
+// Start WS-Verbindung
+connectWS();
+
 
 /* ------------------------------
    Buttons / UI wiring (unverändert)

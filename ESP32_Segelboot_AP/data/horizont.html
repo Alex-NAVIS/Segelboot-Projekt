@@ -4,19 +4,26 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Horizont — NAVIS Marine Dashboard</title>
+
 <style>
 :root{
-  --bg:#1c1f26; --panel:#2a2f38; --text:#f4f4f4;
+  --bg:#1c1f26;
+  --panel:#2a2f38;
+  --text:#f4f4f4;
 }
+
 body{
   margin:0;
   font-family:"Segoe UI",Roboto,Arial,sans-serif;
-  background:var(--bg); color:var(--text);
-  display:flex; flex-direction:column; align-items:center;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
   height:100vh;
 }
 
-/* Navigationsleiste */
+/* ================= NAVBAR ================= */
 #navbar {
   display:flex;
   justify-content:center;
@@ -26,7 +33,9 @@ body{
   border-bottom:1px solid #005566;
   width:100%;
   box-shadow:0 0 8px rgba(0,255,255,0.1);
+  position:relative;
 }
+
 .navbtn {
   background-color:#003d52;
   color:#00ffff;
@@ -44,6 +53,28 @@ body{
   border-color:#00e6e6;
 }
 
+/* ================= STATUS LED ================= */
+#wsStatus {
+  position:absolute;
+  left:10px;
+  top:50%;
+  transform:translateY(-50%);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:0.75em;
+  color:#ccc;
+}
+
+#wsLed {
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background:#ff3333;
+  box-shadow:0 0 6px rgba(255,0,0,0.8);
+}
+
+/* ================= PANEL ================= */
 .panel{
   background:var(--panel);
   border-radius:12px;
@@ -51,16 +82,23 @@ body{
   box-shadow:0 8px 28px rgba(0,0,0,0.6);
   margin-top:8px;
 }
+
 #horizonCanvas{
   display:block;
   border-radius:50%;
 }
 </style>
 </head>
+
 <body>
 
-<!-- Navigationsleiste -->
+<!-- ================= NAVBAR ================= -->
 <div id="navbar">
+  <div id="wsStatus">
+    <div id="wsLed"></div>
+    <span>WS</span>
+  </div>
+
   <a href="index.html" class="navbtn">NAVIS</a>
   <a href="kompass.html" class="navbtn">Kompass</a>
   <a href="karte.html" class="navbtn">Karte</a>
@@ -72,33 +110,76 @@ body{
 </div>
 
 <script>
-const DATA_URL = '/data.json';
-
-const state = { roll: 0, pitch: 0 };
+/* ================== TELEMETRIE STATE ================== */
+const state  = { roll: 0, pitch: 0 };
 const target = { roll: 0, pitch: 0 };
 
-let socket = new WebSocket("ws://" + window.location.host + "/ws");
+/* ================== STATUS LED ================== */
+const wsLed = document.getElementById("wsLed");
 
-socket.onopen = () => {
-  console.log("WebSocket verbunden");
-};
+function ledDisconnected(){
+  wsLed.style.background = "#ff3333";
+  wsLed.style.boxShadow = "0 0 6px rgba(255,0,0,0.8)";
+}
+function ledConnecting(){
+  wsLed.style.background = "#ffcc00";
+  wsLed.style.boxShadow = "0 0 6px rgba(255,204,0,0.8)";
+}
+function ledConnected(){
+  wsLed.style.background = "#00ff66";
+  wsLed.style.boxShadow = "0 0 6px rgba(0,255,102,0.9)";
+}
 
-socket.onmessage = (event) => {
-  try {
-    const data = JSON.parse(event.data);
-    if ("roll" in data) target.roll = Number(data.roll);
-    if ("pitch" in data) target.pitch = Number(data.pitch);
-  } catch (e) {
-    console.warn("Ungültige WS-Daten:", e);
-  }
-};
+/* ================== WEBSOCKET ================== */
+let socket = null;
+let reconnectTimer = null;
+let reconnectDelay = 1000;
+const MAX_RECONNECT_DELAY = 5000;
 
-socket.onclose = () => {
-  console.warn("WebSocket getrennt – reconnect…");
-  setTimeout(() => {
-    socket = new WebSocket("ws://" + window.location.host + "/ws");
-  }, 1000);
-};
+function connectWS(){
+  if (socket && socket.readyState === WebSocket.OPEN) return;
+
+  ledConnecting();
+  console.log("WS: Verbindungsversuch …");
+
+  socket = new WebSocket(`ws://${window.location.host}/ws`);
+
+  socket.onopen = () => {
+    console.log("WS verbunden");
+    ledConnected();
+    reconnectDelay = 1000;
+  };
+
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if ("roll"  in data) target.roll  = Number(data.roll);
+      if ("pitch" in data) target.pitch = Number(data.pitch);
+    } catch (e) {
+      console.warn("WS Datenfehler", e);
+    }
+  };
+
+  socket.onerror = () => {
+    socket.close();
+  };
+
+  socket.onclose = () => {
+    console.warn("WS getrennt");
+    ledDisconnected();
+    socket = null;
+
+    if (!reconnectTimer) {
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        reconnectDelay = Math.min(reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+        connectWS();
+      }, reconnectDelay);
+    }
+  };
+}
+
+connectWS();
 
 
 const hCanvas = document.getElementById('horizonCanvas');

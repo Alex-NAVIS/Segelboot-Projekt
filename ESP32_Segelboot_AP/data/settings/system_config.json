@@ -9,7 +9,7 @@
   "windspeed_hz": 1,
   "licht_hz": 3,
   "sd_hz": 1,
-  "sensor_update_hz": 20,
+  "sensor_update_hz": 5,
   "use_decl_compass": true,
   "use_decl_wind": true,
   "wassertiefe_einbau": 0.45,
