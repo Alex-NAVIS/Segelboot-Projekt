@@ -22,16 +22,21 @@
         /* 🟪 BUTTONS */
         button { background:rgba(0,0,0,0.4); color:#fff; padding:6px 10px; border-radius:10px; border:none; cursor:pointer; font-size:13px; box-shadow:0 4px 12px rgba(0,0,0,0.6); transition:background 0.3s,color 0.3s,box-shadow 0.3s; }
         button:hover { background:rgba(0,0,0,0.6); }
-        #centerToggle { position:absolute; right:14px; top:14px; z-index:1000; }
-        #saveTrack { position:absolute; right:14px; top:48px; z-index:1000; }
-        #anchorWatch { position:absolute; right:14px; top:82px; z-index:1000; }
-        #modeRoute { position:absolute; right:14px; top:116px; z-index:1000; }
-		#nightToggle { position:absolute; right:14px; top:150px; z-index:1000; }
-
+        #centerToggle, #saveTrack, #anchorWatch, #modeRoute, #nightToggle { position:absolute; right:14px; z-index:1000; }
+        #centerToggle { top:14px; }
+        #saveTrack { top:48px; }
+        #anchorWatch { top:82px; }
+        #modeRoute { top:116px; }
+        #nightToggle { top:150px; }
+		#logDisplay, #resetLogBtn { position: absolute; right: 14px; z-index: 1000; }
+		#logDisplay { top: 218px; background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 10px; font-size: 14px; font-weight: bold; }
+		#resetLogBtn { top: 184px; }
+		
         /* 🟫 INFOBOXEN, LEGENDE UND ALARME */
         #waypointInfo { position:absolute; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:10px; font-size:13px; z-index:1000; transition:background 0.6s,color 0.6s; }
         #alarmOverlay { position:absolute; inset:0; background:rgba(0,0,0,0.85); color:red; font-size:6vw; font-weight:bold; display:none; align-items:center; justify-content:center; text-align:center; z-index:2000; animation:blink 1s infinite; }
         #legend { position:absolute; bottom:12px; left:12px; background:rgba(0,0,0,0.5); padding:6px 10px; border-radius:10px; font-size:12px; line-height:1.4; z-index:1000; transition:background 0.6s,color 0.6s; }
+
         @keyframes blink { 0%,50% { opacity:1; } 51%,100% { opacity:0.5; } }
 
         /* 🌙 NACHTMODUS */
@@ -44,6 +49,7 @@
         body.night-mode button { background:rgba(255,100,50,0.08); color:#ffb199; box-shadow:0 0 10px rgba(255,80,40,0.2); }
         body.night-mode button:hover { background:rgba(255,100,50,0.2); }
 
+
         /* 🟪 WAYPOINT LISTE & TABELLEN */
         #waypointListContainer { position:absolute; bottom:-100%; left:0; width:95%; max-height:40vh; background:rgba(0,0,0,0.85); color:white; overflow-y:auto; transition:bottom 0.4s ease; z-index:9999; backdrop-filter:blur(6px); padding:10px; }
         #waypointListContainer.visible { bottom:0; }
@@ -52,15 +58,27 @@
         #waypointTable th { background:rgba(0,80,100,0.6); position:sticky; top:0; }
         #waypointTable button { padding:3px 6px; background:#006680; border-radius:5px; color:#fff; border:none; cursor:pointer; }
         #waypointTable button:hover { background:#00b0c0; }
+
+        /* Wettersteuerung */
+		#controls { position: absolute; bottom: 10px; right: 10px; background: rgba(26, 31, 40, 0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(37, 42, 56, 0.4); display: flex; flex-direction: column; gap: 4px; z-index: 1000; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); backdrop-filter: blur(3px); }
+		#controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-family: 'Segoe UI', sans-serif; font-size: 12px; font-weight: 400; color: rgba(255, 255, 255, 0.85); transition: color 0.2s; line-height: 1.2; padding: 1px 0; }
+		#controls label:hover { color: #00bcd4; }
+		#controls input[type="checkbox"] { -webkit-appearance: none; -moz-appearance: none; appearance: none; width: 14px; height: 14px; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0, 125, 145, 0.6); border-radius: 3px; cursor: pointer; position: relative; outline: none; transition: all 0.2s ease; margin: 0; flex-shrink: 0; }
+		#controls input[type="checkbox"]:checked { background: rgba(0, 188, 212, 0.85); border-color: #00bcd4; }
+		#controls input[type="checkbox"]:checked::after { content: '✔'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ffffff; font-size: 10px; font-weight: normal; }
+		#controls input[type="checkbox"]:hover { border-color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.8); box-shadow: 0 0 5px rgba(255, 255, 255, 0.2); }
+
     </style>
+    
 </head>
 <body>
 <div id="navbar">
-    <a href="index.html" class="navbtn">NAVIS</a>
+    <a href="index.html" class="navbtn">Dashboard</a>
+    <a href="tide.html" class="navbtn">Tide</a>
+    <a href="autopilot.html" class="navbtn">Autopilot</a>
     <a href="kompass.html" class="navbtn">Kompass</a>
     <a href="horizont.html" class="navbtn">Horizont</a>
-    <a href="autopilot.html" class="navbtn">Autopilot</a>
-    <a href="tide.html" class="navbtn">Tide</a>
+    <a href="system_settings.html" class="navbtn">System-Settings</a>
 </div>
 <div class="panel">
     <div id="map"></div>
@@ -86,12 +104,20 @@
     <button id="anchorWatch">⚓ Ankerwache</button>
     <button id="modeRoute">📍 Peil / Route</button>
     <button id="nightToggle">🌙 Nachtmodus</button>
+	<div id="logDisplay">0.00 sm</div>
+	<button id="resetLogBtn">Log zurücksetzen</button>
+	
     <div id="waypointInfo"></div>
     <div id="alarmOverlay">🚨 ANKERWACHE ALARM 🚨<br>Boot hat den Radius verlassen!<br><br>(Klick zum Bestätigen)</div>
     <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
+
+    <!-- Wettersteuerung -->
+    <div id="controls"></div>
 </div>
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet/navis-tilelayer.js"></script>
+<!-- Velocity Plugin lokal -->
+<script src="leaflet/leaflet-velocity.min.js"></script>
 
 <script>
 /* ------------------------------
@@ -107,13 +133,14 @@ let anchorActive = false;
 let anchorPos = null;
 let anchorRadius = 50;
 let routeMode = false; // false = Peilmodus, true = Routenmodus
+let distanceSM = 0;	// Seemeielen Zähler
 
 const state = {
-  gps_lat: 54.6,
-  gps_lon: 10.3,
+  gps_lat: 53.39675,
+  gps_lon: 10.42105,
   gps_speed: 0,
-  gps_kurs: 90,
-  kompass: 90,
+  gps_kurs: 315,
+  kompass: 310,
   winddir_berechnet: 120,
   windspeed_berechnet: 0
 };
@@ -122,6 +149,60 @@ const target = JSON.parse(JSON.stringify(state));
 let ogpsCounter = 0;
 const trackPoints = [];
 const ogpsMarkers = [];
+
+/* ------------------------------
+   Optionaler Wetter-Loader (Fail-Safe)
+------------------------------ */
+let windLayerDemo = null;
+
+function loadWindData(filename) {
+    return new Promise((resolve) => {
+        if (!filename) {
+            resolve(false);
+            return;
+        }
+        // alten Layer entfernen
+        if (windLayerDemo) {
+            map.removeLayer(windLayerDemo);
+            windLayerDemo = null;
+        }
+        fetch("Wetter/" + filename + "?t=" + Date.now())
+            .then(res => res.json())
+            .then(data => {
+                windLayerDemo = L.velocityLayer({
+                    data: data,
+                    displayValues: true,
+                    displayOptions: {
+                        velocityType: "Wind",
+                        position: "bottomleft",
+                        emptyString: "keine Daten"
+                    },
+                    maxVelocity: 15,
+                    velocityScale: 0.008,
+                    particleAge: 120,
+                    lineWidth: 3,
+                    particleMultiplier: 1 / 300,
+                    frameRate: 25,
+                    colorScale: ["#ffffff", "#ffff66", "#ffcc33", "#ff6600", "#ff0000"]
+                });
+                layers.wind = windLayerDemo;
+                resolve(true);
+            })
+            .catch(() => {
+                console.warn("Fehler beim Laden:", filename);
+                resolve(false);
+            });
+    });
+}
+
+function loadWindIndex() {
+    return fetch("Wetter/index.json")
+        .then(res => res.json())
+        .catch(() => {
+            console.warn("Keine Wind-Index Datei");
+            return [];
+        });
+}
 
 /* ------------------------------
    Wegpunkte / Marker / Linien (ohne Tabelle)
@@ -134,7 +215,6 @@ let routeLine = null;       // L.polyline für die blaue Linie
    Karte & Layer (offline)
    ------------------------------ */
 const map = L.map('map', { zoomControl: true, attributionControl: false })
-
   .setView([state.gps_lat, state.gps_lon], 10);
 
 const TILE_URL = 'tiles/osm/{z}/{x}/{y}.png';
@@ -149,11 +229,121 @@ const layerOSM = new L.TileLayer.Throttled(
     throttleDelay: 250
   }
 );
-
+/* ------------------------------
+   Layer Control initialisieren
+------------------------------ */
 layerOSM.addTo(map);
 
 
+// OpenWeatherMap API Key
+const WEATHER_API_KEY = "052994578ac0357e51c1a900f2212731";
 
+// OpenWeatherMap-Layer
+const rainLayer = L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.7 });
+const cloudsLayer = L.tileLayer(`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.5 });
+const pressureLayer = L.tileLayer(`https://tile.openweathermap.org/map/pressure_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.6 });
+const tempLayer = L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.6 });
+
+// Layer-Management
+const layers = {
+    wind: windLayerDemo,
+    rain: rainLayer,
+    clouds: cloudsLayer,
+    pressure: pressureLayer,
+    temp: tempLayer
+};
+
+// Funktion zum Hinzufügen oder Entfernen von Layern
+function toggleLayer(layerName, isVisible) {
+    const layer = layers[layerName];
+    if (!layer) return; // wichtig!
+
+    if (isVisible) {
+        layer.addTo(map);
+    } else {
+        map.removeLayer(layer);
+    }
+}
+
+
+// Dynamisches Erstellen der Checkboxen
+const controlsDiv = document.getElementById('controls');
+const layerInfo = [
+    { id: 'toggleWind', label: '💨 Windanimation', key: 'wind' },
+    { id: 'toggleRain', label: '🌧 Regen', key: 'rain' },
+    { id: 'toggleClouds', label: '☁ Wolken', key: 'clouds' },
+    { id: 'togglePressure', label: '🧭 Luftdruck', key: 'pressure' },
+    { id: 'toggleTemp', label: '🌡 Temperatur', key: 'temp' }
+];
+
+
+layerInfo.forEach(info => {
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = info.id;
+    checkbox.checked = false; // Standardmäßig aktiviert
+    checkbox.addEventListener('change', function(e) {
+        toggleLayer(info.key, e.target.checked);
+    });
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(info.label));
+    controlsDiv.appendChild(label);
+});
+
+// ------------------------------
+// Wind-Auswahl Dropdown
+// ------------------------------
+const select = document.createElement("select");
+select.id = "windSelect";
+controlsDiv.appendChild(select);
+
+loadWindIndex().then(files => {
+
+    files.forEach(entry => {
+        const option = document.createElement("option");
+        option.value = entry.file;
+        option.textContent = entry.label;
+        select.appendChild(option);
+    });
+
+});
+
+select.addEventListener("change", function () {
+    const file = this.value;
+
+    loadWindData(file).then(() => {
+        const windCheckbox = document.getElementById("toggleWind");
+
+        if (windCheckbox && windCheckbox.checked) {
+            toggleLayer('wind', true);
+        }
+    });
+});
+
+// Winddaten Index laden
+loadWindIndex().then(files => {
+
+    if (files.length === 0) {
+        const windCheckbox = document.getElementById("toggleWind");
+        if (windCheckbox) {
+            windCheckbox.disabled = true;
+            windCheckbox.parentElement.style.opacity = 0.4;
+        }
+        return;
+    }
+
+    // erstes File laden
+    loadWindData(files[0].file);
+});
+
+
+// Standardmäßig aktivieren
+toggleLayer('rain', false);
+toggleLayer('clouds', false);
+toggleLayer('pressure', false);
+toggleLayer('temp', false);
+toggleLayer('wind', false);
 
 /* ------------------------------
    Grid, CoordBox, Geodesy etc.
@@ -334,7 +524,6 @@ function addOGPSMarker(pos) {
     }
 }
 
-
 /* ------------------------------
    Klickverhalten: Peilmodus vs Routenmodus
    ------------------------------ */
@@ -360,7 +549,6 @@ function createDiamondIcon(color = 'red', size = 16) {
 
 map.on('click', e => {
   if (anchorActive) return;
-
 
 if (!routeMode) {
     // Peilmodus: einzelner Zielmarker
@@ -417,14 +605,11 @@ modeRouteBtn.onclick = () => {
                 map.removeLayer(waypointLine);
                 waypointLine = null; // Setze die Linie auf null
             }
-			} catch(e) {}
+			} catch (e) {}
             waypointMarker = null;
         }
     }
 };
-
-
-
 
   // Routenmodus: neuen Wegpunkt anlegen
   const latlng = e.latlng;
@@ -538,6 +723,16 @@ function removeWaypoint(idx) {
 }
 
 /* ------------------------------
+   update Seemeilen
+   ------------------------------ */
+function updateLogDisplay() {
+    const el = document.getElementById("logDisplay");
+    if (el) {
+        el.innerText = distanceSM.toFixed(2) + " sm";
+    }
+}
+
+/* ------------------------------
    Simulation / Integrate (unverändert)
    ------------------------------ */
 let t0 = performance.now()/1000;
@@ -595,6 +790,7 @@ function attachWSHandlers(ws) {
             if ('gps_lon' in j) target.gps_lon = Number(j.gps_lon);
             if ('gps_speed' in j) target.gps_speed = Number(j.gps_speed);
             if ('gps_kurs' in j) target.gps_kurs = Number(j.gps_kurs);
+			if ("sm" in j) {distanceSM = Number(j.sm);updateLogDisplay();}
             if ('kompass' in j) target.kompass = Number(j.kompass);
             if ('winddir_berechnet' in j) target.winddir_berechnet = Number(j.winddir_berechnet);
             if ('windspeed_berechnet' in j) target.windspeed_berechnet = Number(j.windspeed_berechnet);
@@ -619,7 +815,6 @@ function connectWS() {
 // Start WS-Verbindung
 connectWS();
 
-
 /* ------------------------------
    Buttons / UI wiring (unverändert)
    ------------------------------ */
@@ -627,6 +822,7 @@ const centerToggle = document.getElementById('centerToggle');
 const saveTrackBtn = document.getElementById('saveTrack');
 const anchorWatchBtn = document.getElementById('anchorWatch');
 const modeRouteBtn = document.getElementById('modeRoute');
+const resetLogBtn = document.getElementById("resetLogBtn");
 
 centerToggle.onclick = ()=>{ followMode = !followMode; centerToggle.style.background = followMode ? 'rgba(0,100,0,0.6)' : 'rgba(0,0,0,0.4)'; };
 map.on('movestart', ()=>{ if(followMode){ followMode = false; centerToggle.style.background='rgba(0,0,0,0.4)'; } });
@@ -673,16 +869,27 @@ modeRouteBtn.onclick = () => {
         }
     }
 };
+ // Reset SM Zähler im ESP32
+resetLogBtn.onclick = () => {
+    fetch("/resetLog")
+        .then(() => {
+            distanceSM = 0;
+            updateLogDisplay();
+        })
+        .catch(err => console.error("Reset Fehler:", err));
+};
 
 /* ------------------------------
    Tag/Nachtmodus
    ------------------------------ */
 let isNightMode = false;
+
 document.getElementById('nightToggle').addEventListener('click', () => {
   isNightMode = !isNightMode;
-  if (isNightMode) { document.body.classList.add('night-mode'); document.getElementById('nightToggle').textContent = 'Tagmodus'; }
-  else { document.body.classList.remove('night-mode'); document.getElementById('nightToggle').textContent = 'Nachtmodus'; }
+  document.body.classList.toggle('night-mode', isNightMode);
+  document.getElementById('nightToggle').textContent = isNightMode ? 'Tagmodus' : 'Nachtmodus';
 });
+
 
 /* ------------------------------
    UpdateBoat (mit vollständigen Reichweitenkreisen wieder eingefügt)
@@ -742,9 +949,9 @@ function updateBoat() {
   // ================================
   const SM_IN_METERS = 1852;
   const radiusCircles = [
-    { r: 2 * SM_IN_METERS, color: '#FF6F61' },
-    { r: 5 * SM_IN_METERS, color: '#FF6B61' },
-    { r: 10 * SM_IN_METERS, color: '#FF6461' }
+    { r: 2 * SM_IN_METERS, color: '#ff0044' },
+    { r: 5 * SM_IN_METERS, color: '#ff0038' },
+    { r: 10 * SM_IN_METERS, color: '#ff0033' }
   ];
 
   if (!window.rangeCircles) {
@@ -758,9 +965,11 @@ function updateBoat() {
       const circle = L.circle([state.gps_lat, state.gps_lon], {
         radius: cfg.r,
         color: cfg.color,
-        weight: 1,
-        dashArray: "5,5",
-        fill: false
+        weight: 2,
+		dashArray: "8",
+		lineCap: "round",
+		fill: true,
+		fillOpacity: 0.03
       }).addTo(map);
       window.rangeCircles.push(circle);
 
@@ -770,7 +979,7 @@ function updateBoat() {
         const [lat1, lon1] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r * 0.98);
         const tick = L.polyline([[lat1, lon1], [lat2, lon2]], {
           color: cfg.color,
-          weight: 1,
+          weight: 3,
           opacity: 0.8
         }).addTo(map);
         window.tickLines.push(tick);
@@ -871,6 +1080,12 @@ function updateBoat() {
     });
   }
 }
+
+
+
+
+
+
 
 function updateWaypointList() {
   const tbody = document.querySelector("#waypointTable tbody");

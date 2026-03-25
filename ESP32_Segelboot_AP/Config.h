@@ -3,9 +3,10 @@
 // ----------------------------------------------------------
 // Alle globalen Einstellungen für das BootSensorController-System
 // ==========================================================
-
-
 #pragma once
+
+#include <Arduino.h>  // für String, uint8_t etc.
+#include <cstdint>    // für uint32_t
 
 // ==========================================================
 // 0. Funktionen in Einstellungen
@@ -30,8 +31,8 @@ void recalc_intervals();
 // ==========================================================
 // 2. WLAN Access Point Einstellungen
 // ==========================================================
-extern String AP_SSID;       // UMBAU ALS VARIABLE ZUM SPEICHERN
-extern String AP_PASSWORD;   // UMBAU ALS VARIABLE ZUM SPEICHERN
+extern String AP_SSID;      // UMBAU ALS VARIABLE ZUM SPEICHERN
+extern String AP_PASSWORD;  // UMBAU ALS VARIABLE ZUM SPEICHERN
 
 
 // ==========================================================
@@ -46,12 +47,15 @@ extern String AP_PASSWORD;   // UMBAU ALS VARIABLE ZUM SPEICHERN
 
 //GPS AHRS System Vektor Filter
 // Vorhersage/Filter-Einstellungen (in Sekunden)
-#define GPS_PREDICT_S        1.0f   // wie viele Sekunden in die Zukunft prognostizieren
-#define GPS_MIN_VALID_SPEED  0.13f  // kn — unterhalb: als "stillstehend" behandeln
-#define GPS_HDOP_MAX_WEIGHT  20.0f  // HDOP höheren als das geben sehr kleinen weight
+#define GPS_PREDICT_S 1.0f         // wie viele Sekunden in die Zukunft prognostizieren
+#define GPS_MIN_VALID_SPEED 0.13f  // kn — unterhalb: als "stillstehend" behandeln
+#define GPS_HDOP_MAX_WEIGHT 20.0f  // HDOP höheren als das geben sehr kleinen weight
 
 // GPS AHRS true Stabilisierung false reine GPS Daten
 #define GPS_AHRS_SYSTEM true
+
+#define LOG_INTERVAL_TICKS 60     // Anzahl GPS Updates
+#define LOG_MIN_DISTANCE_SM 0.04  // Mindestdistanz in sm (einstellbar)≈ 75 m
 
 // ==========================================================
 // 4. I2C Pins
@@ -98,13 +102,13 @@ extern uint32_t LOG_UPDATE_INTERVAL_SEKUNDEN;
 // 7. Sensor-Timings (Hz)
 // ==========================================================
 extern float GPS_UPDATE_HZ;
-extern float GPS_AHRS_UPDATE_HZ;  
-extern float MPU_UPDATE_HZ;       
-extern float WINDDIR_UPDATE_HZ;    
-extern float WINDSPEED_UPDATE_HZ;  
-extern float LICHT_UPDATE_HZ;     
-extern float SD_UPDATE_HZ;         
-extern float SENSOR_UPDATE_HZ;  
+extern float GPS_AHRS_UPDATE_HZ;
+extern float MPU_UPDATE_HZ;
+extern float WINDDIR_UPDATE_HZ;
+extern float WINDSPEED_UPDATE_HZ;
+extern float LICHT_UPDATE_HZ;
+extern float SD_UPDATE_HZ;
+extern float SENSOR_UPDATE_HZ;
 
 
 // ==========================================================
@@ -155,6 +159,32 @@ extern double Schallgeschwindigkeit_Wasser;
 extern bool gyro_start_cal;
 extern bool mag_start_cal;
 
+// ==========================================================
+// 13. Alarmzustand und Pin für Piper
+// ==========================================================
+#define BUZZER_PIN 4  // Digital Ausgang für Piezo
+
+#define ALARM_STABLE_MS 2000
+
+#define HYST_ECHOLOT 0.2f
+#define HYST_SPEED 0.3f
+#define HYST_WIND 0.5f
+#define HYST_ANGLE 2.0f
+#define HYST_ATT 1.0f
+
+#define ALARM_NONE 0
+#define ALARM_SPEED_MAX 1
+#define ALARM_SPEED_MIN 2
+#define ALARM_WIND_MAX 3
+#define ALARM_WIND_MIN 4
+#define ALARM_WIND_DIR 5
+#define ALARM_COURSE_DEV 6
+#define ALARM_ANCHOR 7
+#define ALARM_ROLL 8
+#define ALARM_PITCH 9
+#define ALARM_ECHOLOT 10
+
+#define ALARMTIME 1000
 // ==========================================================
 // ENDE
 // ==========================================================

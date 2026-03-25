@@ -35,7 +35,13 @@ struct GPS_Point {
 #define GPS_BUFFER_SIZE 10
 static GPS_Point gpsBuffer[GPS_BUFFER_SIZE];
 static int gpsWriteIndex = 0;
+static int logTickCounter = 0;
 
+// sm Zähler Strecke
+static double lastCheckLat = 0.0;
+static double lastCheckLon = 0.0;
+static bool logInitialized = false;
+#define GPS_MIN_SATS 5
 // ==========================================================
 // setupGPS()
 // ---------------------------------------------------------
@@ -52,7 +58,7 @@ void setupGPS() {
 
   // Serielle Schnittstelle starten (GPS_SERIAL_PORT = z.B. Serial1)
   GPS_SERIAL_PORT.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-
+  GPS_SERIAL_PORT.setRxBufferSize(1024);
   if (DEBUG_MODE) {
     Serial.print(F("[GPS] Port gestartet mit Baudrate: "));
     Serial.println(GPS_BAUDRATE);
@@ -121,7 +127,7 @@ void readGPS() {
   if (gps.date.isValid() && gps.time.isValid()) {
     // Berechne lokale Zeit basierend auf GPS-Koordinaten
     updateLocalTime(gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second());
-    
+
     //Systemzeit auf Zeitzone 0
     time_t now = time(nullptr);
     if (now < 1600000000) {  // Systemzeit noch ungültig
@@ -146,6 +152,92 @@ void readGPS() {
   }
 }
 
+// ==========================================================
+// deg2rad()
+// ---------------------------------------------------------
+// Wandelt einen Winkel von Grad in das Bogenmaß um
+// - Multipliziert den Wert mit (PI / 180)
+// - Rückgabewert: Winkel in Radianten (double)
+// ==========================================================
+static double deg2rad(double d) {
+  return d * M_PI / 180.0;
+}
+
+// ==========================================================
+// rad2deg()
+// ---------------------------------------------------------
+// Wandelt einen Winkel vom Bogenmaß in Grad um
+// - Multipliziert den Wert mit (180 / PI)
+// - Rückgabewert: Winkel in Grad (double)
+// ==========================================================
+static double rad2deg(double r) {
+  return r * 180.0 / M_PI;
+}
+
+// ==========================================================
+// distance_nm()
+// ---------------------------------------------------------
+// Berechnet die Distanz zwischen zwei Koordinaten in Seemeilen
+// - Nutzt Mittelbreitenverfahren zur Längengrad-Skalierung
+// - Rückgabewert: Distanz in Seemeilen (double)
+// ==========================================================
+static double distance_nm(double lat1, double lon1, double lat2, double lon2) {
+  // Mittelwert-Lat für Längengrad-Skalierung
+  double latm = deg2rad((lat1 + lat2) * 0.5);
+  double dlat = lat2 - lat1;                  // degrees
+  double dlon = lon2 - lon1;                  // degrees
+  double dlats_nm = dlat * 60.0;              // nm
+  double dlons_nm = dlon * 60.0 * cos(latm);  // nm (korrigiert)
+  return sqrt(dlats_nm * dlats_nm + dlons_nm * dlons_nm);
+}
+
+// ==========================================================
+// isGPSValid()
+// ---------------------------------------------------------
+// Prüft, ob ein ausreichend stabiles GPS-Signal vorliegt
+// - Vergleicht aktuelle Satellitenanzahl mit Schwellwert
+// - Rückgabewert: true = Signal OK, false = Signal zu schwach
+// ==========================================================
+bool isGPSValid() {
+  return (sensorData.gps_sats >= GPS_MIN_SATS);
+}
+
+// ==========================================================
+// updateDistanceLogTick()
+// ---------------------------------------------------------
+// Aktualisiert den Distanzzähler basierend auf GPS-Daten
+// - Filtert ungültige Signale und nutzt Interval-Ticks
+// - Addiert Bewegung erst ab einem Mindest-Schwellwert (m)
+// ==========================================================
+void updateDistanceLogTick(double lat, double lon) {
+  // ❌ KEIN gültiges GPS → sofort raus
+  if (!isGPSValid()) {
+    logInitialized = false;  // wichtig!
+    return;
+  }
+  logTickCounter++;
+  // Nur alle X Ticks auswerten
+  if (logTickCounter < LOG_INTERVAL_TICKS) return;
+  logTickCounter = 0;
+
+  // Initialisierung
+  if (!logInitialized) {
+    lastCheckLat = lat;
+    lastCheckLon = lon;
+    logInitialized = true;
+    return;
+  }
+  // Distanz berechnen
+  double d = distance_nm(lastCheckLat, lastCheckLon, lat, lon);
+  // Nur zählen wenn größer als Schwellwert
+  if (d >= LOG_MIN_DISTANCE_SM) {
+    // in sm umrechnen
+    sensorData.sm_counter += d / 1852.0;
+    // neuen Referenzpunkt setzen
+    lastCheckLat = lat;
+    lastCheckLon = lon;
+  }
+}
 
 // ==========================================================
 // isDST()
@@ -235,25 +327,6 @@ void setSystemTimeFromGPS(int year, int month, int day, int hour, int minute, in
 // Bildet finalen Bewegungsvektor, Daraus werden Geschwindigkeit und Kurs berechnet Projektion neue Zielposition berechnet
 // Ergebnis → direkt in sensorData.gps_lat/lon/speed/kurs
 // ------------------------------------------------------------------
-
-static double deg2rad(double d) {
-  return d * M_PI / 180.0;
-}
-static double rad2deg(double r) {
-  return r * 180.0 / M_PI;
-}
-
-// Entfernung in Nautical Miles zwischen 2 lat/lon in degrees (approx.)
-// Hinweis: 1° Breitengrad ≈ 60 NM
-static double distance_nm(double lat1, double lon1, double lat2, double lon2) {
-  // Mittelwert-Lat für Längengrad-Skalierung
-  double latm = deg2rad((lat1 + lat2) * 0.5);
-  double dlat = lat2 - lat1;                  // degrees
-  double dlon = lon2 - lon1;                  // degrees
-  double dlats_nm = dlat * 60.0;              // nm
-  double dlons_nm = dlon * 60.0 * cos(latm);  // nm (korrigiert)
-  return sqrt(dlats_nm * dlats_nm + dlons_nm * dlons_nm);
-}
 
 // Hauptfunktion: AHRS-basierte Glättung
 void gps_ahrs() {

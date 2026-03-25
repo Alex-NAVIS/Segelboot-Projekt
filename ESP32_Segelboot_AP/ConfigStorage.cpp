@@ -18,62 +18,11 @@ void ConfigStorage_begin() {
 
   // beide Konfigurationsbereiche laden
   ConfigStorage_loadSystem();
-  ConfigStorage_loadAutopilot();
 }
-
-// ==========================================================
-// AUTOPILOT SPEICHERN / LADEN (nur Basis-PID)
-// ==========================================================
-void ConfigStorage_saveAutopilot() {
-  File file = LittleFS.open(FILE_AUTOPILOT, "w");
-  if (!file) {
-    if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("❌ Fehler beim Öffnen Autopilot-Config!");
-    return;
-  }
-  StaticJsonDocument<512> doc;
-  doc["pinne_invertieren"] = pinnenautopilotData.pinne_invertieren;
-  doc["P_base"] = pinnenautopilotData.P_base;
-  doc["I_base"] = pinnenautopilotData.I_base;
-  doc["D_base"] = pinnenautopilotData.D_base;
-  doc["lat"] = pinnenautopilotData.autopilot_lat;
-  doc["lon"] = pinnenautopilotData.autopilot_lon;
-  serializeJson(doc, file);
-  file.close();
-  if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("💾 Autopilot-Basis-PID gespeichert.");
-}
-
-void ConfigStorage_loadAutopilot() {
-  if (!LittleFS.exists(FILE_AUTOPILOT)) {
-    if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("⚠️ Keine Autopilot-Konfiguration gefunden.");
-    return;
-  }
-
-  File file = LittleFS.open(FILE_AUTOPILOT, "r");
-  if (!file) return;
-
-  StaticJsonDocument<512> doc;
-
-  if (deserializeJson(doc, file)) {
-    if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("❌ Fehler beim Laden Autopilot JSON.");
-    file.close();
-    return;
-  }
-  file.close();
-  pinnenautopilotData.pinne_invertieren = doc["pinne_invertieren"] | 0;
-  pinnenautopilotData.P_base = doc["P_base"] | 0.0;
-  pinnenautopilotData.I_base = doc["I_base"] | 0.0;
-  pinnenautopilotData.D_base = doc["D_base"] | 0.0;
-  pinnenautopilotData.autopilot_lat = doc["lat"] | 0.0;
-  pinnenautopilotData.autopilot_lon = doc["lon"] | 0.0;
-
-  if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("📥 Autopilot-Basis-PID geladen.");
-}
-
 
 // ==========================================================
 // SYSTEM SPEICHERN / LADEN
 // ==========================================================
-
 // ----------------------------------------------------------
 // SYSTEM speichern
 // ----------------------------------------------------------

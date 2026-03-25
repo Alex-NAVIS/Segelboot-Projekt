@@ -14,144 +14,122 @@
 #include <Arduino.h>
 #include <math.h>  // für fmod()
 
-// ----------------------------------------------------------
-// Struktur: SensorData
-// ----------------------------------------------------------
-// Enthält alle gemessenen und berechneten Werte des Systems.
-// Alle Werte sind global über "sensorData" zugänglich.
-// ----------------------------------------------------------
+// ======================================================================
+// Bezeichnung: SensorData
+// Erklärung:   Zentrale Sammelstruktur für sämtliche Sensordaten des
+//              Schiffssystems. Beinhaltet die Lage- und Bewegungsdaten
+//              (IMU), verarbeitete Winddaten, GPS-Positions- und
+//              Zeitinformationen, magnetische Korrekturwerte sowie
+//              Zustände der Peripherie (Echolot, Relais, Mast-Status).
+// ======================================================================
 struct SensorData {
-  // --------------------------------------------------------
   // Lage- / Bewegungssensor (MPU9250)
-  // --------------------------------------------------------
-  double roll;     // Rollwinkel des Bootes (°)
-  double pitch;    // Nickwinkel des Bootes (°)
-  double kompass;  // Magnetischer Kurs (° 0–360)
+  double roll;     // Rollwinkel (Krängung) des Bootes (°)
+  double pitch;    // Nickwinkel (Stampfen) des Bootes (°)
+  double kompass;  // Magnetischer Steuerkurs (° 0–360)
 
-  // --------------------------------------------------------
   // Windsensoren (AS5600 & Encoder)
-  // --------------------------------------------------------
-  double winddir_gemessen;     // Momentane Windrichtung relativ zum Boot (°)
-  double windspeed_gemessen;   // Momentane Windgeschwindigkeit (kn/h)
-  double winddir_berechnet;    // Berechnete wahre Windrichtung (°)
-  double windspeed_berechnet;  // Berechnete wahre Windgeschwindigkeit (kn/h)
+  double winddir_gemessen;     // Scheinbarer Windwinkel (relativ zum Bug) (°)
+  double windspeed_gemessen;   // Scheinbare Windgeschwindigkeit (kn/h)
+  double winddir_berechnet;    // Wahrer Windwinkel (True Wind) (°)
+  double windspeed_berechnet;  // Wahre Windgeschwindigkeit (True Wind) (kn/h)
 
-  // --------------------------------------------------------
   // GPS-Daten (TinyGPS++)
-  // --------------------------------------------------------
-  double gps_lat;    // Geografische Breite (°)
-  double gps_lon;    // Geografische Länge (°)
-  double gps_speed;  // Geschwindigkeit über Grund (kn/h)
-  double gps_kurs;   // Kurs über Grund (°)
-  int gps_sats;      // GPS Satanzahl
-  float gps_hdop;    // gps hdop Fehlerwert
+  double gps_lat;    // Geografische Breite (WGS84)
+  double gps_lon;    // Geografische Länge (WGS84)
+  double gps_speed;  // SOG (Speed Over Ground) in kn/h
+  double gps_kurs;   // COG (Course Over Ground) (°)
+  int gps_sats;      // Anzahl empfangener Satelliten
+  float gps_hdop;    // Horizontale Genauigkeit (Präzision)
 
-  // --------------------------------------------------------
   // GPS-Datum & Zeit (aus NMEA)
-  // --------------------------------------------------------
-  int gps_jahr;     // Jahr (z. B. 2025)
-  int gps_monat;    // Monat (1–12)
-  int gps_tag;      // Tag (1–31)
-  int gps_stunde;   // Stunde (0–23)
-  int gps_minute;   // Minute (0–59)
-  int gps_sekunde;  // Sekunde (0–59)
+  int gps_jahr;     // Aktuelles Kalenderjahr
+  int gps_monat;    // Aktueller Monat (1–12)
+  int gps_tag;      // Aktueller Tag (1–31)
+  int gps_stunde;   // UTC Stunde (0–23)
+  int gps_minute;   // UTC Minute (0–59)
+  int gps_sekunde;  // UTC Sekunde (0–59)
 
-  // --------------------------------------------------------
-  // Magnetische Missweisung (Berechnet aus WMM_Tinier)
-  // --------------------------------------------------------
-  double missweisung;  // Deklination: Differenz zwischen magnetisch & geografisch Nord (°)
-                       // Positiv = östlich, negativ = westlich
+  // Magnetische Missweisung (WMM_Tinier)
+  double missweisung;  // Ortsabhängige magnetische Deklination (°)
 
-  // --------------------------------------------------------
-  // Echolot gemessen mit Sensor im Rumpf
-  // --------------------------------------------------------
-  double Echolot;  // in Meter
+  // Echolot
+  double Echolot;  // Wassertiefe unter dem Geber (m)
 
-  // --------------------------------------------------------
-  // Lichtsteuerung Relay A B C D
-  // --------------------------------------------------------
-  int relay_a;  // 0 on 1 off
-  int relay_b;  // 0 on 1 off
-  int relay_c;  // 0 on 1 off
-  int relay_d;  // 0 on 1 off
+  // Lichtsteuerung Relais A-D
+  int relay_a;  // Schaltzustand Relais A (0=AN, 1=AUS)
+  int relay_b;  // Schaltzustand Relais B (0=AN, 1=AUS)
+  int relay_c;  // Schaltzustand Relais C (0=AN, 1=AUS)
+  int relay_d;  // Schaltzustand Relais D (0=AN, 1=AUS)
 
-  //Mastdata Online offline timeout
-  int mast_online;  // 0 = offline 1 = online 2 = timeout
+  // Mast-Kommunikationsstatus
+  int mast_online;  // Netzwerkstatus Mast-Einheit (0=off, 1=on, 2=timeout)
+
+  double sm_counter; // SM Zähler für Wegstrecke
 };
 
-// ----------------------------------------------------------
-// Globale Instanz, von allen Modulen verwendbar
-// ----------------------------------------------------------
+// Globale Instanz zur Bereitstellung der Sensordaten im System
 extern SensorData sensorData;
 
-// -----------------------------------------------------------------------------------
-// Globale Instanz, von allen Modulen verwendbar Autopilot Pinnenautopilot Variablen
-// -----------------------------------------------------------------------------------
 
-//PID Werte für den Autopilot Pinnenautopilot für glatte; mäßig und raue See
+
+// ======================================================================
+// Bezeichnung: AutopilotData
+// Erklärung:   Zentrale Datenstruktur für die Autopilot-Steuerung.
+//              Speichert die Zielkoordinaten, den aktuellen Betriebsmodus,
+//              Benutzereingaben für den Kurs-Offset sowie Statusflags
+//              für die manuelle Aktuator-Steuerung (Motor).
+// ======================================================================
 struct AutopilotData {
-    // Basis-PID Werte (werden im HTML gesetzt/berechnet)
-  double P_base;
-  double I_base;
-  double D_base;
-
-  //Inverter der Pinnenbewegung
-  int pinne_invertieren;
-
-  //Autopilot Zielkoordinaten
-  double autopilot_lat;  // Geografische Breite (°) Ziel Autopilot
-  double autopilot_lon;  // Geografische Länge (°) Ziel Autopilot
+  double autopilot_lat;         // Ziel-Breitengrad (WGS84)
+  double autopilot_lon;         // Ziel-Längengrad (WGS84)
+  int modus_autopilot;          // Aktueller Steuerungsmodus (z.B. Standby, Track, Wind)
+  int rotary_offset;            // Kurskorrektur über Inkrementalgeber (+/- 45°)
+  bool motor_manuel_einfahren;  // Manueller Befehl: Linearantrieb einziehen
+  bool motor_manuel_ausfahren;  // Manueller Befehl: Linearantrieb ausfahren
+  uint32_t modus_counter;       // Sequenzzähler zur Validierung von Benutzerinteraktionen
 };
 
-// ----------------------------------------------------------
-// Globale Instanz, von allen Modulen verwendbar
-// ----------------------------------------------------------
+// Globale Instanz zur Steuerung des Pinnenautopilots
 extern AutopilotData pinnenautopilotData;
 
-// ==========================================================
-// Status Autopilot
-// 0 = keine Funktion / Suche WLAN
-// 1 = WLAN verbunden
-// 2 = Regelung ON Kompassmodus
-// 3 = GPS-Kursmodus
-// 4 = Windsteuerung
-// 5 = Fehler im AP
-// ==========================================================
-extern int status_autopilot;
-// ==========================================================
-// Rotary Encoder
-// ==========================================================
-extern int rotary_offset;  // Sollkurs Offset ±45°
 
-// ==========================================================
-// Display-Modus für Rotary Encoder PID Control
-// ==========================================================
-// 1 = kleine Wellen
-// 2 = mäßige Wellen
-// 3 = große Wellen
-extern int PID_wahl;
+// ======================================================================
+// Bezeichnung: AlarmData
+// Erklärung:   Struktur zur Speicherung der Alarm-Konfiguration.
+//              Enthält Aktivierungsschalter (Booleans) und die
+//              zugehörigen Schwellenwerte (Floats) für die Überwachung
+//              von Geschwindigkeit, Winddaten, Kursabweichungen,
+//              Ankerwache sowie die Schiffslage (Roll & Pitch).
+// ======================================================================
+struct AlarmData {
+  int alarm;             // Alarmausgelöst true false
+  bool en_speed_max;     // Max. Geschwindigkeit aktiviert
+  float speedMax;        // Schwellenwert Max. Geschwindigkeit
+  bool en_speed_min;     // Min. Geschwindigkeit aktiviert
+  float speedMin;        // Schwellenwert Min. Geschwindigkeit
+  bool en_echolot;       // Echolot Alarm aktiv
+  float echolotMin;      // minimale Wassertiefe
+  bool en_wind_max;      // Max. Windgeschwindigkeit aktiviert
+  float windMax;         // Schwellenwert Max. Windgeschwindigkeit
+  bool en_wind_min;      // Min. Windgeschwindigkeit aktiviert
+  float windMin;         // Schwellenwert Min. Windgeschwindigkeit
+  bool en_wind_dir;      // Windrichtungswarnung aktiviert
+  float windDir;         // Toleranzbereich Windrichtung
+  float windDir_temp;    // Windrichtung zur Überwachung
+  bool en_course_dev;    // Kursabweichung (XTE) aktiviert
+  float courseDev;       // Max. Kursabweichung in Grad/Metern
+  float courseDev_temp;  // Steuerkurs zur Überwachung
+  bool en_anchor;        // Ankerwache aktiviert
+  float anchorRadius;    // Radius für Ankerwache
+  float anchorkette;     // Länge der Ankerkette
+  double anker_lat;      // Ankerpunkt Lat
+  double anker_lon;      // Ankerpunkt Lon
+  bool en_roll;          // Krängungswarnung (Roll) aktiviert
+  float roll;            // Max. Winkel Roll
+  bool en_pitch;         // Stampfwarnung (Pitch) aktiviert
+  float pitch;           // Max. Winkel Pitch
+};
 
-
-// ==========================================================
-// Soll Steuerkurs (vom Autopilot gehalten)
-// ==========================================================
-extern double soll_kurs;  // aktuell eingestellter Sollkurs
-
-// ==========================================================
-// Schrittmotor / NEMA23 Steuerung
-// Motorsteuerung
-// ==========================================================
-extern bool motor_manuel_einfahren;  // manuelle Steuerung EINFAHREN
-extern bool motor_manuel_ausfahren;  // manuelle Steuerung AUSFAHREN
-
-extern volatile int motor_richtung;  // Richtung (0 / 1)
-extern bool motor_hauptschalter;     // Motorstatus aktiv / inaktiv
-
-extern bool motor_aktiv;  // Motorstatus aktiv / inaktiv
-
-extern volatile long motor_position;  // aktuelle Position in Schritten
-
-extern bool end_links_aktiv;   // linker Endschalter
-extern bool end_rechts_aktiv;  // rechter Endschalter
-
-extern uint32_t stepThreshold;  // Schrittfrequenz-Teiler für ISR
+// Globale Instanz für den Zugriff im gesamten Projekt
+extern AlarmData alarmData;

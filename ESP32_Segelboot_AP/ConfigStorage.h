@@ -12,13 +12,8 @@
 // --- Little File System einrichten ---
 void ConfigStorage_begin();
 
-// --- getrennte Speicherbereiche Autopilot---
-void ConfigStorage_saveAutopilot();
-void ConfigStorage_loadAutopilot();
-
 // --- Boot System Einstellungen---
 void ConfigStorage_saveSystem();
 void ConfigStorage_loadSystem();
-
 
 #endif // CONFIG_STORAGE_H

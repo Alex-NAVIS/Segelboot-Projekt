@@ -41,13 +41,15 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len);
 // ----------------------------------------------------------------------
 // HTTP-Hilfsfunktionen (diese bleiben sinnvoll)
 // ----------------------------------------------------------------------
-void handleFile(AsyncWebServerRequest *request, const char *path);
-void handleSetConfig(AsyncWebServerRequest *request);                                                        // PID-Konfiguration setzen
+void handleFile(AsyncWebServerRequest *request, const char *path);                                           // PID-Konfiguration setzen
 void handleSetTarget(AsyncWebServerRequest *request);                                                        // Zielpunkt Autopilot setzen
 void handleTide(AsyncWebServerRequest *request);                                                             // Abfrage zu einer Koordinate zum Tide Zeitpunkt Hochwasser Niedrigwasser
 void handleMastBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);  // Mast Sensor GPS Wind Sensordaten
-void handleTiles(AsyncWebServerRequest *request); 
-void handleTideCurve(AsyncWebServerRequest *request);                                                           // PNG-Kacheln liefern                                                  //Tile Zeiten abfragen und zurück geben
+void handleAlarm(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);     // Alarm Einstellungen
+void handleTiles(AsyncWebServerRequest *request);                                                            // PNG-Kacheln liefern
+void handleTideCurve(AsyncWebServerRequest *request);                                                        //Tile Zeiten abfragen und zurück geben
+void handleWetterIndex(AsyncWebServerRequest *request);                                                      // Liste alle Wetterdaten im System auf
+void handleWetterRequest(AsyncWebServerRequest *request);                                                    // Sendet Wetter Wind Datei
 void closeConnection();
 
 // ----------------------------------------------------------------------

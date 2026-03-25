@@ -4,43 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>System Einstellungen</title>
-
   <style>
-  body { background: #0f1218; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; line-height: 1.4; margin: 0; }
-  h1 { color: #00bcd4; margin-bottom: 0.5rem; }
-  h2 { color: #00bcd4; margin-top: 25px; font-size: 1.2rem; }
-
-  table { margin: 20px auto; border-collapse: collapse; width: 90%; max-width: 700px; background: #1a1f28; border-radius: 8px; overflow: hidden; }
-  th, td { border: 1px solid #252a38; padding: 12px; text-align: left; }
-  th { background: #00bcd4; color: #0f1218; text-align: center; font-weight: bold; }
-  
-  .info-text { font-size: 0.85em; color: #aaa; margin-top: 4px; display: block; }
-  
-  input[type="number"], input[type="text"] { width: 100%; box-sizing: border-box; background: #252a38; color: #fff; border: 1px solid #007d91; padding: 8px; border-radius: 4px; }
-  input[type="checkbox"] { transform: scale(1.2); margin-right: 8px; cursor: pointer; }
-
-  .buttonBar { margin-top: 30px; padding: 20px; border-top: 1px solid #252a38; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-  
-  button { padding: 12px 20px; font-size: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; min-width: 180px; transition: all 0.2s ease; }
-  button:hover { transform: translateY(-2px); filter: brightness(1.1); }
-  
-  #saveBtn { background: #00bcd4; color: #0f1218; }
-  #cancelBtn { background: #333; color: #fff; }
-  #calibCompassBtn { background: #ff9800; color: #000; } 
-  #calibGyroBtn { background: #f44336; color: #fff; }    
-  
-  .calib-cell { text-align: center; vertical-align: middle; width: 220px; }
-
-  .fileupdatebtn { display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #1a2a35 0%, #003d52 100%); color: #00d4ff; text-decoration: none; font-family: 'Segoe UI', sans-serif; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; border-radius: 12px; border: 1px solid rgba(0, 212, 255, 0.3); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); transition: all 0.3s ease; cursor: pointer; }
-  .fileupdatebtn:hover { background: #00bcd4; color: #0f1218; border-color: #00e5ff; box-shadow: 0 0 20px rgba(0, 212, 255, 0.6); transform: translateY(-2px); }
-  .fileupdatebtn:active { transform: translateY(0); }
+		body { background: #0f1218; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; line-height: 1.4; margin: 0; }
+		h1 { color: #00bcd4; margin-bottom: 0.5rem; }
+		h2 { color: #00bcd4; margin-top: 25px; font-size: 1.2rem; }
+		table { margin: 20px auto; border-collapse: collapse; width: 90%; max-width: 700px; background: #1a1f28; border-radius: 8px; overflow: hidden; }
+		th, td { border: 1px solid #252a38; padding: 12px; text-align: left; }
+		th { background: #00bcd4; color: #0f1218; text-align: center; font-weight: bold; }
+		.info-text { font-size: 0.85em; color: #aaa; margin-top: 4px; display: block; }
+		input[type="number"], input[type="text"] { width: 100%; box-sizing: border-box; background: #252a38; color: #fff; border: 1px solid #007d91; padding: 8px; border-radius: 4px; }
+		input[type="checkbox"] { transform: scale(1.2); margin-right: 8px; cursor: pointer; }
+		.buttonBar { margin-top: 30px; padding: 20px; border-top: 1px solid #252a38; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+		button { padding: 12px 20px; font-size: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; min-width: 180px; transition: all 0.2s ease; }
+		button:hover { transform: translateY(-2px); filter: brightness(1.1); }
+		#saveBtn { background: #00bcd4; color: #0f1218; }
+		#cancelBtn { background: #333; color: #fff; }
+		#calibCompassBtn { background: #ff9800; color: #000; }
+		#calibGyroBtn { background: #f44336; color: #fff; }
+		.calib-cell { text-align: center; vertical-align: middle; width: 220px; }
+		#navbar { display: flex; justify-content: center; gap: 8px; background-color: #002b3a; padding: 6px 0; border-bottom: 1px solid #005566; position: relative; }
+		.navbtn { background:#003d52; color:#00ffff; border:1px solid #007a99; border-radius:5px; padding:3px 10px; text-decoration:none; font-size:.9em; font-weight:bold; transition:.2s; }
+        .navbtn:hover { background:#00b8d4; color:#001a26; border-color:#00e6e6; }
+		footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
+	
 </style>
-
 </head>
 <body>
-
+	<nav id="navbar">
+		<a href="index.html" class="navbtn">Dashboard</a>
+		<a href="upload.html" class="navbtn">Datei upload</a>
+	</nav>
   <h1>⚙️ System Einstellungen</h1>
-
   <!-- Abschnitt A bis E bleiben identisch wie in deinem Code -->
   <h2>A – WLAN Access Point</h2>
   <table>
@@ -166,9 +160,12 @@ Lade…
   </tr>
 </table>
 
-<h1>ESP File Manager</h1>
-<a href="upload.html" class="fileupdatebtn">Datei upload</a>
-
+	<footer>
+		<strong>Marine Dashboard v1.1</strong><br>
+		Entwickelt von <span style="color:#00ffff;">Alex</span> & <span style="color:#00ffff;">NAVIS</span><br>
+		© 2025 – Bootssystem ESP32 • Live Monitoring
+	</footer>
+	
 <script src="js/three.min.js"></script>
   <script>
     // Laden der vorhandenen System Config

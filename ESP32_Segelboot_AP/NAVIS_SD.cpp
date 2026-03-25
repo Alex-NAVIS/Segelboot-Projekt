@@ -1,3 +1,21 @@
+// ======================================================================
+// Modul: NAVIS_SD
+// Erklärung:   SD-Karten-Logging und Dateiverwaltung für das NAVIS-System.
+//              Das Modul übernimmt:
+//
+//              - Initialisierung der SD-Karte
+//              - Überwachung der Kartenverfügbarkeit
+//              - Tagesordner-Verwaltung
+//              - CSV-Datenlogging der Sensordaten
+//              - Generierung von GPX- und KML-Tracks aus CSV
+//              - Datei-Zugriff für Webserver/Tiles
+//
+//              Besonderheiten:
+//              - automatische Reinitialisierung bei Kartenfehlern
+//              - tägliche Log-Struktur
+//              - robuste Fehlerbehandlung
+// ======================================================================
+
 #include "NAVIS_SD.h"
 #include "Sensor_Data.h"
 #include "Config.h"
@@ -6,14 +24,19 @@
 // ----------------------------------------------------------
 // Status der SD-Karte
 // ----------------------------------------------------------
+
+// interner Verfügbarkeitsstatus der SD-Karte
 static bool sd_available = false;
 
-// Basisordner
+// Basisordner für alle Logs
 const char* LOG_BASE_PATH = "/LOGS";
 
-// ----------------------------------------------------------
-// SD initialisieren (im Setup aufrufen)
-// ----------------------------------------------------------
+
+// ======================================================================
+// Funktion: setup_sd
+// Erklärung:   Initialisiert SPI und SD-Karte.
+//              Muss einmal im Setup aufgerufen werden.
+// ======================================================================
 void setup_sd() {
   // SPI manuell initialisieren
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS_PIN);
@@ -29,9 +52,14 @@ void setup_sd() {
   if (DEBUG_MODE_SD) Serial.println("✅ SD-Karte erfolgreich erkannt!");
 }
 
-// ----------------------------------------------------------
-// Prüfen, ob SD verfügbar, ggf. neu initialisieren
-// ----------------------------------------------------------
+
+// ======================================================================
+// Funktion: checkSD
+// Erklärung:   Prüft, ob die SD-Karte verfügbar ist und versucht bei
+//              Bedarf eine Reinitialisierung. Stellt außerdem sicher,
+//              dass der Basisordner existiert.
+// Rückgabe:    true = SD einsatzbereit
+// ======================================================================
 static bool checkSD() {
   if (!SD.begin(SD_CS_PIN, SPI)) {
     if (sd_available) Serial.println(F("[LOG] SD-Karte entfernt oder Fehler!"));
@@ -55,9 +83,13 @@ static bool checkSD() {
   return true;
 }
 
-// ----------------------------------------------------------
-// Tagesordner erstellen / zurückgeben
-// ----------------------------------------------------------
+
+// ======================================================================
+// Funktion: getLogFolder
+// Erklärung:   Ermittelt den Tagesordner basierend auf dem GPS-Datum.
+//              Legt den Ordner bei Bedarf automatisch an.
+// Rückgabe:    Pfad des Tagesordners oder leerer String bei Fehler
+// ======================================================================
 static String getLogFolder() {
   char folder[64];
   sprintf(folder, "%s/%04d_%02d_%02d", LOG_BASE_PATH,
@@ -73,30 +105,46 @@ static String getLogFolder() {
   return String(folder);
 }
 
-// ----------------------------------------------------------
-// Dateinamen
-// ----------------------------------------------------------
+
+// ======================================================================
+// Funktion: getCSVFile
+// Erklärung:   Erzeugt den vollständigen Pfad zur Tages-CSV-Datei.
+// ======================================================================
 static String getCSVFile() {
   String folder = getLogFolder();
   if (folder.length() == 0) return String("");
   return folder + "/log_" + String(sensorData.gps_jahr) + "_" + String(sensorData.gps_monat) + "_" + String(sensorData.gps_tag) + ".csv";
 }
 
+
+// ======================================================================
+// Funktion: getGPXFile
+// Erklärung:   Erzeugt den vollständigen Pfad zur Tages-GPX-Datei.
+// ======================================================================
 static String getGPXFile() {
   String folder = getLogFolder();
   if (folder.length() == 0) return String("");
   return folder + "/track_" + String(sensorData.gps_jahr) + "_" + String(sensorData.gps_monat) + "_" + String(sensorData.gps_tag) + ".gpx";
 }
 
+
+// ======================================================================
+// Funktion: getKMLFile
+// Erklärung:   Erzeugt den vollständigen Pfad zur Tages-KML-Datei.
+// ======================================================================
 static String getKMLFile() {
   String folder = getLogFolder();
   if (folder.length() == 0) return String("");
   return folder + "/track_" + String(sensorData.gps_jahr) + "_" + String(sensorData.gps_monat) + "_" + String(sensorData.gps_tag) + ".kml";
 }
 
-// ----------------------------------------------------------
-// CSV-Log schreiben
-// ----------------------------------------------------------
+
+// ======================================================================
+// Funktion: write_log
+// Erklärung:   Schreibt einen Datensatz der aktuellen Sensordaten in
+//              die Tages-CSV-Datei. Erstellt die Datei inklusive
+//              Kopfzeile automatisch bei Bedarf.
+// ======================================================================
 void write_log() {
   if (!checkSD()) return;
 
@@ -112,33 +160,94 @@ void write_log() {
     return;
   }
 
+  // Kopfzeile (20 Spalten)
   if (newFile) {
     file.println(F("Datum;Zeit;Latitude;Longitude;Satelliten;HDOP;Speed;Kurs;Kompass;"
                    "WindDir_Gemessen;WindSpeed_Gemessen;WindDir_Berechnet;WindSpeed_Berechnet;"
-                   "Relay_A;Relay_B;Relay_C;Relay_D;Status_Autopilot;Rotary_Offset;PID_Wahl;Echolot"));
+                   "Relay_A;Relay_B;Relay_C;Relay_D;Status_Autopilot;Rotary_Offset;Echolot"));
   }
 
   char buf[256];
-  sprintf(buf, "%04d-%02d-%02d;%02d:%02d:%02d;%.6f;%.6f;%d;%.2f;%.2f;%.2f;%.2f;%.2f;%.2f;%.2f;%.2f;%d;%d;%d;%d;%d;%d;%d;%.2f",
+
+  sprintf(buf, "%04d-%02d-%02d;%02d:%02d:%02d;%.6f;%.6f;%d;%.2f;%.2f;%.2f;%.1f;"
+                "%.1f;%.2f;%.1f;%.2f;"
+                "%d;%d;%d;%d;%d;%d;%.2f",
           sensorData.gps_jahr, sensorData.gps_monat, sensorData.gps_tag,
           sensorData.gps_stunde, sensorData.gps_minute, sensorData.gps_sekunde,
           sensorData.gps_lat, sensorData.gps_lon,
           sensorData.gps_sats, sensorData.gps_hdop,
-          sensorData.gps_speed, sensorData.gps_kurs, sensorData.kompass,
+          sensorData.gps_speed, sensorData.gps_kurs, (float)sensorData.kompass,
           sensorData.winddir_gemessen, sensorData.windspeed_gemessen,
           sensorData.winddir_berechnet, sensorData.windspeed_berechnet,
           sensorData.relay_a, sensorData.relay_b, sensorData.relay_c, sensorData.relay_d,
-          status_autopilot, rotary_offset, PID_wahl,
+          pinnenautopilotData.modus_autopilot, pinnenautopilotData.rotary_offset,
           sensorData.Echolot);
+
   file.println(buf);
   file.close();
 
   if (DEBUG_MODE_SD) Serial.println(F("[LOG] CSV-Eintrag geschrieben."));
 }
 
-// ----------------------------------------------------------
-// GPX/KML aktualisieren
-// ----------------------------------------------------------
+
+void write_event_log(String type, String text, String dir, String wind, String waves)
+{
+  if (!checkSD()) return;
+
+  String folder = getLogFolder();
+  if (folder.length() == 0) return;
+
+  String filePath = folder + "/events_" +
+                    String(sensorData.gps_jahr) + "_" +
+                    String(sensorData.gps_monat) + "_" +
+                    String(sensorData.gps_tag) + ".csv";
+
+  bool newFile = !SD.exists(filePath);
+
+  File file = SD.open(filePath, FILE_APPEND);
+  if (!file)
+  {
+    if (DEBUG_MODE_SD) Serial.println("[LOG] Event-Datei nicht öffnungsbereit!");
+    return;
+  }
+
+  if (newFile)
+  {
+    file.println("Datum;Zeit;Typ;Text;WindDir;WindSpeed;Wellen");
+  }
+
+  char buf[256];
+
+  sprintf(buf,"%04d-%02d-%02d;%02d:%02d:%02d;%s;%s;%s;%s;%s",
+          sensorData.gps_jahr,
+          sensorData.gps_monat,
+          sensorData.gps_tag,
+          sensorData.gps_stunde,
+          sensorData.gps_minute,
+          sensorData.gps_sekunde,
+          type.c_str(),
+          text.c_str(),
+          dir.c_str(),
+          wind.c_str(),
+          waves.c_str());
+
+  file.println(buf);
+  file.close();
+
+  if (DEBUG_MODE_SD)
+  {
+    Serial.print("[EVENT] ");
+    Serial.println(buf);
+  }
+}
+
+
+// ======================================================================
+// Funktion: update_gps_tracks
+// Erklärung:   Durchsucht alle Tagesordner und erzeugt aus vorhandenen
+//              CSV-Dateien automatisch GPX- und KML-Trackdateien,
+//              sofern diese noch nicht existieren.
+// ======================================================================
 void update_gps_tracks() {
   if (!checkSD()) return;
 
@@ -158,13 +267,11 @@ void update_gps_tracks() {
     String folderName = entry.name();
     entry.close();
 
-    // Tagesordner und Dateinamen
     String dateStr = folderName.substring(folderName.lastIndexOf('/') + 1);
     String csvFile = folderName + "/log_" + dateStr + ".csv";
     String gpxFile = folderName + "/track_" + dateStr + ".gpx";
     String kmlFile = folderName + "/track_" + dateStr + ".kml";
 
-    // Überspringen, wenn GPX/KML bereits existieren
     if (SD.exists(gpxFile) && SD.exists(kmlFile)) continue;
 
     if (!SD.exists(csvFile)) {
@@ -180,7 +287,7 @@ void update_gps_tracks() {
       continue;
     }
 
-    // GPX-Datei erstellen
+    // --- GPX erstellen ---
     File fGpx = SD.open(gpxFile, FILE_WRITE);
     if (!fGpx) {
       if (DEBUG_MODE_SD) Serial.print(F("[LOG] GPX nicht öffnungsbereit: "));
@@ -188,11 +295,12 @@ void update_gps_tracks() {
       fCsv.close();
       continue;
     }
+
     fGpx.println(F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
     fGpx.println(F("<gpx version=\"1.1\" creator=\"Bootsystem\">"));
     fGpx.println(F("<trk><name>Boot Track</name><trkseg>"));
 
-    // KML-Datei erstellen
+    // --- KML erstellen ---
     File fKml = SD.open(kmlFile, FILE_WRITE);
     if (!fKml) {
       if (DEBUG_MODE_SD) Serial.print(F("[LOG] KML nicht öffnungsbereit: "));
@@ -201,34 +309,35 @@ void update_gps_tracks() {
       fCsv.close();
       continue;
     }
+
     fKml.println(F("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
     fKml.println(F("<kml xmlns=\"http://www.opengis.net/kml/2.2\">"));
     fKml.println(F("<Document><name>Boot Track</name><Placemark><LineString><coordinates>"));
 
     bool firstLine = true;
+
     while (fCsv.available()) {
       String line = fCsv.readStringUntil('\n');
       line.trim();
       if (line.length() == 0) continue;
+
       if (firstLine) {
         firstLine = false;
         continue;
-      }  // Header überspringen
+      }
 
-      // CSV-Felder splitten: Datum;Zeit;Latitude;Longitude;...
       int y, m, d, H, M, S;
       double lat, lon;
+
       int parsed = sscanf(line.c_str(),
                           "%d-%d-%d;%d:%d:%d;%lf;%lf",
                           &y, &m, &d, &H, &M, &S, &lat, &lon);
-      if (parsed < 8) {
-        if (DEBUG_MODE_SD) Serial.print(F("[LOG] Ungültige CSV-Zeile: "));
-        if (DEBUG_MODE_SD) Serial.println(line);
-        continue;
-      }
+
+      if (parsed < 8) continue;
 
       fGpx.printf("<trkpt lat=\"%.6f\" lon=\"%.6f\"><time>%04d-%02d-%02dT%02d:%02d:%02dZ</time></trkpt>\n",
                   lat, lon, y, m, d, H, M, S);
+
       fKml.printf("%.6f,%.6f,0\n", lon, lat);
     }
 
@@ -239,45 +348,28 @@ void update_gps_tracks() {
     fKml.close();
 
     fCsv.close();
-    Serial.print(F("[LOG] GPX/KML aus CSV erstellt für "));
-    if (DEBUG_MODE_SD) Serial.println(folderName);
   }
 
   root.close();
 }
 
-    
-// ----------------------------------------------------------
-// Datei prüfen (für Webserver / Tiles / Tide)
-// ----------------------------------------------------------
+
+// ======================================================================
+// Funktion: sd_file_exists
+// Erklärung:   Prüft, ob eine Datei auf der SD-Karte existiert.
+//              Wird z. B. vom Webserver verwendet.
+// ======================================================================
 bool sd_file_exists(const String& path) {
-  if (DEBUG_MODE_SD) {
-    if (DEBUG_MODE_SD)Serial.print("[SD] Prüfe Datei: ");
-    if (DEBUG_MODE_SD)Serial.println(path);
-  }
-
-  // SD grundsätzlich verfügbar?
-  if (!checkSD()) {
-    if (DEBUG_MODE_SD) Serial.println("[SD] checkSD() fehlgeschlagen");
-    return false;
-  }
-
-  // Existiert die Datei wirklich?
-  bool exists = SD.exists(path);
-  if (DEBUG_MODE_SD) {
-    if (exists) {
-      if (DEBUG_MODE_SD)Serial.println("[SD] Datei vorhanden");
-    } else {
-      if (DEBUG_MODE_SD)Serial.println("[SD] Datei NICHT vorhanden");
-    }
-  }
-  return exists;
+  if (!checkSD()) return false;
+  return SD.exists(path);
 }
 
 
-// ----------------------------------------------------------
-// Datei öffnen (für Webserver / Tiles)
-// ----------------------------------------------------------
+// ======================================================================
+// Funktion: sd_open_file
+// Erklärung:   Öffnet eine Datei auf der SD-Karte im gewünschten Modus.
+//              Wird primär vom Webserver genutzt.
+// ======================================================================
 File sd_open_file(const String& path, const char* mode) {
   if (!checkSD()) return File();
   return SD.open(path, mode);

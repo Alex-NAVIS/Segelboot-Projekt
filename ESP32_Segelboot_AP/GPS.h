@@ -83,6 +83,9 @@ bool isDST(int year, int month, int day);
 // setzt die Systemzeit (UTC) aus GPS-Daten
 void setSystemTimeFromGPS(int year, int month, int day, int hour, int minute, int second);
 
+// berechnet und loggt die zurückgelegte Distanz (Logge) in Seemeilen
+void updateDistanceLogTick(double lat, double lon);
+
 // gps_ahrs():
 //   - Berechnet interpolierte GPS-Koordinaten basierend auf den im Ringpuffer
 //     gespeicherten letzten GPS-Werten.

@@ -9,6 +9,7 @@
 // Interface
 void setup_sd();
 void write_log();
+void write_event_log(String type, String text, String dir, String wind, String waves);
 void update_gps_tracks();
 
 bool sd_file_exists(const String &path);

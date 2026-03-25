@@ -5,73 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Kompass — NAVIS Marine Dashboard</title>
 <style>
-:root{
-  --bg:#1c1f26; --panel:#2a2f38; --text:#f4f4f4; --muted:#9aa3a8;
-}
-body{
-  margin:0;
-  font-family:"Segoe UI",Roboto,Arial,sans-serif;
-  background:var(--bg); color:var(--text);
-  display:flex; flex-direction:column; align-items:center;
-  height:100vh;
-}
-
-/* Navigationsleiste */
-#navbar {
-  display:flex;
-  justify-content:center;
-  gap:8px;
-  background-color:#002b3a;
-  padding:4px 0;
-  border-bottom:1px solid #005566;
-  width:100%;
-  box-shadow:0 0 8px rgba(0,255,255,0.1);
-  position: relative;
-}
-.navbtn {
-  background-color:#003d52;
-  color:#00ffff;
-  border:1px solid #007a99;
-  border-radius:5px;
-  padding:3px 10px;
-  text-decoration:none;
-  font-size:0.9em;
-  font-weight:bold;
-  transition:0.2s;
-}
-.navbtn:hover {
-  background-color:#00b8d4;
-  color:#001a26;
-  border-color:#00e6e6;
-}
-
-/* ================= STATUS LED ================= */
-#wsStatus {
-  position:absolute;
-  left:10px;
-  top:50%;
-  transform:translateY(-50%);
-  display:flex;
-  align-items:center;
-  gap:6px;
-  font-size:0.75em;
-  color:#ccc;
-}
-#wsLed {
-  width:12px;
-  height:12px;
-  border-radius:50%;
-  background:#ff3333; /* rot = getrennt */
-  box-shadow:0 0 6px rgba(255,0,0,0.8);
-}
-
-.panel{
-  background:var(--panel);
-  border-radius:12px;
-  padding:8px;
-  box-shadow:0 8px 28px rgba(0,0,0,0.6);
-  margin-top:8px;
-}
+:root{--bg:#1c1f26;--panel:#2a2f38;--text:#f4f4f4;--muted:#9aa3a8;}
+body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;height:100vh;}
+#navbar{display:flex;justify-content:center;gap:8px;background-color:#002b3a;padding:4px 0;border-bottom:1px solid #005566;width:100%;box-shadow:0 0 8px rgba(0,255,255,0.1);position:relative;}
+.navbtn{background-color:#003d52;color:#00ffff;border:1px solid #007a99;border-radius:5px;padding:3px 10px;text-decoration:none;font-size:0.9em;font-weight:bold;transition:0.2s;}
+.navbtn:hover{background-color:#00b8d4;color:#001a26;border-color:#00e6e6;}
+#wsStatus{position:absolute;left:10px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:6px;font-size:0.75em;color:#ccc;}
+#wsLed{width:12px;height:12px;border-radius:50%;background:#ff3333;box-shadow:0 0 6px rgba(255,0,0,0.8);}
+.panel{background:var(--panel);border-radius:12px;padding:8px;box-shadow:0 8px 28px rgba(0,0,0,0.6);margin-top:8px;}
 #compassCanvas{width:90vmin;height:90vmin;display:block;border-radius:12px;}
 </style>
 </head>
@@ -82,10 +23,11 @@ body{
     <div id="wsLed"></div>
     <span>WS</span>
   </div>
-  <a href="index.html" class="navbtn">NAVIS</a>
-  <a href="karte.html" class="navbtn">Karte</a>
-  <a href="horizont.html" class="navbtn">Horizont</a>
-  <a href="autopilot.html" class="navbtn">Autopilot</a>
+		<a href="index.html" class="navbtn">Dashboard</a>
+		<a href="karte.html" class="navbtn">Karte</a>
+		<a href="autopilot.html" class="navbtn">Autopilot</a>
+		<a href="horizont.html" class="navbtn">Horizont</a>
+		<a href="system_settings.html" class="navbtn">System-Settings</a>
 </div>
 
 <div class="panel">

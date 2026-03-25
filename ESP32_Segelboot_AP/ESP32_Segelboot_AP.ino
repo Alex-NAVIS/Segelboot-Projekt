@@ -1,5 +1,3 @@
-
-
 #include "Config.h"               // Einstellungen Pin Belegung globale Einstellungen usw.
 #include "ConfigStorage.h"        // Interner Speicher aller Files (Little File System)
 #include "WebServer_Module.h"     // Schnittstelle zu allen Webseiten Kartenplotter Horizont Kompass index.html usw.
@@ -11,6 +9,7 @@
 #include "WB.h"                   // Wind-Berechnung
 #include "NAVIS_SD.h"             // SD Card Module für Karten
 #include "echolot.h"              // Wassertiefe abfragen
+#include "Alarm.h"                // Alarm piper
 
 // ----------------------------------------------------------
 // Zeitvariablen für das millis()-basierte Sensor-Timing
@@ -22,6 +21,7 @@ unsigned long lastGPSRead = 0;
 int gpsreadcount = 300;
 unsigned long lastgpsahrs = 0;
 unsigned long lastMPURead = 0;
+unsigned long lastalarmcheck = 0;
 unsigned long lastWindSpeedRead = 0;
 unsigned long lastMastupdate = 0;
 unsigned long lastLichtRead = 0;
@@ -29,8 +29,10 @@ unsigned long lastsdwrite = 0;
 int write_SD_log = 450;
 unsigned long lastsensor = 0;
 
+
 void setup() {
   Serial.begin(115200);   // Serial Port einrichten
+  setup_alarm(true);      // Alarm Piper einrichten
   ConfigStorage_begin();  // Einrichtung des Little File System
   setupWiFiAP();          // WLAN Access Point starten
   setupWebServer();       // Webserver starten + Routen einrichten
@@ -41,7 +43,7 @@ void setup() {
   setupLightControl();    // Relays für Licht ansteuern
   setup_sd();             // Zugriff auf die SD Karte einrichten
   setup_echolot();        // Echolot einrichten
-  
+
   // Optionale Schutzfunktion:
   // Verhindert, dass alle Sensoren direkt nach dem Booten gleichzeitig
   // getriggert werden (reduziert Stromspitzen und I²C-Konflikte).
@@ -52,6 +54,7 @@ void setup() {
   lastWindSpeedRead = millis() + 30;
   lastLichtRead = millis() + 40;
   lastsensor = millis() + 50;
+  lastalarmcheck = millis() + 60;
 
   if (DEBUG_MODE) Serial.println(F("=== Initialisierung abgeschlossen ==="));
 }
@@ -75,12 +78,19 @@ void loop() {
   if (currentMillis - lastGPSRead >= GPS_UPDATE_INTERVAL_MS) {
     lastGPSRead = currentMillis;
     readGPS();
+    updateDistanceLogTick(sensorData.gps_lat, sensorData.gps_lon);
     //Missweisung berechnen
     gpsreadcount = gpsreadcount + 1;
     if (gpsreadcount >= 600) {
       missweisung_berechnen();
       gpsreadcount = 0;
     }
+  }
+
+  // Check akke Alarm Systeme alle 1000ms
+  if (currentMillis - lastalarmcheck >= ALARMTIME) {
+    lastalarmcheck = currentMillis;
+    check_alarm();
   }
 
   // --- IMU ICM 20948 9 Achsen ACC GYRO MAG ---
@@ -95,7 +105,6 @@ void loop() {
     lastWindSpeedRead = currentMillis;
     berechneWahrenWind();
   }
-
 
   //Sicherheitscheck für verbundenen Mastseensor.
   if (currentMillis - lastMastupdate >= MASTCHECK_UPDATE_INTERVAL_MS) {
@@ -120,7 +129,7 @@ void loop() {
   }
 
   // Sensordaten liefern
-  // Aufruf Sensordaten no polling Konstant 1000ms senden
+  // Aufruf Sensordaten no polling Konstant X/ms senden
   if (currentMillis - lastsensor >= SENSOR_UPDATE_INTERVAL_MS) {
     lastsensor = currentMillis;
     wsBroadcastSensorData();

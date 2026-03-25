@@ -5,188 +5,42 @@
 <title>NAVIS – Tideanalyse</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <link rel="stylesheet" href="leaflet/leaflet.css">
-
 <style>
-
-/* Navigationsleiste */
-#navbar {
-  display:flex;
-  justify-content:center;
-  gap:8px;
-  background-color:#002b3a;
-  padding:4px 0;
-  border-bottom:1px solid #005566;
-  width:100%;
-  box-shadow:0 0 8px rgba(0,255,255,0.1);
-  position: relative;
-}
-.navbtn {
-  background-color:#003d52;
-  color:#00ffff;
-  border:1px solid #007a99;
-  border-radius:5px;
-  padding:3px 10px;
-  text-decoration:none;
-  font-size:0.9em;
-  font-weight:bold;
-  transition:0.2s;
-}
-.navbtn:hover {
-  background-color:#00b8d4;
-  color:#001a26;
-  border-color:#00e6e6;
-}
-
-/* ================= STATUS LED ================= */
-#wsStatus {
-  position:absolute;
-  left:10px;
-  top:50%;
-  transform:translateY(-50%);
-  display:flex;
-  align-items:center;
-  gap:6px;
-  font-size:0.75em;
-  color:#ccc;
-}
-#wsLed {
-  width:12px;
-  height:12px;
-  border-radius:50%;
-  background:#ff3333; /* rot = getrennt */
-  box-shadow:0 0 6px rgba(255,0,0,0.8);
-}
-
-:root{
-  --bg:#1c1f26;
-  --panel:#2a2f38;
-  --text:#f4f4f4;
-  --muted:#9aa3a8;
-  --accent:#00ffff;
-  --marker:#ff3333;
-}
-
-body{
-  font-family:"Segoe UI",Roboto,Arial,sans-serif;
-  background:var(--bg);
-  color:var(--text);
-  margin:10px;
-  text-align:center;
-}
-
-h1{
-  margin:10px 0;
-  color:var(--accent);
-}
-
-/* ================= Map ================= */
-#map{
-  width:100%;
-  max-width:900px;
-  height:420px;
-  margin:10px auto;
-  border-radius:12px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.5);
-  background:var(--panel);
-}
-
-/* ================= Radius Control ================= */
-#radiusControl{
-  width:100%;
-  max-width:900px;
-  margin:8px auto 16px auto;
-  padding:8px 12px;
-  background:var(--panel);
-  border-radius:12px;
-  box-shadow: inset 0 0 4px rgba(0,0,0,0.3);
-}
-#radiusLabel{
-  font-size:0.95em;
-  color:var(--text);
-  margin-bottom:6px;
-}
-#radiusSlider{
-  width:100%;
-  -webkit-appearance:none;
-  height:8px;
-  background:#003d52;
-  border-radius:4px;
-}
-#radiusSlider::-webkit-slider-thumb{
-  -webkit-appearance:none;
-  width:16px;
-  height:16px;
-  background:var(--accent);
-  border-radius:50%;
-  cursor:pointer;
-}
-#radiusSlider::-moz-range-thumb{
-  width:16px;
-  height:16px;
-  background:var(--accent);
-  border-radius:50%;
-  cursor:pointer;
-}
-
-/* ================= Datumsauswahl ================= */
-#dateControl{
-  width:100%;
-  max-width:900px;
-  margin:0 auto 16px auto;
-  text-align:center;
-  padding:8px 12px;
-  background:var(--panel);
-  border-radius:12px;
-  box-shadow: inset 0 0 4px rgba(0,0,0,0.3);
-}
-#dateControl label{ margin-right:8px; }
-#dateControl input{
-  border-radius:6px;
-  border:none;
-  padding:4px 6px;
-  background:#003d52;
-  color:var(--text);
-}
-
-/* ================= Chart ================= */
-#chartContainer{
-  width:100%;
-  max-width:900px;
-  height:420px;
-  margin:10px auto;
-  background:var(--panel);
-  border-radius:12px;
-  box-shadow:0 4px 12px rgba(0,0,0,0.5);
-}
-canvas{
-  width:100%!important;
-  height:100%!important;
-}
-
-/* ================= Peilpunkt ================= */
-.peil-marker{
-  width:26px;
-  height:26px;
-  transform:translate(-13px,-13px);
-}
-.peil-marker svg{
-  width:26px;
-  height:26px;
-}
+#navbar{display:flex;justify-content:center;gap:8px;background-color:#002b3a;padding:4px 0;border-bottom:1px solid #005566;width:100%;box-shadow:0 0 8px rgba(0,255,255,0.1);position:relative;}
+.navbtn{background-color:#003d52;color:#00ffff;border:1px solid #007a99;border-radius:5px;padding:3px 10px;text-decoration:none;font-size:0.9em;font-weight:bold;transition:0.2s;}
+.navbtn:hover{background-color:#00b8d4;color:#001a26;border-color:#00e6e6;}
+#wsStatus{position:absolute;left:10px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:6px;font-size:0.75em;color:#ccc;}
+#wsLed{width:12px;height:12px;border-radius:50%;background:#ff3333;box-shadow:0 0 6px rgba(255,0,0,0.8);}
+:root{--bg:#1c1f26;--panel:#2a2f38;--text:#f4f4f4;--muted:#9aa3a8;--accent:#00ffff;--marker:#ff3333;}
+body{font-family:"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:10px;text-align:center;}
+h1{margin:10px 0;color:var(--accent);}
+#map{width:100%;max-width:900px;height:420px;margin:10px auto;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.5);background:var(--panel);}
+#radiusControl{width:100%;max-width:900px;margin:8px auto 16px auto;padding:8px 12px;background:var(--panel);border-radius:12px;box-shadow:inset 0 0 4px rgba(0,0,0,0.3);}
+#radiusLabel{font-size:0.95em;color:var(--text);margin-bottom:6px;}
+#radiusSlider{width:100%;-webkit-appearance:none;height:8px;background:#003d52;border-radius:4px;}
+#radiusSlider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;background:var(--accent);border-radius:50%;cursor:pointer;}
+#radiusSlider::-moz-range-thumb{width:16px;height:16px;background:var(--accent);border-radius:50%;cursor:pointer;}
+#dateControl{width:100%;max-width:900px;margin:0 auto 16px auto;text-align:center;padding:8px 12px;background:var(--panel);border-radius:12px;box-shadow:inset 0 0 4px rgba(0,0,0,0.3);}
+#dateControl label{margin-right:8px;}
+#dateControl input{border-radius:6px;border:none;padding:4px 6px;background:#003d52;color:var(--text);}
+#chartContainer{width:100%;max-width:900px;height:420px;margin:10px auto;background:var(--panel);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.5);}
+canvas{width:100%!important;height:100%!important;}
+.peil-marker{width:26px;height:26px;transform:translate(-13px,-13px);}
+.peil-marker svg{width:26px;height:26px;}
 </style>
 </head>
-
 <body>
-
 <div id="navbar">
   <div id="wsStatus">
     <div id="wsLed"></div>
     <span>WS</span>
   </div>
-  <a href="index.html" class="navbtn">NAVIS</a>
-  <a href="karte.html" class="navbtn">Karte</a>
-  <a href="horizont.html" class="navbtn">Horizont</a>
-  <a href="kompass.html" class="navbtn">Kompass</a>
+		<a href="index.html" class="navbtn">Dashboard</a>
+		<a href="karte.html" class="navbtn">Karte</a>
+		<a href="autopilot.html" class="navbtn">Autopilot</a>
+		<a href="kompass.html" class="navbtn">Kompass</a>
+		<a href="horizont.html" class="navbtn">Horizont</a>
+		<a href="system_settings.html" class="navbtn">System-Settings</a>
 </div>
 
 <div id="map"></div>
