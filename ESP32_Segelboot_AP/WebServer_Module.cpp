@@ -767,6 +767,16 @@ void setupWebServer() {
     } else if (type == "gyro") {
       gyro_start_cal = true;
       request->send(200, "text/plain", "Gyro OK");
+    } else if (type == "level") {
+      // Sicherheitscheck (optional aber sinnvoll)
+      float roll_now = sensorData.roll;
+      float pitch_now = sensorData.pitch;
+      // Offsets setzen (dein System: ADDITION!)
+      roll_offset = -roll_now;
+      pitch_offset = -pitch_now;
+      // Speichern
+      ConfigStorage_saveSystem();
+      request->send(200, "text/plain", "Lage genullt & gespeichert");
     } else {
       request->send(400, "text/plain", "Unbekannter Typ");
     }

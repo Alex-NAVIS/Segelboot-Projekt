@@ -56,6 +56,9 @@ void ConfigStorage_saveSystem() {
   // Wasser-Parameter
   doc["wassertemp"] = Wassertemperatur;
   doc["salz"] = Salzgehalt;
+  // IMU Kalibrierung
+  doc["roll_offset"] = roll_offset;
+  doc["pitch_offset"] = pitch_offset;
 
   if (serializeJson(doc, file) == 0) {
     if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("❌ Fehler beim Schreiben der System-Konfiguration!");
@@ -116,6 +119,10 @@ void ConfigStorage_loadSystem() {
   // Wasser-Parameter
   Wassertemperatur = doc["wassertemp"] | Wassertemperatur;
   Salzgehalt = doc["salz"] | Salzgehalt;
+
+  // IMU Kalibrierung
+  roll_offset = doc["roll_offset"] | roll_offset;
+  pitch_offset = doc["pitch_offset"] | pitch_offset;
 
   // nach dem Laden neu berechnen
   calc_schallgeschwindigkeit();

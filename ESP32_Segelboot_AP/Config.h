@@ -158,6 +158,8 @@ extern double Schallgeschwindigkeit_Wasser;
 // ==========================================================
 extern bool gyro_start_cal;
 extern bool mag_start_cal;
+extern float roll_offset;
+extern float pitch_offset;
 
 // ==========================================================
 // 13. Alarmzustand und Pin für Piper
@@ -185,6 +187,8 @@ extern bool mag_start_cal;
 #define ALARM_ECHOLOT 10
 
 #define ALARMTIME 1000
+
+
 // ==========================================================
 // ENDE
 // ==========================================================

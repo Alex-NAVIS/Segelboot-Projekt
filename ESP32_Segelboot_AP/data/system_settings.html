@@ -75,6 +75,19 @@
     <tr>
       <th colspan="2">Aktion & Anleitung</th>
     </tr>
+	<!-- Roll & Pitch Nullung -->
+	<tr>
+	  <td class="calib-cell">
+		<button id="calibLevelBtn" onclick="calibrate('level')">⚖️ Lage nullen</button>
+	  </td>
+	  <td>
+		<strong>Warum?</strong> Korrigiert die Einbaulage der IMU (Schiefstand im Boot).<br>
+		<strong>Ablauf:</strong> Boot muss möglichst gerade im Wasser liegen (keine Krängung, keine Bewegung).<br>
+		<span class="info-text">
+		  Hinweis: Diese Funktion setzt Roll & Pitch auf 0° und speichert die Offsets dauerhaft.
+		</span>
+	  </td>
+	</tr>
     <!-- Kompass -->
     <tr>
       <td class="calib-cell">
@@ -162,7 +175,7 @@ Lade…
 
 	<footer>
 		<strong>Marine Dashboard v1.1</strong><br>
-		Entwickelt von <span style="color:#00ffff;">Alex</span> & <span style="color:#00ffff;">NAVIS</span><br>
+		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
 		© 2025 – Bootssystem ESP32 • Live Monitoring
 	</footer>
 	
@@ -216,54 +229,77 @@ Lade…
     function cancel() { window.location.href="index.html"; }
 	
 function calibrate(type) {
-  const msg = type === 'compass' 
-    ? "KOMPASS: Boot bereit für 360° Drehung? (Dauer ca. 30s)" 
-    : "GYRO: Liegt das Boot absolut ruhig? (Dauer ca. 3s)";
-  
+  let msg = "";
+
+  if (type === 'compass') {
+    msg = "KOMPASS: Boot bereit für 360° Drehung? (Dauer ca. 30s)";
+  } else if (type === 'gyro') {
+    msg = "GYRO: Liegt das Boot absolut ruhig? (Dauer ca. 3s)";
+  } else if (type === 'level') {
+    msg = "LAGE NULLEN: Liegt das Boot gerade und ruhig im Wasser?";
+  }
+
   if (!confirm(msg)) return;
 
   const btnCompass = document.getElementById('calibCompassBtn');
   const btnGyro = document.getElementById('calibGyroBtn');
+  const btnLevel = document.getElementById('calibLevelBtn');
+
   const originalCompassTxt = "🧭 Kompass kalibrieren";
   const originalGyroTxt = "🔄 Gyro kalibrieren";
+  const originalLevelTxt = "⚖️ Lage nullen";
 
   fetch(`/calibrate?type=${type}`)
     .then(r => r.text())
     .then(txt => {
       alert("Antwort: " + txt);
-      
-      // Sperrzeiten definieren (Sekunden)
-      let waitTime = (type === 'compass') ? 35 : 5;
-      
-      // UI Sperren
-      btnCompass.disabled = true;
-      btnGyro.disabled = true;
-      btnCompass.style.opacity = "0.5";
-      btnGyro.style.opacity = "0.5";
+
+      let waitTime = 0;
+
+      if (type === 'compass') waitTime = 35;
+      if (type === 'gyro') waitTime = 5;
+      if (type === 'level') waitTime = 2;
+
+      // Alle Buttons sperren
+      [btnCompass, btnGyro, btnLevel].forEach(b => {
+        if (b) {
+          b.disabled = true;
+          b.style.opacity = "0.5";
+        }
+      });
 
       let timeLeft = waitTime;
+
       const timer = setInterval(() => {
         timeLeft--;
-        
+
         if (type === 'compass') {
           btnCompass.innerHTML = `⏳ Drehen... (${timeLeft}s)`;
-        } else {
+        } else if (type === 'gyro') {
           btnGyro.innerHTML = `⏳ Stillhalten... (${timeLeft}s)`;
+        } else if (type === 'level') {
+          btnLevel.innerHTML = `⏳ Nulle... (${timeLeft}s)`;
         }
 
         if (timeLeft <= 0) {
           clearInterval(timer);
-          btnCompass.disabled = false;
-          btnGyro.disabled = false;
-          btnCompass.style.opacity = "1";
-          btnGyro.style.opacity = "1";
+
+          [btnCompass, btnGyro, btnLevel].forEach(b => {
+            if (b) {
+              b.disabled = false;
+              b.style.opacity = "1";
+            }
+          });
+
           btnCompass.innerHTML = originalCompassTxt;
           btnGyro.innerHTML = originalGyroTxt;
+          btnLevel.innerHTML = originalLevelTxt;
         }
       }, 1000);
     })
     .catch(() => alert("❌ Fehler beim Starten"));
 }
+
 
 function loadFSFile(url, targetId) {
   fetch(url)

@@ -85,3 +85,5 @@ double Schallgeschwindigkeit_Wasser = 1520.0;  // initial, wird berechnet
 // =========================
 bool gyro_start_cal = false;
 bool mag_start_cal = false;
+float roll_offset = 0.0;
+float pitch_offset = 0.0;

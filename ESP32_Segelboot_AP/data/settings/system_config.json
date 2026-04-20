@@ -16,4 +16,6 @@
   "tiefgang_boot": 1.15,
   "wassertemp": 20,
   "salz": 35
+  "roll_offset": 0.0,
+  "pitch_offset": 0.0
 }

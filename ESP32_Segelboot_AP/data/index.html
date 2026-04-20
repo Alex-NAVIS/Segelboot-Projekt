@@ -7,8 +7,8 @@
 	<style>
 		body { background-color: #001a26; color: #00e6e6; font-family: "Segoe UI", Arial, sans-serif; margin: 0; overflow-x: hidden; text-align: center; }
 		header { background-color: #002b3a; color: #00ffff; padding: 15px; font-size: 1.8em; font-weight: bold; border-bottom: 2px solid #005566; }
-		#navbar { display: flex; justify-content: center; gap: 8px; background-color: #002b3a; padding: 6px 0; border-bottom: 1px solid #005566; position: relative; }
-		#wsStatus { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #ccc; }
+		#navbar { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
+		#wsStatus { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #ccc; z-index: 10; }
 		#wsLed { width: 12px; height: 12px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 6px rgba(255,0,0,0.8); }
 		.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 3px 10px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: 0.2s; }
 		.navbtn:hover { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; }
@@ -27,18 +27,14 @@
 	</style>
 </head>
 <body>
-	<header>Bootssystem Übersicht</header>
-
+	<header><div id="wsLed"></div>Bootssystem Übersicht</header>
 	<nav id="navbar">
-		<div id="wsStatus">
-			<div id="wsLed"></div>
-			<span>WS</span>
-		</div>
 		<a href="karte.html" class="navbtn">Karte</a>
-		<a href="autopilot.html" class="navbtn">Autopilot</a>
 		<a href="kompass.html" class="navbtn">Kompass</a>
 		<a href="horizont.html" class="navbtn">Horizont</a>
+		<a href="autopilot.html" class="navbtn">Autopilot</a>
 		<a href="Alarm.html" class="navbtn">Überwachung</a>
+		<a href="logbuch.html" class="navbtn">Log-Buch</a>
 		<a href="system_settings.html" class="navbtn">System-Settings</a>
 	</nav>
 
@@ -94,16 +90,16 @@
 	<div class="switch-section">
 		<h2 class="section-title">Beleuchtungssystem</h2>
 		<div class="switch-panel">
-			<div class="switch off" id="relay_a">Koje Bug<span class="led"></span></div>
+			<div class="switch off" id="relay_d">Koje Bug<span class="led"></span></div>
+			<div class="switch off" id="relay_c">Licht Salon<span class="led"></span></div>
+			<div class="switch off" id="relay_a">Koje Steuerbord<span class="led"></span></div>
 			<div class="switch off" id="relay_b">Koje Backbord<span class="led"></span></div>
-			<div class="switch off" id="relay_c">Koje Steuerbord<span class="led"></span></div>
-			<div class="switch off" id="relay_d">Licht Salon<span class="led"></span></div>
 		</div>
 	</div>
 
 	<footer>
 		<strong>Marine Dashboard v1.1</strong><br>
-		Entwickelt von <span style="color:#00ffff;">Alex</span> & <span style="color:#00ffff;">NAVIS</span><br>
+		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
 		© 2025 – Bootssystem ESP32 • Live Monitoring
 	</footer>
 
