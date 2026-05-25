@@ -18,6 +18,7 @@
 // jedes Sensors. Dadurch kann der ESP32 jeden Sensor mit
 // unterschiedlicher Frequenz abfragen – ganz ohne delay().
 unsigned long lastGPSRead = 0;
+unsigned long lastGPSRing=0;
 int gpsreadcount = 300;
 unsigned long lastgpsahrs = 0;
 unsigned long lastMPURead = 0;
@@ -48,13 +49,14 @@ void setup() {
   // Verhindert, dass alle Sensoren direkt nach dem Booten gleichzeitig
   // getriggert werden (reduziert Stromspitzen und I²C-Konflikte).
   lastGPSRead = millis();
-  lastgpsahrs = millis() + 5;
-  lastMPURead = millis() + 10;
-  lastMastupdate = millis() + 20;
-  lastWindSpeedRead = millis() + 30;
-  lastLichtRead = millis() + 40;
-  lastsensor = millis() + 50;
-  lastalarmcheck = millis() + 60;
+  lastGPSRing = millis() + 5;
+  lastgpsahrs = millis() + 11;
+  lastMPURead = millis() + 17;
+  lastMastupdate = millis() + 21;
+  lastWindSpeedRead = millis() + 32;
+  lastLichtRead = millis() + 43;
+  lastsensor = millis() + 51;
+  lastalarmcheck = millis() + 67;
 
   if (DEBUG_MODE) Serial.println(F("=== Initialisierung abgeschlossen ==="));
 }
@@ -85,6 +87,11 @@ void loop() {
       missweisung_berechnen();
       gpsreadcount = 0;
     }
+  }
+  // GPS Ringspeicher 5 Minuten
+  if (currentMillis - lastGPSRing >= TRACK_INTERVAL_MS) {
+    lastGPSRing = currentMillis;
+    addTrackPoint();
   }
 
   // Check akke Alarm Systeme alle 1000ms

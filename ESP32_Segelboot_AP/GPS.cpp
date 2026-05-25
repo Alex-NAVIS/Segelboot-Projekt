@@ -479,3 +479,43 @@ void gps_ahrs() {
   sensorData.gps_speed = speed_knots;
   sensorData.gps_kurs = kurs_deg;
 }
+
+// ==========================================================
+// getGPSTimestamp()
+// ----------------------------------------------------------
+// Erzeugt Unix UTC Timestamp aus GPS Datum/Zeit
+// ==========================================================
+uint32_t getGPSTimestamp() {
+  struct tm t;
+  t.tm_year = gps.date.year() - 1900;
+  t.tm_mon  = gps.date.month() - 1;
+  t.tm_mday = gps.date.day();
+  t.tm_hour = gps.time.hour();
+  t.tm_min  = gps.time.minute();
+  t.tm_sec  = gps.time.second();
+  t.tm_isdst = 0;
+  return (uint32_t)mktime(&t);
+}
+
+// ==========================================================
+// addTrackPoint()
+// ----------------------------------------------------------
+// Fügt neuen GPS Punkt in Ringspeicher ein
+// ==========================================================
+void addTrackPoint() {
+  // Nur speichern wenn GPS gültig
+  if (!gps.location.isValid()) return;
+  int i = sensorData.track_index;
+  sensorData.track[i].lat = sensorData.gps_lat;
+  sensorData.track[i].lon = sensorData.gps_lon;
+  sensorData.track[i].speed = sensorData.gps_speed;
+  sensorData.track[i].course = sensorData.gps_kurs;
+  sensorData.track[i].timestamp = getGPSTimestamp();
+  // Nächster Schreibindex
+  sensorData.track_index++;
+  // Ringspeicher Überlauf
+  if (sensorData.track_index >= SensorData::TRACK_SIZE) {
+    sensorData.track_index = 0;
+    sensorData.track_filled = true;
+  }
+}

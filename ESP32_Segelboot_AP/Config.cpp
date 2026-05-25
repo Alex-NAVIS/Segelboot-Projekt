@@ -87,3 +87,17 @@ bool gyro_start_cal = false;
 bool mag_start_cal = false;
 float roll_offset = 0.0;
 float pitch_offset = 0.0;
+
+// ==========================================================
+// 14. Externe Datenquellen
+// ==========================================================
+ bool extern_gps_CAN = false;
+ bool extern_gps_RS = false;
+ bool extern_gps_UDP_tcp = false;
+ bool extern_wind_CAN = false;
+ bool extern_wind_RS = false;
+ bool extern_wind_UDP_tcp = false;
+ bool extern_echolot_CAN = false;
+ bool extern_echolot_RS = false;
+ bool extern_echolot_UDP_tcp = false;
+ 

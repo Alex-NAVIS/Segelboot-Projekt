@@ -91,15 +91,24 @@ void handleGetSystem(AsyncWebServerRequest *request) {
   doc["gps_hz"] = GPS_UPDATE_HZ;
   doc["ahrs_hz"] = GPS_AHRS_UPDATE_HZ;
   doc["mpu_hz"] = MPU_UPDATE_HZ;
-  doc["wind_hz"] = WINDDIR_UPDATE_HZ;  // HTML erwartet wind_hz
+  doc["wind_hz"] = WINDDIR_UPDATE_HZ;
   doc["sd_hz"] = SD_UPDATE_HZ;
   doc["sensor_update_hz"] = SENSOR_UPDATE_HZ;
   doc["use_decl_compass"] = USE_DECLINATION_FOR_COMPASS;
   doc["use_decl_wind"] = USE_DECLINATION_FOR_WIND;
-  doc["wassertiefe_einbau"] = Wassertiefe_Einbau;  // HTML Feldname angepasst
-  doc["tiefgang_boot"] = Tiefgang_Boot;            // HTML Feldname angepasst
-  doc["wassertemperatur"] = Wassertemperatur;      // HTML Feldname angepasst
-  doc["waterSalinity"] = Salzgehalt;               // HTML Feldname angepasst
+  doc["wassertiefe_einbau"] = Wassertiefe_Einbau;
+  doc["tiefgang_boot"] = Tiefgang_Boot;
+  doc["wassertemperatur"] = Wassertemperatur;
+  doc["waterSalinity"] = Salzgehalt;
+  doc["gps_use_n2k"] = extern_gps_CAN;
+  doc["gps_use_0183"] = extern_gps_RS;
+  doc["gps_use_udp_tcp"] = extern_gps_UDP_tcp;
+  doc["wind_use_n2k"] = extern_wind_CAN;
+  doc["wind_use_0183"] = extern_wind_RS;
+  doc["wind_use_udp_tcp"] = extern_wind_UDP_tcp;
+  doc["depth_use_n2k"] = extern_echolot_CAN;
+  doc["depth_use_0183"] = extern_echolot_RS;
+  doc["depth_use_udp_tcp"] = extern_echolot_UDP_tcp;
   String json;
   serializeJson(doc, json);
   request->send(200, "application/json", json);
@@ -127,8 +136,17 @@ void handleSetSystem(AsyncWebServerRequest *request) {
   if (request->hasParam("tiefgang_boot")) Tiefgang_Boot = request->getParam("tiefgang_boot")->value().toFloat();
   if (request->hasParam("wassertemperatur")) Wassertemperatur = request->getParam("wassertemperatur")->value().toFloat();
   if (request->hasParam("waterSalinity")) Salzgehalt = request->getParam("waterSalinity")->value().toFloat();
-  calc_schallgeschwindigkeit();
+  if (request->hasParam("gps_use_n2k")) extern_gps_CAN = request->getParam("gps_use_n2k")->value().toInt() != 0;
+  if (request->hasParam("gps_use_0183")) extern_gps_RS = request->getParam("gps_use_0183")->value().toInt() != 0;
+  if (request->hasParam("gps_use_udp_tcp")) extern_gps_UDP_tcp = request->getParam("gps_use_udp_tcp")->value().toInt() != 0;
+  if (request->hasParam("wind_use_n2k")) extern_wind_CAN = request->getParam("wind_use_n2k")->value().toInt() != 0;
+  if (request->hasParam("wind_use_0183")) extern_wind_RS = request->getParam("wind_use_0183")->value().toInt() != 0;
+  if (request->hasParam("wind_use_udp_tcp")) extern_wind_UDP_tcp = request->getParam("wind_use_udp_tcp")->value().toInt() != 0;
+  if (request->hasParam("depth_use_n2k")) extern_echolot_CAN = request->getParam("depth_use_n2k")->value().toInt() != 0;
+  if (request->hasParam("depth_use_0183")) extern_echolot_RS = request->getParam("depth_use_0183")->value().toInt() != 0;
+  if (request->hasParam("depth_use_udp_tcp")) extern_echolot_UDP_tcp = request->getParam("depth_use_udp_tcp")->value().toInt() != 0;
   request->send(200, "text/plain", "✔ Systemkonfiguration gespeichert");
+  calc_schallgeschwindigkeit();
   ConfigStorage_saveSystem();
 }
 
@@ -657,6 +675,52 @@ void handleWetterIndex(AsyncWebServerRequest *request) {
 }
 
 // ======================================================================
+// Bezeichnung: handleTrack
+// Erklärung:   Liefert den kompletten GPS-Track aus dem internen
+//              Ringspeicher (sensorData.track[]) als JSON-Array.
+//
+//              Der Track wird chronologisch korrekt rekonstruiert,
+//              unabhängig davon, ob der Ringspeicher bereits überlaufen
+//              ist.
+//
+//              Enthaltene Daten pro Punkt:
+//                - lat: GPS-Breitengrad
+//                - lon: GPS-Längengrad
+//                - spd: Geschwindigkeit über Grund (kn)
+//                - crs: Kurs über Grund (°)
+//                - ts : Unix-Timestamp (UTC)
+//
+//              Der Endpunkt dient als Grundlage für:
+//                - Karten-Track Darstellung
+//                - Bewegungsanalyse (Kurs / Speed Verlauf)
+//                - Replay-Funktion
+//                - Logbuch-Visualisierung
+// ======================================================================
+void handleTrack(AsyncWebServerRequest *request) {
+  StaticJsonDocument<12000> doc;  // ggf. anpassen
+  JsonArray arr = doc.to<JsonArray>();
+  int count = sensorData.track_filled
+                ? sensorData.TRACK_SIZE
+                : sensorData.track_index;
+  int idx = sensorData.track_filled
+              ? sensorData.track_index
+              : 0;
+  for (int i = 0; i < count; i++) {
+    const TrackPoint &p = sensorData.track[idx];
+    JsonObject o = arr.createNestedObject();
+    o["lat"] = p.lat;
+    o["lon"] = p.lon;
+    o["spd"] = p.speed;
+    o["crs"] = p.course;
+    o["ts"] = p.timestamp;
+    idx = (idx + 1) % sensorData.TRACK_SIZE;
+  }
+  String out;
+  serializeJson(doc, out);
+  request->send(200, "application/json", out);
+}
+
+// ======================================================================
 // Bezeichnung: setupWebServer
 // Erklärung:   Zentrale Konfigurationsinstanz des asynchronen Webservers.
 //              Implementiert eine REST-API durch Mapping von LittleFS-Dateien,
@@ -683,10 +747,11 @@ void setupWebServer() {
     });
   }
 
-  // 2. Steuerungen & Autopilot
+  // 2. Steuerungen & Autopilot & Trackdaten
   server.on("/autopilot_data", HTTP_GET, handleAutopilotData);
   server.on("/autopilot_status", HTTP_GET, handleAutopilotStatus);
   server.on("/autopilot", HTTP_GET, handleAutopilotTarget);
+  server.on("/track", HTTP_GET, handleTrack);
 
   // 3. Alarm Systeme
   server.on(

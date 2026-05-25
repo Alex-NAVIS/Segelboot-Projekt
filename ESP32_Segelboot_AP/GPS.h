@@ -101,3 +101,39 @@ void updateDistanceLogTick(double lat, double lon);
 //   - Kann zyklisch im Hauptprogramm (loop) aufgerufen werden, um zwischen GPS-Empfängen
 //     flüssige Positionsdaten zu liefern.
 void gps_ahrs();
+
+// addTrackPoint():
+//   - Fügt einen neuen GPS-Trackpunkt in den Ringspeicher ein.
+//   - Speichert:
+//       - Breitengrad (lat)
+//       - Längengrad (lon)
+//       - Geschwindigkeit über Grund (speed)
+//       - Kurs über Grund (course)
+//       - UTC-Zeitstempel (timestamp)
+//   - Nutzt die aktuellen Werte aus der globalen Struktur sensorData.
+//   - Der Speicher arbeitet als Ringspeicher:
+//       - Bei Erreichen des Endes wird wieder am Anfang geschrieben.
+//       - Alte Punkte werden automatisch überschrieben.
+//   - Wird typischerweise nach einem gültigen GPS-Update aufgerufen,
+//     um einen persistierenden Verlauf der letzten Fahrstrecke zu erzeugen.
+//   - Die Daten können später von der Weboberfläche (HTML/JS)
+//     einmalig abgerufen und als Tracklinie dargestellt werden.
+void addTrackPoint();
+
+
+// getGPSTimestamp():
+//   - Erzeugt aus den aktuellen GPS-Datum- und Zeitdaten
+//     einen Unix-Zeitstempel (UTC).
+//   - Verwendet die von TinyGPSPlus dekodierten GPS-Daten:
+//       - Jahr
+//       - Monat
+//       - Tag
+//       - Stunde
+//       - Minute
+//       - Sekunde
+//   - Rückgabewert:
+//       - Unix-Timestamp als uint32_t
+//       - Sekunden seit dem 01.01.1970 00:00:00 UTC
+//   - Wird verwendet, um Trackpunkte zeitlich eindeutig
+//     zu speichern und später korrekt darzustellen.
+uint32_t getGPSTimestamp();

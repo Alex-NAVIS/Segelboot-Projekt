@@ -26,6 +26,9 @@ void recalc_intervals();
 #define DEBUG_MODE_GPS false
 #define DEBUG_MODE_Tile false
 #define DEBUG_MODE_Autopilot false
+#define DEBUG_MODE_CANBUS false
+#define DEBUG_MODE_RS false
+#define DEBUG_MODE_NET true
 
 
 // ==========================================================
@@ -123,6 +126,7 @@ extern float LICHTSCHALTER_UPDATE_INTERVAL_MS;
 extern float LOG_UPDATE_INTERVAL_MS;
 extern float SENSOR_UPDATE_INTERVAL_MS;
 #define MASTCHECK_UPDATE_INTERVAL_MS 1000
+#define TRACK_INTERVAL_MS 300000UL   // 5 Minuten
 
 // ==========================================================
 // 9. Navigation / Missweisung
@@ -188,7 +192,27 @@ extern float pitch_offset;
 
 #define ALARMTIME 1000
 
+// ==========================================================
+// 14. Externe Datenquellen
+// ==========================================================
+extern bool extern_gps_CAN;
+extern bool extern_gps_RS;
+extern bool extern_gps_UDP_tcp;
+extern bool extern_wind_CAN;
+extern bool extern_wind_RS;
+extern bool extern_wind_UDP_tcp;
+extern bool extern_echolot_CAN;
+extern bool extern_echolot_RS;
+extern bool extern_echolot_UDP_tcp;
 
+// Hardware-Konfiguration für den ESP32 CAN-Controller (Tx/Rx Pins)
+#define ESP32_CAN_TX_PIN GPIO_NUM_5
+#define ESP32_CAN_RX_PIN GPIO_NUM_4
+#define TIMEOUT_GPS     5000
+#define TIMEOUT_WIND    5000
+#define TIMEOUT_DEPTH   5000
+
+#define PIN_RS422_RX  16  // Passe diesen Pin an dein ESP32-Board an
 // ==========================================================
 // ENDE
 // ==========================================================

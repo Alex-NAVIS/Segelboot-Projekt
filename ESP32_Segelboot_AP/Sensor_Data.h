@@ -14,6 +14,20 @@
 #include <Arduino.h>
 #include <math.h>  // für fmod()
 
+// ==========================================================
+// TrackPoint
+// ----------------------------------------------------------
+// Ringspeicherpunkt für GPS-Trackhistorie
+// Wird für Karten-Track, Replay und Verlauf genutzt
+// ==========================================================
+struct TrackPoint {
+  double lat;          // Breitengrad
+  double lon;          // Längengrad
+  float speed;         // Geschwindigkeit über Grund (kn)
+  float course;        // Kurs über Grund (°)
+  uint32_t timestamp;  // Unix-Zeit UTC
+};
+
 // ======================================================================
 // Bezeichnung: SensorData
 // Erklärung:   Zentrale Sammelstruktur für sämtliche Sensordaten des
@@ -65,12 +79,54 @@ struct SensorData {
   // Mast-Kommunikationsstatus
   int mast_online;  // Netzwerkstatus Mast-Einheit (0=off, 1=on, 2=timeout)
 
-  double sm_counter; // SM Zähler für Wegstrecke
+  double sm_counter;  // SM Zähler für Wegstrecke
+
+  // ======================================================
+  // GPS Track Ringspeicher
+  // Kurzzeit-Trackhistorie für Kartenanzeige
+  // ======================================================
+  static const int TRACK_SIZE = 100;
+  TrackPoint track[TRACK_SIZE];
+  int track_index;    // nächste Schreibposition
+  bool track_filled;  // true sobald Buffer einmal voll war
 };
 
 // Globale Instanz zur Bereitstellung der Sensordaten im System
 extern SensorData sensorData;
 
+// ======================================================================
+// Bezeichnung: extern_SensorData
+// Erklärung:   Sammelstruktur für Sensordaten aus externen Quellen.
+//              Dient der Erfassung und Bereitstellung von GPS-, Wind-
+//              und Echolotdaten, die von externen Systemen oder
+//              Zweitgeräten übermittelt werden.
+// ======================================================================
+struct extern_SensorData {
+    // GPS-Daten Extern
+  double gps_lat;    // Geografische Breite (WGS84)
+  double gps_lon;    // Geografische Länge (WGS84)
+  double gps_speed;  // SOG (Speed Over Ground) in kn/h
+  double gps_kurs;   // COG (Course Over Ground) (°)
+  int gps_sats;      // Anzahl empfangener Satelliten
+  float gps_hdop;    // Horizontale Genauigkeit (Präzision)
+
+  // GPS-Datum & Zeit Extern
+  int gps_jahr;     // Aktuelles Kalenderjahr
+  int gps_monat;    // Aktueller Monat (1–12)
+  int gps_tag;      // Aktueller Tag (1–31)
+  int gps_stunde;   // UTC Stunde (0–23)
+  int gps_minute;   // UTC Minute (0–59)
+  int gps_sekunde;  // UTC Sekunde (0–59)
+    // Windsensoren (AS5600 & Encoder)
+  double winddir_gemessen;     // Scheinbarer Windwinkel (relativ zum Bug) (°)
+  double windspeed_gemessen;   // Scheinbare Windgeschwindigkeit (kn/h)
+  
+  // Echolot Extern
+  double Echolot;  // Wassertiefe unter dem Geber (m)
+};
+
+// Globale Instanz zur Bereitstellung der Sensordaten im System
+extern  extern_SensorData  extern_sensorData;
 
 
 // ======================================================================

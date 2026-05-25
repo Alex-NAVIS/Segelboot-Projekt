@@ -59,6 +59,16 @@ void ConfigStorage_saveSystem() {
   // IMU Kalibrierung
   doc["roll_offset"] = roll_offset;
   doc["pitch_offset"] = pitch_offset;
+  // Datenquellen-Matrix
+  doc["ext_gps_can"] = extern_gps_CAN;
+  doc["ext_gps_rs"] = extern_gps_RS;
+  doc["ext_gps_udp_tcp"] = extern_gps_UDP_tcp;
+  doc["ext_wind_can"] = extern_wind_CAN;
+  doc["ext_wind_rs"] = extern_wind_RS;
+  doc["ext_wind_udp_tcp"] = extern_wind_UDP_tcp;
+  doc["ext_depth_can"] = extern_echolot_CAN;
+  doc["ext_depth_rs"] = extern_echolot_RS;
+  doc["ext_depth_udp_tcp"] = extern_echolot_UDP_tcp;
 
   if (serializeJson(doc, file) == 0) {
     if (DEBUG_MODE_CONFIGSTORAGE) Serial.println("❌ Fehler beim Schreiben der System-Konfiguration!");
@@ -123,6 +133,17 @@ void ConfigStorage_loadSystem() {
   // IMU Kalibrierung
   roll_offset = doc["roll_offset"] | roll_offset;
   pitch_offset = doc["pitch_offset"] | pitch_offset;
+
+  // Laden der Matrix-Werte mit sicherem Fallback auf den bestehenden RAM-Zustand
+  extern_gps_CAN = doc["ext_gps_can"] | extern_gps_CAN;
+  extern_gps_RS = doc["ext_gps_rs"] | extern_gps_RS;
+  extern_gps_UDP_tcp = doc["ext_gps_udp_tcp"] | extern_gps_UDP_tcp;
+  extern_wind_CAN = doc["ext_wind_can"] | extern_wind_CAN;
+  extern_wind_RS = doc["ext_wind_rs"] | extern_wind_RS;
+  extern_wind_UDP_tcp = doc["ext_wind_udp_tcp"] | extern_wind_UDP_tcp;
+  extern_echolot_CAN = doc["ext_depth_can"] | extern_echolot_CAN;
+  extern_echolot_RS = doc["ext_depth_rs"] | extern_echolot_RS;
+  extern_echolot_UDP_tcp = doc["ext_depth_udp_tcp"] | extern_echolot_UDP_tcp;
 
   // nach dem Laden neu berechnen
   calc_schallgeschwindigkeit();
