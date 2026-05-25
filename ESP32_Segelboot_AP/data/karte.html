@@ -22,15 +22,14 @@
         /* 🟪 BUTTONS */
         button { background:rgba(0,0,0,0.4); color:#fff; padding:6px 10px; border-radius:10px; border:none; cursor:pointer; font-size:13px; box-shadow:0 4px 12px rgba(0,0,0,0.6); transition:background 0.3s,color 0.3s,box-shadow 0.3s; }
         button:hover { background:rgba(0,0,0,0.6); }
-        #centerToggle, #saveTrack, #anchorWatch, #modeRoute, #nightToggle { position:absolute; right:14px; z-index:1000; }
+        #centerToggle, #modeRoute, #nightToggle { position:absolute; right:14px; z-index:1000; }
         #centerToggle { top:14px; }
-        #saveTrack { top:48px; }
-        #anchorWatch { top:82px; }
-        #modeRoute { top:116px; }
-        #nightToggle { top:150px; }
+        #modeRoute { top:48px; }
+        #nightToggle { top:82px; }
+		#resetLogBtn { top: 116px;} 
 		#logDisplay, #resetLogBtn { position: absolute; right: 14px; z-index: 1000; }
-		#logDisplay { top: 218px; background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 10px; font-size: 14px; font-weight: bold; }
-		#resetLogBtn { top: 184px; }
+		#logDisplay { top: 150px; background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 10px; font-size: 14px; font-weight: bold; }
+		
 		
         /* 🟫 INFOBOXEN, LEGENDE UND ALARME */
         #waypointInfo { position:absolute; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:10px; font-size:13px; z-index:1000; transition:background 0.6s,color 0.6s; }
@@ -100,15 +99,12 @@
         </table>
     </div>
     <button id="centerToggle">🧭 Zentrieren</button>
-    <button id="saveTrack">💾 Track speichern</button>
-    <button id="anchorWatch">⚓ Ankerwache</button>
-    <button id="modeRoute">📍 Peil / Route</button>
+	<button id="modeRoute">📍 Modus: Peilung</button>
     <button id="nightToggle">🌙 Nachtmodus</button>
 	<div id="logDisplay">0.00 sm</div>
 	<button id="resetLogBtn">Log zurücksetzen</button>
 	
     <div id="waypointInfo"></div>
-    <div id="alarmOverlay">🚨 ANKERWACHE ALARM 🚨<br>Boot hat den Radius verlassen!<br><br>(Klick zum Bestätigen)</div>
     <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
 
     <!-- Wettersteuerung -->
@@ -116,8 +112,8 @@
 </div>
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet/navis-tilelayer.js"></script>
-<!-- Velocity Plugin lokal -->
 <script src="leaflet/leaflet-velocity.min.js"></script>
+<!-- NAVIS Module -->
 
 <script>
 /* ------------------------------
@@ -129,11 +125,34 @@ const GPS_UNGENAUIGKEIT = 15;
 
 let demoMode = false;
 let followMode = false;
-let anchorActive = false;
-let anchorPos = null;
-let anchorRadius = 50;
-let routeMode = false; // false = Peilmodus, true = Routenmodus
 let distanceSM = 0;	// Seemeielen Zähler
+// ================================
+// Marker / Modus System
+// ================================
+const modes = [
+  "bearing",
+  "route",
+  "marker"
+];
+
+let currentModeIndex = 0;
+let currentMode = modes[currentModeIndex];
+
+// Marker-Typen
+const markerTypes = [
+  { icon: "⚓", name: "Ankerplatz", color: "#ffd700" },
+  { icon: "🏝", name: "Bucht", color: "#00ffaa" },
+  { icon: "⛽", name: "Tankstelle", color: "#ff8800" },
+  { icon: "⚠", name: "Gefahr", color: "#ff0000" },
+  { icon: "🪨", name: "Untiefe", color: "#aa5500" },
+  { icon: "🐟", name: "Angelplatz", color: "#00ccff" },
+  { icon: "🛠", name: "Reparatur", color: "#cccccc" },
+  { icon: "📷", name: "Foto", color: "#ff66ff" },
+  { icon: "📝", name: "Eigene Notiz", color: "#ffffff" }
+];
+
+// alter bool bleibt für Kompatibilität
+let routeMode = false;
 
 const state = {
   gps_lat: 53.39675,
@@ -146,9 +165,8 @@ const state = {
 };
 const target = JSON.parse(JSON.stringify(state));
 
-let ogpsCounter = 0;
 const trackPoints = [];
-const ogpsMarkers = [];
+let liveTrackLine = null;
 
 /* ------------------------------
    Optionaler Wetter-Loader (Fail-Safe)
@@ -226,7 +244,7 @@ const layerOSM = new L.TileLayer.Throttled(
     maxZoom: 16,
     maxNativeZoom: 16,
     attribution: '© OpenStreetMap contributors (offline)',
-    throttleDelay: 250
+    throttleDelay: 50
   }
 );
 /* ------------------------------
@@ -236,7 +254,7 @@ layerOSM.addTo(map);
 
 
 // OpenWeatherMap API Key
-const WEATHER_API_KEY = "your Key";
+const WEATHER_API_KEY = "052994578ac0357e51c1a900f2212731";
 
 // OpenWeatherMap-Layer
 const rainLayer = L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.7 });
@@ -282,7 +300,7 @@ layerInfo.forEach(info => {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.id = info.id;
-    checkbox.checked = false; // Standardmäßig aktiviert
+    checkbox.checked = false; // Standardmäßig deaktiviert
     checkbox.addEventListener('change', function(e) {
         toggleLayer(info.key, e.target.checked);
     });
@@ -444,7 +462,6 @@ const headingLineWind    = L.polyline([], { color:'#00cc66', weight:2, opacity:0
 
 const legendEl = document.getElementById('legend');
 const waypointInfo = document.getElementById('waypointInfo');
-const alarmOverlay = document.getElementById('alarmOverlay');
 
 function destinationPoint(lat, lon, bearing, dist) {
   const R = 6371000;
@@ -470,195 +487,188 @@ function bearingAndDistance(lat1,lon1,lat2,lon2) {
 }
 
 /* ------------------------------
-   Alarm / Ankerwache (unverändert)
-   ------------------------------ */
-let alarmSound = null; let alarmActive = false;
-function startAlarm() { if (alarmActive) return; alarmActive = true; alarmOverlay.style.display = 'flex'; playAlarmTone(); }
-function playAlarmTone(){
-  if(alarmSound) return;
-  try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    alarmSound = ctx;
-    const osc = ctx.createOscillator(); osc.type='sine';
-    osc.frequency.setValueAtTime(700,ctx.currentTime);
-    const gain = ctx.createGain(); gain.gain.value = 0.05;
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start();
-    let on = true;
-    const iv = setInterval(()=>{ if(!alarmActive){ try{ osc.stop(); }catch(e){} clearInterval(iv); return; } osc.frequency.setValueAtTime(on?700:1200, ctx.currentTime); on=!on; }, 450);
-  }catch(e){ console.warn("AudioContext nicht verfügbar:", e); }
-}
-function stopAlarm(fullReset=false){ alarmActive=false; alarmOverlay.style.display='none'; try{ if(alarmSound){ alarmSound.close(); alarmSound=null; } }catch(e){} if(fullReset){ anchorActive=false; if(anchorCircle){ try{ map.removeLayer(anchorCircle); }catch(e){} anchorCircle=null; } document.getElementById('anchorWatch').style.background='rgba(0,0,0,0.4)'; } }
-document.addEventListener('mousedown',()=> stopAlarm(true));
-document.addEventListener('touchstart',()=> stopAlarm(true));
-document.addEventListener('keydown',()=> stopAlarm(true));
-
-/* ------------------------------
-   OGPS Marker & Track Export (unverändert)
-   ------------------------------ */
-function addOGPSMarker(pos) {
-    const date = new Date();
-    const hh = String(date.getHours()).padStart(2, '0');
-    const mm = String(date.getMinutes()).padStart(2, '0');
-    const label = `OGPS\n${hh}:${mm}\n${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
-    // Erstellen Sie den Marker ohne Tooltip
-    const marker = L.circleMarker(pos, { radius: 5, color: 'black', fillColor: 'black', fillOpacity: 1 })
-        .addTo(map);
-    // Tooltip hinzufügen, das nur bei Hover oder Klick angezeigt wird
-    marker.bindTooltip(label, { permanent: false, direction: 'top', offset: [0, -10] });
-    // Tooltip nur bei Mouseover anzeigen
-    marker.on('mouseover', function () {
-        this.openTooltip();
-    });
-    marker.on('mouseout', function () {
-        this.closeTooltip();
-    });
-    // Tooltip bei Klick anzeigen
-    marker.on('click', function () {
-        this.openTooltip();
-    });
-    ogpsMarkers.push({ marker: marker, lat: pos[0], lon: pos[1], time: `${hh}:${mm}`, date: `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}` });
-    if (ogpsMarkers.length > 200) {
-        const r = ogpsMarkers.shift();
-        try { map.removeLayer(r.marker); } catch (e) { }
-    }
-}
-
-/* ------------------------------
    Klickverhalten: Peilmodus vs Routenmodus
    ------------------------------ */
 let waypointMarker = null;
-let anchorCircle = null;
 
 let waypointLine = null; // Globale Variable für die Linie
 
 // Icon-Funktion für offline Marker (Raute)
-function createDiamondIcon(color = 'red', size = 16) {
+function createDiamondIcon(color = 'red', size = 16, iconText = "") {
+
+  const content = iconText
+    ? `<div style="
+        width:${size}px;
+        height:${size}px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:${size}px;
+      ">${iconText}</div>`
+    : `<div style="
+        width:${size}px;
+        height:${size}px;
+        background:${color};
+        transform: rotate(45deg);
+        border:2px solid white;"></div>`;
+
   return L.divIcon({
     className: 'diamond-marker',
-    html: `<div style="
-      width:${size}px;
-      height:${size}px;
-      background:${color};
-      transform: rotate(45deg);
-      border:2px solid white;"></div>`,
+    html: content,
     iconSize: [size, size],
     iconAnchor: [size/2, size/2]
   });
 }
 
 map.on('click', e => {
-  if (anchorActive) return;
 
-if (!routeMode) {
-    // Peilmodus: einzelner Zielmarker
-    if (waypointMarker) { 
-        try { 
-            map.removeLayer(waypointMarker); 
-            if (waypointLine) { // Entferne die alte Linie, wenn vorhanden
-                map.removeLayer(waypointLine);
-                waypointLine = null; // Setze die Linie auf null
-            }
-        } catch(e){} 
-        waypointMarker = null; 
+  // ================================
+  // 📝 MARKER MODUS (nur hier Popup!)
+  // ================================
+  if (currentMode === "marker") {
+
+    let html = `<div style="font-family:Arial;font-size:14px;min-width:220px;">`;
+    html += `<b>Marker Typ wählen</b><br><br>`;
+
+    markerTypes.forEach((m, i) => {
+      html += `
+        <label style="display:block;margin:4px 0;cursor:pointer;">
+          <input type="radio" name="markerType" value="${i}">
+          ${m.icon} ${m.name}
+        </label>
+      `;
+    });
+
+    html += `
+      <br>
+      <b>Name / Beschreibung:</b><br>
+      <input id="markerTextInput" type="text" style="width:95%;padding:4px;margin-top:4px;">
+      <br><br>
+      <button id="markerOkBtn">OK</button>
+    </div>`;
+
+    const container = document.createElement("div");
+    container.innerHTML = html;
+
+    L.popup()
+      .setLatLng(e.latlng)
+      .setContent(container)
+      .openOn(map);
+
+    setTimeout(() => {
+      const radios = document.querySelectorAll('input[name="markerType"]');
+      const textInput = document.getElementById("markerTextInput");
+
+      radios.forEach(r => {
+        r.addEventListener("change", () => {
+          textInput.value = markerTypes[r.value].name;
+        });
+      });
+
+      document.getElementById("markerOkBtn").onclick = () => {
+        const selected = document.querySelector('input[name="markerType"]:checked');
+        if (!selected) return;
+
+        const type = markerTypes[selected.value];
+        const customName = textInput.value || type.name;
+
+        const marker = L.marker(e.latlng, {
+          icon: createDiamondIcon(type.color, 24, type.icon),
+          draggable: true
+        }).addTo(map);
+
+        marker.bindPopup(`
+          <b>${type.icon} ${customName}</b><br>
+          ${e.latlng.lat.toFixed(5)},
+          ${e.latlng.lng.toFixed(5)}
+        `);
+
+        marker.on('contextmenu', () => {
+          if (confirm("Marker löschen?")) {
+            map.removeLayer(marker);
+          }
+        });
+
+        map.closePopup();
+      };
+    }, 50);
+
+    return; // ❗ wichtig: verhindert Wegpunktlogik
+  }
+
+  // ================================
+  // 🧭 PEILMODUS
+  // ================================
+  if (currentMode === "bearing") {
+
+    if (waypointMarker) {
+      try { map.removeLayer(waypointMarker); } catch(e){}
+      if (waypointLine) {
+        try { map.removeLayer(waypointLine); } catch(e){}
+        waypointLine = null;
+      }
+      waypointMarker = null;
     }
-    
-    // Koordinaten des Bootes
+
     const boatLat = state.gps_lat;
     const boatLon = state.gps_lon;
 
-    // Berechnung der Entfernung und des Winkels
-    const { bearing, distance } = bearingAndDistance(boatLat, boatLon, e.latlng.lat, e.latlng.lng);
+    const { bearing, distance } = bearingAndDistance(
+      boatLat, boatLon,
+      e.latlng.lat, e.latlng.lng
+    );
 
-    // Erstellen des Markers mit den neuen Informationen
-    waypointMarker = L.marker(e.latlng, {icon: createDiamondIcon('red')})
-        .addTo(map)
-        .bindPopup(`Peilziel<br>Koordinaten: ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}<br>Winkel: ${bearing.toFixed(1)}°<br>Entfernung: ${(distance / 1852).toFixed(2)} sm`)
-        .openPopup();
+    waypointMarker = L.marker(e.latlng, {
+      icon: createDiamondIcon('red')
+    }).addTo(map)
+      .bindPopup(`Peilziel<br>${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}<br>${bearing.toFixed(1)}° / ${(distance / 1852).toFixed(2)} sm`)
+      .openPopup();
 
-    // Hinzufügen der gestrichelten Linie
-    waypointLine = L.polyline([[boatLat, boatLon], [e.latlng.lat, e.latlng.lng]], { 
-        color: 'red', 
-        weight: 2, 
-        opacity: 0.7, 
-        dashArray: '5, 5' // Gestrichelte Linie
-    }).addTo(map);
-    return;
-}
-
-// Beim Umschalten des Modus (von Peilmodus zu Wegpunktmodus)
-modeRouteBtn.onclick = () => {
-    routeMode = !routeMode;
-    modeRouteBtn.style.background = routeMode ? 'rgba(0,100,100,0.6)' : 'rgba(0,0,0,0.4)';
-    
-    if (!routeMode) { // Wenn wir zurück zum Peilmodus wechseln
-        if (waypointLine) { // Entferne die gestrichelte Linie, falls vorhanden
-            map.removeLayer(waypointLine);
-            waypointLine = null; // Setze die Linie auf null
-        }
-        // Weitere Logik für den Peilmodus, falls erforderlich
-    } else { // Wenn wir in den Wegpunktmodus wechseln
-        if (waypointMarker) { // Entferne den Marker, wenn vorhanden
-            try {
-			map.removeLayer(waypointMarker); 
-            if (waypointLine) { // Entferne die alte Linie, wenn vorhanden
-                map.removeLayer(waypointLine);
-                waypointLine = null; // Setze die Linie auf null
-            }
-			} catch (e) {}
-            waypointMarker = null;
-        }
-    }
-};
-
-  // Routenmodus: neuen Wegpunkt anlegen
-  const latlng = e.latlng;
-  routePoints.push(latlng);
-
-  const m = L.marker(latlng, { draggable: true, icon: createDiamondIcon('blue') }).addTo(map);
-  routeMarkers.push(m);
-
-  // Tooltip / Label
-  updateMarkerTooltip(m, routeMarkers.length - 1);
-
-  // Linie neu zeichnen
-  updateRouteDisplay();
-
-  // Drag: live updaten
-  let tempLine = null;
-  m.on('drag', () => {
-    const i = routeMarkers.indexOf(m);
-    if (i === -1) return;
-    routePoints[i] = m.getLatLng();
-    updateRouteDisplay();
-    updateMarkerTooltip(m, i);
-
-    if (tempLine) { try{ map.removeLayer(tempLine); } catch(e){} tempLine = null; }
-    const prev = i === 0 ? { lat: state.gps_lat, lng: state.gps_lon } : routePoints[i - 1];
-    tempLine = L.polyline([[prev.lat, prev.lng], [m.getLatLng().lat, m.getLatLng().lng]], {
+    waypointLine = L.polyline([[boatLat, boatLon], [e.latlng.lat, e.latlng.lng]], {
       color: 'red',
-      weight: 4,
-      opacity: 0.8,
-      dashArray: '6,6'
+      weight: 2,
+      opacity: 0.7,
+      dashArray: '5,5'
     }).addTo(map);
-  });
 
-  m.on('dragend', () => {
-    if (tempLine) { try{ map.removeLayer(tempLine); } catch(e){} tempLine = null; }
-    const i = routeMarkers.indexOf(m);
-    if (i !== -1) {
+    return;
+  }
+
+  // ================================
+  // 🧭 ROUTE MODUS
+  // ================================
+  if (currentMode === "route") {
+
+    const latlng = e.latlng;
+    routePoints.push(latlng);
+
+    const m = L.marker(latlng, {
+      draggable: true,
+      icon: createDiamondIcon('blue')
+    }).addTo(map);
+
+    routeMarkers.push(m);
+
+    updateMarkerTooltip(m, routeMarkers.length - 1);
+    updateRouteDisplay();
+
+    m.on('drag', () => {
+      const i = routeMarkers.indexOf(m);
+      if (i === -1) return;
+
       routePoints[i] = m.getLatLng();
       updateRouteDisplay();
-      routeMarkers.forEach((mm, idx) => updateMarkerTooltip(mm, idx));
-    }
-  });
+      updateMarkerTooltip(m, i);
+    });
 
-  // Rechtsklick löscht Wegpunkt
-  m.on('contextmenu', function(evt) {
-    evt.originalEvent.preventDefault();
-    const i = routeMarkers.indexOf(m);
-    if (i !== -1) removeWaypoint(i);
-  });
+    m.on('contextmenu', function(evt) {
+      evt.originalEvent.preventDefault();
+      const i = routeMarkers.indexOf(m);
+      if (i !== -1) removeWaypoint(i);
+    });
+
+    return;
+  }
 });
 
 /* ------------------------------
@@ -738,15 +748,44 @@ function updateLogDisplay() {
 let t0 = performance.now()/1000;
 let lastTime = performance.now();
 
-function integrate(now){
-  const nowS = now/1000;
-  const dt = (now - lastTime)/1000; lastTime = now;
-  const sm = 1 - Math.exp(-2*dt);
-  for(const k in state){ if(typeof target[k] === 'number') state[k] = state[k] + (target[k]-state[k]) * sm; }
-  updateBoat();
-  requestAnimationFrame(integrate);
+function integrate(now) {
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    const sm = 1 - Math.exp(-2 * dt);
+    for (const k in state) {
+        if (typeof target[k] === 'number') {
+            state[k] += (target[k] - state[k]) * sm;
+        }
+    }
+
+    // NUR schnelle Animation
+    updateBoatGeometry();
+    requestAnimationFrame(integrate);
 }
 requestAnimationFrame(integrate);
+
+// ================================
+// Mittlere Updates
+// ================================
+setInterval(() => {
+    updateHeadingLines();
+}, 100);
+
+// ================================
+// Langsame UI Updates
+// ================================
+setInterval(() => {
+    updateWaypointInfo();
+    updateLegend();
+}, 1000);
+
+// ================================
+// Sehr langsame Karten-Updates
+// ================================
+setInterval(() => {
+    updateRangeCircles();
+}, 2000);
+
 
 /* ------------------------------
    Live data fetch (unverändert)
@@ -768,7 +807,47 @@ async function fetchLiveData(){
     // remain in demo
   }
 }
-//setInterval(()=>{ if(!demoMode) fetchLiveData(); }, POLL_INTERVAL_MS);
+
+// ==========================================================
+// GPS-Track vom ESP32 Ringspeicher laden
+// ----------------------------------------------------------
+// Fordert den aktuellen Inhalt des ESP32 Track-Ringspeichers
+// als JSON an und erzeugt daraus die Karten-Tracklinie.
+// ==========================================================
+async function loadTrackHistory() {
+    try {
+        const res = await fetch("/track", {
+            cache: "no-store"
+        });
+        if (!res.ok) {
+            throw new Error("Track konnte nicht geladen werden");
+        }
+        const data = await res.json();
+        trackPoints.length = 0;
+        data.forEach(p => {
+            if (
+                typeof p.lat !== "number" ||
+                typeof p.lon !== "number"
+            ) return;
+            trackPoints.push([p.lat, p.lon]);
+        });
+        // Alte Linie entfernen
+        if (liveTrackLine) {
+            try {
+                map.removeLayer(liveTrackLine);
+            } catch(e){}
+        }
+        // Neue Linie erzeugen
+        liveTrackLine = L.polyline(trackPoints, {
+            color: "#00ffff",
+            weight: 2,
+            opacity: 0.8
+        }).addTo(map);
+        console.log("Track geladen:", trackPoints.length, "Punkte");
+    } catch(err) {
+        console.warn("Fehler beim Laden des Tracks:", err);
+    }
+}
 
 
 // ------------------------------
@@ -815,60 +894,59 @@ function connectWS() {
 // Start WS-Verbindung
 connectWS();
 
+// Vorhandenen GPS-Track vom ESP laden
+loadTrackHistory();
+// Alle 5 Minuten Track neu laden
+setInterval(loadTrackHistory, 300050);
+
 /* ------------------------------
    Buttons / UI wiring (unverändert)
    ------------------------------ */
 const centerToggle = document.getElementById('centerToggle');
-const saveTrackBtn = document.getElementById('saveTrack');
-const anchorWatchBtn = document.getElementById('anchorWatch');
 const modeRouteBtn = document.getElementById('modeRoute');
 const resetLogBtn = document.getElementById("resetLogBtn");
+// ================================
+// Modus Umschaltung
+// ================================
+modeRouteBtn.onclick = () => {
+    currentModeIndex++;
+
+    if (currentModeIndex >= modes.length) {
+        currentModeIndex = 0;
+    }
+    currentMode = modes[currentModeIndex];
+
+    // =========================
+    // Button Text
+    // =========================
+    if (currentMode === "bearing") {
+        modeRouteBtn.innerHTML = "📍 Modus: Peilung";
+        modeRouteBtn.style.background = 'rgba(0,0,0,0.4)';
+        routeMode = false;
+    }
+
+    if (currentMode === "route") {
+        modeRouteBtn.innerHTML = "🧭 Modus: Route";
+        modeRouteBtn.style.background = 'rgba(0,100,100,0.6)';
+        routeMode = true;
+    }
+
+    if (currentMode === "marker") {
+        modeRouteBtn.innerHTML = "📝 Modus: Marker";
+        modeRouteBtn.style.background = 'rgba(100,80,0,0.6)';
+        routeMode = false;
+    }
+
+    // =========================
+    // Cleanup
+    // =========================
+
+    waypointInfo.innerHTML = "";
+};
 
 centerToggle.onclick = ()=>{ followMode = !followMode; centerToggle.style.background = followMode ? 'rgba(0,100,0,0.6)' : 'rgba(0,0,0,0.4)'; };
 map.on('movestart', ()=>{ if(followMode){ followMode = false; centerToggle.style.background='rgba(0,0,0,0.4)'; } });
 
-saveTrackBtn.onclick = ()=>{ if(ogpsMarkers.length === 0){ alert("Keine OGPS-Marker vorhanden."); return; } let text = "Zeit;Datum;Breitengrad;Längengrad\n"; ogpsMarkers.forEach(p => { text += `${p.time};${p.date};${p.lat.toFixed(6)};${p.lon.toFixed(6)}\n`; }); const blob = new Blob([text], { type:'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'track.txt'; a.click(); };
-
-anchorWatchBtn.onclick = ()=>{ if(!anchorActive){ const chainLength = parseFloat(prompt("Ankerkette in Metern:", 30)); if(isNaN(chainLength) || chainLength <= 0) return; const [aLat,aLon] = destinationPoint(state.gps_lat, state.gps_lon, state.kompass, chainLength); anchorPos = { lat: aLat, lon: aLon }; anchorRadius = chainLength + GPS_UNGENAUIGKEIT; if(anchorCircle){ try{ map.removeLayer(anchorCircle); }catch(e){} anchorCircle=null; } anchorCircle = L.circle([aLat,aLon], { radius: anchorRadius, color:'red', fill:false }).addTo(map); anchorActive = true; anchorWatchBtn.style.background = 'rgba(100,0,0,0.6)'; alert("Anker gesetzt! Überwachung aktiv."); } else { anchorActive = false; if(anchorCircle){ try{ map.removeLayer(anchorCircle); }catch(e){} anchorCircle=null; } stopAlarm(); anchorWatchBtn.style.background = 'rgba(0,0,0,0.4)'; } };
-
-modeRouteBtn.onclick = () => {
-    routeMode = !routeMode;
-    
-    modeRouteBtn.style.background = routeMode 
-        ? 'rgba(0,100,100,0.6)' 
-        : 'rgba(0,0,0,0.4)';
-
-    if (!routeMode) {
-        routeMarkers.forEach(m => {
-            try {
-                map.removeLayer(m);
-            } catch (e) {}
-        });
-        
-        routeMarkers = [];
-        routePoints = [];
-
-        if (routeLine) {
-            try {
-                map.removeLayer(routeLine);
-            } catch (e) {}
-        }
-
-        routeLine = null;
-        waypointInfo.innerHTML = "";
-    } else {
-        if (waypointMarker) {
-            try {
-                map.removeLayer(waypointMarker);
-				if (waypointLine) { // Entferne die alte Linie, wenn vorhanden
-                map.removeLayer(waypointLine);
-                waypointLine = null; // Setze die Linie auf null
-            }
-            } catch (e) {}
-            waypointMarker = null;
-        }
-    }
-};
  // Reset SM Zähler im ESP32
 resetLogBtn.onclick = () => {
     fetch("/resetLog")
@@ -890,201 +968,193 @@ document.getElementById('nightToggle').addEventListener('click', () => {
   document.getElementById('nightToggle').textContent = isNightMode ? 'Tagmodus' : 'Nachtmodus';
 });
 
-
 /* ------------------------------
-   UpdateBoat (mit vollständigen Reichweitenkreisen wieder eingefügt)
+   UpdateBoat Hauptfunktion
    ------------------------------ */
 function updateBoat() {
-  const pos = [state.gps_lat, state.gps_lon];
-  const pixelSize = 14;
-  const angle = state.kompass * Math.PI / 180;
+    updateBoatGeometry();
+    updateHeadingLines();
+    updateWaypointInfo();
+    updateRangeCircles();
+    updateLegend();
+}
 
-  function offsetPoint(lat, lon, dx, dy) {
-    const p = map.latLngToLayerPoint([lat, lon]);
-    const p2 = L.point(p.x + dx, p.y + dy);
-    return map.layerPointToLatLng(p2);
-  }
+/* ------------------------------
+   Bootsgeometrie
+   ------------------------------ */
+function updateBoatGeometry() {
+    const pos = [state.gps_lat, state.gps_lon];
+    const pixelSize = 14;
+    const angle = state.kompass * Math.PI / 180;
 
-  const tip = offsetPoint(pos[0], pos[1], Math.sin(angle) * pixelSize, -Math.cos(angle) * pixelSize);
-  const leftAngle = angle + Math.PI * 0.75;
-  const rightAngle = angle - Math.PI * 0.75;
-  const left = offsetPoint(pos[0], pos[1], Math.sin(leftAngle) * pixelSize * 0.6, -Math.cos(leftAngle) * pixelSize * 0.6);
-  const right = offsetPoint(pos[0], pos[1], Math.sin(rightAngle) * pixelSize * 0.6, -Math.cos(rightAngle) * pixelSize * 0.6);
+    function offsetPoint(lat, lon, dx, dy) {
+        const p = map.latLngToLayerPoint([lat, lon]);
+        return map.layerPointToLatLng(L.point(p.x + dx, p.y + dy));
+    }
+    const tip = offsetPoint(pos[0], pos[1], Math.sin(angle) * pixelSize, -Math.cos(angle) * pixelSize);
+    const leftAngle = angle + Math.PI * 0.75;
+    const rightAngle = angle - Math.PI * 0.75;
+    const left = offsetPoint(pos[0], pos[1], Math.sin(leftAngle) * pixelSize * 0.6, -Math.cos(leftAngle) * pixelSize * 0.6);
+    const right = offsetPoint(pos[0], pos[1], Math.sin(rightAngle) * pixelSize * 0.6, -Math.cos(rightAngle) * pixelSize * 0.6);
 
-  boatTriangle.setLatLngs([tip, right, left]);
-  try { boatTriangle.bringToFront(); } catch (e) {}
+    boatTriangle.setLatLngs([tip, right, left]);
 
-  const compassEnd = destinationPoint(state.gps_lat, state.gps_lon, state.kompass, 40000);
-  const gpsEnd     = destinationPoint(state.gps_lat, state.gps_lon, state.gps_kurs, 40000);
-  const windEnd    = destinationPoint(state.gps_lat, state.gps_lon, state.winddir_berechnet, 20000);
+    try { boatTriangle.bringToFront(); } catch (e) {}
 
-  headingLineCompass.setLatLngs([pos, compassEnd]);
-  headingLineGPS.setLatLngs([pos, gpsEnd]);
-  headingLineWind.setLatLngs([pos, windEnd]);
-
-  ogpsCounter++;
-  if (ogpsCounter % 1200 === 0) {
-    trackPoints.push(pos);
-    if (trackPoints.length > 200) trackPoints.shift();
-    courseLine.setLatLngs(trackPoints);
-  }
-  if (ogpsCounter % 6000 === 0) addOGPSMarker(pos);
-
-  if (followMode) map.setView(pos, map.getZoom(), { animate: true });
-
-  if (anchorActive && anchorPos) {
-    const { distance } = bearingAndDistance(state.gps_lat, state.gps_lon, anchorPos.lat, anchorPos.lon);
-    if (distance > anchorRadius) startAlarm();
-  }
-
-  legendEl.innerHTML = `🔴 Kompasskurs: ${state.kompass.toFixed(1)}°<br>🟡 GPS-Kurs: ${state.gps_kurs.toFixed(1)}°<br>🟢 Wind: ${state.winddir_berechnet.toFixed(1)}° / ${state.windspeed_berechnet.toFixed(1)} kn`;
-
-  if (!routeMode && waypointMarker) {
-    const { bearing, distance } = bearingAndDistance(state.gps_lat, state.gps_lon, waypointMarker.getLatLng().lat, waypointMarker.getLatLng().lng);
-    waypointInfo.innerHTML = `<b>Peilung zu Ziel:</b><br>Kurs: ${bearing.toFixed(1)}°<br>Entfernung: ${(distance / 1852).toFixed(2)} sm`;
-  }
-
-  // ================================
-  // --- Reichweitenkreise & Tickmarken ---
-  // ================================
-  const SM_IN_METERS = 1852;
-  const radiusCircles = [
-    { r: 2 * SM_IN_METERS, color: '#ff0044' },
-    { r: 5 * SM_IN_METERS, color: '#ff0038' },
-    { r: 10 * SM_IN_METERS, color: '#ff0033' }
-  ];
-
-  if (!window.rangeCircles) {
-    window.rangeCircles = [];
-    window.tickLines = [];
-    window.tickLabels = [];
-    window.radiusLabels = [];
-
-    radiusCircles.forEach(cfg => {
-      // Kreis
-      const circle = L.circle([state.gps_lat, state.gps_lon], {
-        radius: cfg.r,
-        color: cfg.color,
-        weight: 2,
-		dashArray: "8",
-		lineCap: "round",
-		fill: true,
-		fillOpacity: 0.03
-      }).addTo(map);
-      window.rangeCircles.push(circle);
-
-      // Tickmarken + Beschriftungen (alle 45°)
-      for (let brg = 0; brg < 360; brg += 45) {
-        const [lat2, lon2] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r);
-        const [lat1, lon1] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r * 0.98);
-        const tick = L.polyline([[lat1, lon1], [lat2, lon2]], {
-          color: cfg.color,
-          weight: 3,
-          opacity: 0.8
-        }).addTo(map);
-        window.tickLines.push(tick);
-
-        // Tick-Beschriftung
-        const [latLabel, lonLabel] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r * 1.02);
-        const label = L.marker([latLabel, lonLabel], {
-          icon: L.divIcon({
-            className: "tickLabel",
-            html: `<div style="color:${cfg.color};font-size:10px;font-weight:bold;">${brg}°</div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-          })
-        }).addTo(map);
-        window.tickLabels.push(label);
-      }
-
-      // Tangential-Striche (rechtwinklig zur Tangente) bei 0°, 90°, 180°, 270°
-      [0, 90, 180, 270].forEach(brg => {
-        const [latBase, lonBase] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r);
-        const perpAngle1 = (brg + 180) % 360;
-        const perpAngle2 = brg;
-        const [latA, lonA] = destinationPoint(latBase, lonBase, perpAngle1, cfg.r * 0.005);
-        const [latB, lonB] = destinationPoint(latBase, lonBase, perpAngle2, cfg.r * 0.005);
-        const tangential = L.polyline([[latA, lonA], [latB, lonB]], {
-          color: cfg.color,
-          weight: 1.5,
-          opacity: 0.9
-        }).addTo(map);
-        window.tickLines.push(tangential);
-      });
-
-      // --- Radiusbeschriftung (2 sm / 5 sm / 10 sm) mit eigenem Winkel ---
-      const text =
-        cfg.r === 2 * SM_IN_METERS ? "2 sm" :
-        cfg.r === 5 * SM_IN_METERS ? "5 sm" :
-        cfg.r === 10 * SM_IN_METERS ? "10 sm" : "";
-
-      let labelAngle;
-      if (cfg.r === 2 * SM_IN_METERS) labelAngle = 0;    // rechts
-      else if (cfg.r === 5 * SM_IN_METERS) labelAngle = 90;  // oben
-      else if (cfg.r === 10 * SM_IN_METERS) labelAngle = 180; // links
-
-      const [latRadius, lonRadius] = destinationPoint(state.gps_lat, state.gps_lon, labelAngle, cfg.r);
-      const radiusLabel = L.marker([latRadius, lonRadius], {
-        icon: L.divIcon({
-          className: "radiusLabel",
-          html: `<div style="color:${cfg.color};font-size:11px;font-weight:small;text-shadow:0px 0px 0px black;">${text}</div>`,
-          iconSize: [30, 12],
-          iconAnchor: [15, 6]
-        })
-      }).addTo(map);
-      window.radiusLabels.push(radiusLabel);
-    });
-  } else {
-    // Update bestehender Elemente
-    let tickIndex = 0;
-    let labelIndex = 0;
-    let radiusLabelIndex = 0;
-
-    radiusCircles.forEach(cfg => {
-      const circle = window.rangeCircles[radiusCircles.indexOf(cfg)];
-      if (circle) circle.setLatLng([state.gps_lat, state.gps_lon]);
-
-      // Tickmarken + Tickbeschriftungen aktualisieren
-      for (let brg = 0; brg < 360; brg += 45) {
-        const [lat2, lon2] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r);
-        const [lat1, lon1] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r * 0.98);
-        // Correctly set tick polyline if exists:
-        if (window.tickLines[tickIndex]) window.tickLines[tickIndex].setLatLngs([[lat1, lon1], [lat2, lon2]]);
-        tickIndex++;
-
-        const [latLabel, lonLabel] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r + 1300);
-        if (window.tickLabels[labelIndex]) window.tickLabels[labelIndex].setLatLng([latLabel, lonLabel]);
-        labelIndex++;
-      }
-
-      // Tangential-Striche aktualisieren (4 per circle)
-      [0, 90, 180, 270].forEach(brg => {
-        const [latBase, lonBase] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r);
-        const perpAngle1 = (brg + 180) % 360;
-        const perpAngle2 = brg;
-        const [latA, lonA] = destinationPoint(latBase, lonBase, perpAngle1, cfg.r * 0.005);
-        const [latB, lonB] = destinationPoint(latBase, lonBase, perpAngle2, cfg.r * 0.005);
-        if (window.tickLines[tickIndex]) window.tickLines[tickIndex].setLatLngs([[latA, lonA], [latB, lonB]]);
-        tickIndex++;
-      });
-
-      // Radiusbeschriftung aktualisieren
-      let labelAngle;
-      if (cfg.r === 2 * SM_IN_METERS) labelAngle = 145;
-      else if (cfg.r === 5 * SM_IN_METERS) labelAngle = 145;
-      else if (cfg.r === 10 * SM_IN_METERS) labelAngle = 145;
-
-      const [latRadius, lonRadius] = destinationPoint(state.gps_lat, state.gps_lon, labelAngle, cfg.r + 1200);
-      if (window.radiusLabels[radiusLabelIndex]) window.radiusLabels[radiusLabelIndex].setLatLng([latRadius, lonRadius]);
-      radiusLabelIndex++;
-    });
-  }
+    if (followMode) {
+        map.setView(pos, map.getZoom(), { animate: true });
+    }
 }
 
 
+/* ------------------------------
+   Kurs- / Windlinien
+   ------------------------------ */
+function updateHeadingLines() {
+    const pos = [state.gps_lat, state.gps_lon];
+    const compassEnd = destinationPoint(state.gps_lat, state.gps_lon, state.kompass, 40000);
+    const gpsEnd = destinationPoint(state.gps_lat, state.gps_lon, state.gps_kurs, 40000);
+    const windEnd = destinationPoint(state.gps_lat, state.gps_lon, state.winddir_berechnet, 20000);
+	
+    headingLineCompass.setLatLngs([pos, compassEnd]);
+    headingLineGPS.setLatLngs([pos, gpsEnd]);
+    headingLineWind.setLatLngs([pos, windEnd]);
+}
 
 
+/* ------------------------------
+   Waypoint / Peilungsanzeige
+   ------------------------------ */
+function updateWaypointInfo() {
+    if (!routeMode && waypointMarker) {
+        const { bearing, distance } = bearingAndDistance(
+            state.gps_lat,
+            state.gps_lon,
+            waypointMarker.getLatLng().lat,
+            waypointMarker.getLatLng().lng
+        );
 
+        waypointInfo.innerHTML =
+            `<b>Peilung zu Ziel:</b><br>` +
+            `Kurs: ${bearing.toFixed(1)}°<br>` +
+            `Entfernung: ${(distance / 1852).toFixed(2)} sm`;
+    }
+}
+
+/* ------------------------------
+   Legende
+   ------------------------------ */
+function updateLegend() {
+    legendEl.innerHTML =
+        `🔴 Kompasskurs: ${state.kompass.toFixed(1)}°<br>` +
+        `🟡 GPS-Kurs: ${state.gps_kurs.toFixed(1)}°<br>` +
+        `🟢 Wind: ${state.winddir_berechnet.toFixed(1)}° / ` +
+        `${state.windspeed_berechnet.toFixed(1)} kn`;
+}
+
+/* ------------------------------
+   Reichweitenkreise
+   ------------------------------ */
+function updateRangeCircles() {
+    const SM_IN_METERS = 1852;
+    const radiusCircles = [
+        { r: 2 * SM_IN_METERS, color: '#ff0044', labelAngle: 0, text: "2 sm" },
+        { r: 5 * SM_IN_METERS, color: '#ff0038', labelAngle: 90, text: "5 sm" },
+        { r: 10 * SM_IN_METERS, color: '#ff0033', labelAngle: 180, text: "10 sm" }
+    ];
+
+    // ============================================
+    // Initial erzeugen
+    // ============================================
+    if (!window.rangeCircles) {
+        window.rangeCircles = [];
+        window.tickLines = [];
+        window.tickLabels = [];
+        window.radiusLabels = [];
+
+        radiusCircles.forEach(cfg => {
+            // Kreis erzeugen
+            const circle = L.circle([state.gps_lat, state.gps_lon], {
+                radius: cfg.r, color: cfg.color, weight: 2, dashArray: "8",
+                lineCap: "round", fill: true, fillOpacity: 0.001
+            }).addTo(map);
+            window.rangeCircles.push(circle);
+
+            // Tickmarken + Beschriftung
+            for (let brg = 0; brg < 360; brg += 45) {
+                const [lat2, lon2] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r);
+                const [lat1, lon1] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r * 0.98);
+
+                const tick = L.polyline([[lat1, lon1], [lat2, lon2]], {
+                    color: cfg.color, weight: 3, opacity: 0.8
+                }).addTo(map);
+                window.tickLines.push(tick);
+
+                // Label
+                const [latLabel, lonLabel] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r * 1.02);
+                const label = L.marker([latLabel, lonLabel], {
+                    icon: L.divIcon({
+                        className: "tickLabel",
+                        html: `<div style="color:${cfg.color}; font-size:10px; font-weight:bold;">${brg}°</div>`,
+                        iconSize: [20, 20], iconAnchor: [10, 10]
+                    })
+                }).addTo(map);
+                window.tickLabels.push(label);
+            }
+
+            // Tangential-Striche
+            [0, 90, 180, 270].forEach(brg => {
+                const [latBase, lonBase] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r);
+                const [latA, lonA] = destinationPoint(latBase, lonBase, (brg + 180) % 360, cfg.r * 0.005);
+                const [latB, lonB] = destinationPoint(latBase, lonBase, brg, cfg.r * 0.005);
+                const tangential = L.polyline([[latA, lonA], [latB, lonB]], {
+                    color: cfg.color, weight: 1.5, opacity: 0.9
+                }).addTo(map);
+                window.tickLines.push(tangential);
+            });
+
+            // Radius Label
+            const [latRadius, lonRadius] = destinationPoint(state.gps_lat, state.gps_lon, cfg.labelAngle, cfg.r);
+            const radiusLabel = L.marker([latRadius, lonRadius], {
+                icon: L.divIcon({
+                    className: "radiusLabel",
+                    html: `<div style="color:${cfg.color}; font-size:11px;">${cfg.text}</div>`,
+                    iconSize: [30, 12], iconAnchor: [15, 6]
+                })
+            }).addTo(map);
+            window.radiusLabels.push(radiusLabel);
+        });
+
+    } else {
+        // ============================================
+        // Bestehende Elemente aktualisieren
+        // ============================================
+        let tickIndex = 0;
+        let labelIndex = 0;
+
+        radiusCircles.forEach((cfg, idx) => {
+            const circle = window.rangeCircles[idx];
+            if (circle) circle.setLatLng([state.gps_lat, state.gps_lon]);
+
+            // Tickmarken aktualisieren
+            for (let brg = 0; brg < 360; brg += 45) {
+                const [lat2, lon2] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r);
+                const [lat1, lon1] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r * 0.98);
+
+                if (window.tickLines[tickIndex]) {
+                    window.tickLines[tickIndex].setLatLngs([[lat1, lon1], [lat2, lon2]]);
+                }
+                tickIndex++;
+
+                const [latLabel, lonLabel] = destinationPoint(state.gps_lat, state.gps_lon, brg, cfg.r + 1300);
+                if (window.tickLabels[labelIndex]) {
+                    window.tickLabels[labelIndex].setLatLng([latLabel, lonLabel]);
+                }
+                labelIndex++;
+            }
+        });
+    }
+}
 
 
 function updateWaypointList() {

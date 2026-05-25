@@ -12,6 +12,7 @@
 		th, td { border: 1px solid #252a38; padding: 12px; text-align: left; }
 		th { background: #00bcd4; color: #0f1218; text-align: center; font-weight: bold; }
 		.info-text { font-size: 0.85em; color: #aaa; margin-top: 4px; display: block; }
+		.info-text_checkbox { font-size: 0.85em; color: #fda; margin-top: 4px; display: block; }
 		input[type="number"], input[type="text"] { width: 100%; box-sizing: border-box; background: #252a38; color: #fff; border: 1px solid #007d91; padding: 8px; border-radius: 4px; }
 		input[type="checkbox"] { transform: scale(1.2); margin-right: 8px; cursor: pointer; }
 		.buttonBar { margin-top: 30px; padding: 20px; border-top: 1px solid #252a38; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
@@ -69,8 +70,40 @@
     <tr><td>Salinität (‰)</td><td><input type="number" step="0.1" id="waterSalinity"></td></tr>
   </table>
 
+
+ <h2>F – Datenquellen-Matrix (Externe Eingänge)</h2>
+  <table>
+    <tr>
+      <th>Sensor / System</th>
+      <th style="text-align:center;">NMEA 2000<br><span class="info-text_checkbox">(CAN-Bus)</span></th>
+      <th style="text-align:center;">NMEA 0183<br><span class="info-text_checkbox">(Seriell RS-422)</span></th>
+      <th style="text-align:center;">Netzwerk Stream<br><span class="info-text_checkbox">(UDP TCP via WLAN)</span></th>
+    </tr>
+    <!-- GPS Zeile -->
+    <tr>
+      <td><strong>GPS-Daten</strong></td>
+      <td style="text-align:center;"><input type="checkbox" id="gps_use_n2k"></td>
+      <td style="text-align:center;"><input type="checkbox" id="gps_use_0183"></td>
+      <td style="text-align:center;"><input type="checkbox" id="gps_use_udp"></td>
+    </tr>
+    <!-- Wind Zeile -->
+    <tr>
+      <td><strong>Winddaten</strong></td>
+      <td style="text-align:center;"><input type="checkbox" id="wind_use_n2k"></td>
+      <td style="text-align:center;"><input type="checkbox" id="wind_use_0183"></td>
+      <td style="text-align:center;"><input type="checkbox" id="wind_use_udp"></td>
+    </tr>
+    <!-- Echolot Zeile -->
+    <tr>
+      <td><strong>Echolot (Tiefe)</strong></td>
+      <td style="text-align:center;"><input type="checkbox" id="depth_use_n2k"></td>
+      <td style="text-align:center;"><input type="checkbox" id="depth_use_0183"></td>
+      <td style="text-align:center;"><input type="checkbox" id="depth_use_udp_tcp"></td>
+    </tr>
+  </table>
+
   <!-- ===================== NEUER ABSCHNITT F: Kalibrierung ===================== -->
-  <h2>F – Sensor Kalibrierung</h2>
+  <h2>G – Sensor Kalibrierung</h2>
   <table>
     <tr>
       <th colspan="2">Aktion & Anleitung</th>
@@ -199,6 +232,16 @@ Lade…
         document.getElementById('tiefgang_boot').value      = cfg.tiefgang_boot;
         document.getElementById('wassertemperatur').value   = cfg.wassertemperatur;
         document.getElementById('waterSalinity').value      = cfg.waterSalinity;
+        document.getElementById('gps_use_n2k').checked     = !!cfg.gps_use_n2k;
+        document.getElementById('gps_use_0183').checked    = !!cfg.gps_use_0183;
+        document.getElementById('gps_use_udp').checked     = !!cfg.gps_use_udp;
+        document.getElementById('wind_use_n2k').checked    = !!cfg.wind_use_n2k;
+        document.getElementById('wind_use_0183').checked   = !!cfg.wind_use_0183;
+        document.getElementById('wind_use_udp').checked    = !!cfg.wind_use_udp;
+        document.getElementById('depth_use_n2k').checked   = !!cfg.depth_use_n2k;
+        document.getElementById('depth_use_0183').checked  = !!cfg.depth_use_0183;
+        document.getElementById('depth_use_udp_tcp').checked   = !!cfg.depth_use_udp_tcp;
+      
       })
       .catch(() => alert("❌ Fehler beim Laden der Konfiguration"));
 
@@ -217,7 +260,16 @@ Lade…
         wassertiefe_einbau: document.getElementById('wassertiefe_einbau').value,
         tiefgang_boot: document.getElementById('tiefgang_boot').value,
         wassertemperatur: document.getElementById('wassertemperatur').value,
-        waterSalinity: document.getElementById('waterSalinity').value
+        waterSalinity: document.getElementById('waterSalinity').value,
+        gps_use_n2k: document.getElementById('gps_use_n2k').checked ? 1 : 0,
+        gps_use_0183: document.getElementById('gps_use_0183').checked ? 1 : 0,
+        gps_use_udp: document.getElementById('gps_use_udp').checked ? 1 : 0,
+        wind_use_n2k: document.getElementById('wind_use_n2k').checked ? 1 : 0,
+        wind_use_0183: document.getElementById('wind_use_0183').checked ? 1 : 0,
+        wind_use_udp: document.getElementById('wind_use_udp').checked ? 1 : 0,
+        depth_use_n2k: document.getElementById('depth_use_n2k').checked ? 1 : 0,
+        depth_use_0183: document.getElementById('depth_use_0183').checked ? 1 : 0,
+        depth_use_udp_tcp: document.getElementById('depth_use_udp_tcp').checked ? 1 : 0
       });
 
       fetch(`/setSystem?${params.toString()}`)
