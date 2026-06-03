@@ -168,7 +168,7 @@ extern float pitch_offset;
 // ==========================================================
 // 13. Alarmzustand und Pin für Piper
 // ==========================================================
-#define BUZZER_PIN 4  // Digital Ausgang für Piezo
+#define BUZZER_PIN 41  // Digital Ausgang für Piezo
 
 #define ALARM_STABLE_MS 2000
 

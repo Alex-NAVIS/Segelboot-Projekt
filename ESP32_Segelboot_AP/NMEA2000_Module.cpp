@@ -1,168 +1,292 @@
 /**
  * ============================================================================
- * MODUL-BESCHREIBUNG: NAVIS NMEA2000 Gateway & Parser
+ * MODUL: NAVIS NMEA2000 Gateway & Parser (CAN-Bus)
  * ============================================================================
- * Dieses Modul dient dem passiven Einlesen (Listen-Only) von NMEA2000-Busdaten
- * auf einem ESP32. Es filtert spezifische PGNs für GPS, Wind und Echolot (Tiefe).
+ * NMEA2000_Module.cpp
+ * Implementierung des NMEA2000-Parsers über den ESP32-internen CAN-Controller.
  * 
- * DATENSTEUERUNG ÜBER EXTERNE FLAGS (Aktivierung / Deaktivierung):
- * Das Modul nutzt globale Kontrollvariablen (Flags), um den Empfang und die 
- * Verarbeitung für einzelne Sensortypen dynamisch zu steuern:
- * - `extern_gps_CAN`: Aktiviert/Deaktiviert das Parsen von GPS-Position, 
- *   Kurs (COG), Geschwindigkeit (SOG) und der UTC-Systemzeit.
- * - `extern_wind_CAN`: Aktiviert/Deaktiviert das Parsen von Windgeschwindigkeit 
- *   und Windwinkel (scheinbarer Wind).
- * - `extern_echolot_CAN`: Aktiviert/Deaktiviert das Parsen der Wassertiefe.
  * 
- * Ist ein Flag auf 'false' gesetzt, werden eingehende Telegramme des Typs 
- * sofort ignoriert, und die Timeout-Überwachung für diesen Sensor ausgesetzt.
+ * Das Modul klinkt sich passiv (ListenOnly) in das NMEA2000-Netzwerk ein. Es filtert 
+ * spezifische PGNs (Parameter Group Numbers) für GPS, Wind und Tiefe, konvertiert 
+ * die SI-Einheiten des CAN-Busses in maritime Navigationseinheiten und übergibt 
+ * diese an die Datenfusion. Zudem überwacht es den Ausfall von Sensordaten per Timeout.
  * 
- * Hauptfunktionen:
- * 1. Initialisierung des CAN-Busses auf dedizierten GPIO-Pins.
- * 2. Filtern und Parsen der empfangenen NMEA2000-Telegramme.
- * 3. Konvertierung von Rohdaten (z.B. Bogenmaß/Metrisch zu Grad/Knoten).
- * 4. Speicherung in globalen Datenstrukturen für andere Programmteile.
- * 5. Überwachung von Timeouts: Bleiben Sensordaten für eine definierte Zeit
- *    aus, werden die globalen Werte automatisch auf sichere Default-/Fehlerwerte
- *    zurückgesetzt und eine Warnung ausgegeben.
+ * ARCHITEKTUR-REGELN:
+ * - Datenübergabe ausschließlich via `NAVIS_push...` an NAVIS_DataFusion.
+ * - Keine direkten Schreibzugriffe auf die globale Struktur `extern_sensorData`.
+ * - Konsistente Steuerung aller Ausgaben über das Flag `DEBUG_MODE_CANBUS`.
  * ============================================================================
+
+ Hardware zum testen: https://de.aliexpress.com/item/1005012175863956.html
+
  */
+#include "config.h"              // 1. Zuerst die Konfiguration laden
 
-#include "NMEA2000_Module.h"
-#include <NMEA2000_esp32.h>
+#include <NMEA2000_esp32_twai.h>  // 2. Die neue TWAI-Bibliothek laden
 #include <N2kMessages.h>
-#include "config.h"
+
+#include "NMEA2000_Module.h"     // 3. Erst danach die eigenen Projekt-Header
 #include "Sensor_Data.h"
+#include "NAVIS_DataFusion.h"
 
+/// Instanz des ESP32-spezifischen NMEA2000-Objekts (nutzt den internen TWAI/CAN-Controller)
+NMEA2000_esp32_twai NMEA2000;
 
-// Zentrales NMEA2000-Objekt für die ESP32-Hardware-Bibliothek
-tNMEA2000_esp32 NMEA2000;
+/**
+ * Array der zu filternden PGNs (Parameter Group Numbers).
+ * 
+ * Enthält alle PGN-Nummern, auf die der CAN-Hardware-Filter reagieren soll:
+ * - 126992L: System Time (Systemzeit)
+ * - 129025L: Position, Rapid Update (Schnelles Positions-Update)
+ * - 129026L: COG & SOG, Rapid Update (Kurs/Geschwindigkeit über Grund)
+ * - 128267L: Water Depth (Wassertiefe)
+ * - 130306L: Wind Data (Windgeschwindigkeit und -winkel)
+ */
+const unsigned long ReceiveMessages[] PROGMEM = {
+  126992L,
+  129025L,
+  129026L,
+  128267L,
+  130306L,
+  0  ///< Array-Terminator (wichtig für die Bibliothek)
+};
 
-// Whitelist-Filter: Nur diese PGNs werden vom Bus verarbeitet (Systemzeit, GPS, COG/SOG, Tiefe, Wind)
-const unsigned long ReceiveMessages[] PROGMEM = { 126992L, 129025L, 129026L, 128267L, 130306L, 0 };
+/**
+ * Struktur zur Verwaltung der Zeitstempel für die Timeout-Überwachung.
+ * Speichert den jeweils letzten Empfangszeitpunkt (`millis()`) pro Sensortyp.
+ */
+struct SensorEventState {
+  uint32_t gps_last = 0;    ///< Letzter Empfang von GPS-Daten [ms]
+  uint32_t wind_last = 0;   ///< Letzter Empfang von Winddaten [ms]
+  uint32_t depth_last = 0;  ///< Letzter Empfang von Tiefendaten [ms]
+};
 
-// Struktur zur Speicherung der Zeitstempel (millis) des letzten erfolgreichen Datenempfangs
-struct SensorEventState { uint32_t gps_last = 0, wind_last = 0, depth_last = 0; };
-static SensorEventState sensorEvents; // Instanz für die Timeout-Überwachung
+static SensorEventState sensorEvents;
 
-// Vorwärtsdeklarationen der Parser- und Überwachungsfunktionen
+// Vorwärtsdeklarationen interner Funktionen
 void HandleGPS(const tN2kMsg &N2kMsg);
 void HandleWind(const tN2kMsg &N2kMsg);
 void HandleDepth(const tN2kMsg &N2kMsg);
 void updateSensorTimeouts();
 
-// Inline-Hilfsfunktionen: Aktualisieren den Zeitstempel bei gültigem Datenempfang
-inline void eventGPS() { sensorEvents.gps_last = millis(); }
-inline void eventWind() { sensorEvents.wind_last = millis(); }
-inline void eventDepth() { sensorEvents.depth_last = millis(); }
-
-// Hauptverteiler (Dispatcher): Reicht jedes empfangene Telegramm an die Spezial-Parser weiter
-void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) { HandleGPS(N2kMsg); HandleWind(N2kMsg); HandleDepth(N2kMsg); }
+// Inline-Hilfsfunktionen zur Aktualisierung der Empfangs-Zeitstempel
+inline void eventGPS() {
+  sensorEvents.gps_last = millis();
+}
+inline void eventWind() {
+  sensorEvents.wind_last = millis();
+}
+inline void eventDepth() {
+  sensorEvents.depth_last = millis();
+}
 
 /**
- * Richtet das NMEA2000-Modul ein, setzt Produkt-/Geräteinfos, 
- * aktiviert den passiven Modus, registriert den Handler und startet den CAN-Bus.
+ * Zentraler Nachrichten-Verteiler (Dispatcher) der NMEA2000-Bibliothek.
+ * 
+ * N2kMsg Referenz auf die empfangene NMEA2000-Nachrichtenstruktur.
+ * Leitet jede eingehende CAN-Bus-Nachricht sequentiell an die spezialisierten 
+ * Sub-Parser (GPS, Wind, Tiefe) weiter.
+ */
+void HandleNMEA2000Msg(const tN2kMsg &N2kMsg) {
+  HandleGPS(N2kMsg);
+  HandleWind(N2kMsg);
+  HandleDepth(N2kMsg);
+}
+
+/**
+ * Initialisiert den CAN-Bus und konfiguriert das NMEA2000-Geräteprofil.
+ * 
+ * Setzt Produkt- und Geräteinformationen für den Bus auf, schaltet den Controller 
+ * in den sicheren passiven Modus (ListenOnly), verknüpft die PGN-Filterliste und 
+ * öffnet den Kommunikationskanal.
  */
 void setup_nmea2000() {
-  Serial.println(F("Starte NMEA2000..."));
+  if (DEBUG_MODE_CANBUS) Serial.println(F("Starte NMEA2000..."));
+
+  // Produkt-Metadaten für Netzwerk-Scans festlegen
   NMEA2000.SetProductInformation("00000001", 100, "NAVIS NMEA2000", "1.0.0.0", "1.0.0.0");
+
+  // Geräteklasse definieren (Klasse 1 = Navigation, Funktion 130 = Echolot/Logge/Navigationsgeräte)
   NMEA2000.SetDeviceInformation(1, 130, 25, 2046);
-  NMEA2000.SetMode(tNMEA2000::N2km_ListenOnly); // Passiver Modus (keine eigenen Sendungen)
-  NMEA2000.ExtendReceiveMessages(ReceiveMessages); // PGN-Filter anwenden
-  NMEA2000.SetMsgHandler(HandleNMEA2000Msg); // Callback-Funktion registrieren
-  NMEA2000.Open(); // CAN-Schnittstelle aktivieren
-  Serial.println(F("NMEA2000 aktiv"));
+
+  // Sicherheit: Nur lauschen, um aktive Störungen oder Kollisionen auf dem Bus auszuschließen
+  NMEA2000.SetMode(tNMEA2000::N2km_ListenOnly);
+
+  // Aktiviert die PGN-Filterung direkt auf dem CAN-Controller
+  NMEA2000.ExtendReceiveMessages(ReceiveMessages);
+
+  // Callback für den Nachrichtenempfang registrieren
+  NMEA2000.SetMsgHandler(HandleNMEA2000Msg);
+
+  // CAN-Hardware öffnen
+  NMEA2000.Open();
+
+  if (DEBUG_MODE_CANBUS) Serial.println(F("NMEA2000 aktiv"));
 }
 
 /**
- * Muss zyklisch in der Hauptschleife aufgerufen werden. 
- * Verarbeitet anstehende Bus-Nachrichten und prüft Sensor-Timeouts.
+ * Zyklische Verarbeitung der CAN-Bus-Schnittstelle.
+ * 
+ * Muss zwingend hochfrequent in der Hauptschleife (loop) aufgerufen werden.
+ * Holt anstehende Frames aus dem CAN-Hardware-FIFO ab und stößt die 
+ * Schnittstellen-Timeouts an.
  */
-void loop_nmea2000() { NMEA2000.ParseMessages(); updateSensorTimeouts(); }
+void loop_nmea2000() {
+  NMEA2000.ParseMessages();
+  updateSensorTimeouts();
+}
 
 /**
- * Parser für GPS-Daten (PGN 129025: Position, PGN 129026: COG/SOG, PGN 126992: Zeit)
- * Konvertiert Rohwerte in Grad und Knoten und speichert sie global ab.
+ * Parst GPS-relevante PGNs (129025 und 129026).
+ * 
+ * N2kMsg Referenz auf die NMEA2000-Nachricht.
+ * 
+ * Da NMEA2000 Positionsdaten (PGN 129025) und Bewegungsdaten (PGN 129026) getrennt 
+ * überträgt, puffert die Funktion die Koordinaten statisch zwischen. Sobald die 
+ * Bewegungsdaten (COG/SOG) eintreffen, wird der Gesamtdatensatz an die Datenfusion 
+ * gepusht. Die mathematischen Konvertierungen (Bogenmaß/Rad -> Grad und m/s -> Knoten) 
+ * erfolgen on-the-fly.
  */
 void HandleGPS(const tN2kMsg &N2kMsg) {
-  if (!extern_gps_CAN) return; // Abbruch, wenn GPS-Empfang via CAN deaktiviert ist
-  if (N2kMsg.PGN == 129025L) { // Breitengrad / Längengrad
-    double lat, lon;
+  if (!extern_gps_CAN) return;
+
+  static double lat = 0.0;
+  static double lon = 0.0;
+
+  // 1. Schritt: Position extrahieren (Rapid Update)
+  if (N2kMsg.PGN == 129025L) {
     if (ParseN2kPGN129025(N2kMsg, lat, lon)) {
-      extern_sensorData.gps_lat = lat; extern_sensorData.gps_lon = lon; eventGPS();
-      Serial.print(F("[N2K] GPS: ")); Serial.print(lat, 6); Serial.print(F(" / ")); Serial.println(lon, 6);
-    }
-  } else if (N2kMsg.PGN == 129026L) { // Kurs über Grund (COG) / Geschwindigkeit über Grund (SOG)
-    unsigned char SID; tN2kHeadingReference ref; double cog, sog;
-    if (ParseN2kPGN129026(N2kMsg, SID, ref, cog, sog)) {
-      extern_sensorData.gps_kurs = RadToDeg(cog); extern_sensorData.gps_speed = msToKnots(sog); eventGPS();
-      Serial.print(F("[N2K] COG: ")); Serial.print(extern_sensorData.gps_kurs); Serial.print(F("  SOG: ")); Serial.println(extern_sensorData.gps_speed);
-    }
-  } else if (N2kMsg.PGN == 126992L) { // Systemzeit / Datum (UTC)
-    unsigned char SID; uint16_t days; double sec; tN2kTimeSource ts;
-    if (ParseN2kPGN126992(N2kMsg, SID, days, sec, ts)) {
-      extern_sensorData.gps_tag = days; extern_sensorData.gps_sekunde = sec; eventGPS();
-      Serial.println(F("[N2K] GPS Zeit empfangen"));
+      eventGPS();
     }
   }
-}
 
-/**
- * Parser für Winddaten (PGN 130306). Filtert nach relativem Wind (Apparent),
- * konvertiert Winkel in Grad sowie Geschwindigkeit in Knoten.
- */
-void HandleWind(const tN2kMsg &N2kMsg) {
-  if (!extern_wind_CAN) return; // Abbruch, wenn Wind-Empfang via CAN deaktiviert ist
-  if (N2kMsg.PGN == 130306L) {
-    unsigned char SID; double WindSpeed, WindAngle; tN2kWindReference WindReference;
-    if (ParseN2kPGN130306(N2kMsg, SID, WindSpeed, WindAngle, WindReference)) {
-      if (WindReference == N2kWind_Apparent) { // Nur scheinbaren Wind verarbeiten
-        extern_sensorData.winddir_gemessen = RadToDeg(WindAngle); extern_sensorData.windspeed_gemessen = msToKnots(WindSpeed); eventWind();
-        Serial.print(F("[N2K] Wind: ")); Serial.print(extern_sensorData.windspeed_gemessen); Serial.print(F(" kn  ")); Serial.println(extern_sensorData.winddir_gemessen);
+  // 2. Schritt: Kurs & Geschwindigkeit extrahieren und Komplettdatensatz pushen
+  else if (N2kMsg.PGN == 129026L) {
+
+    unsigned char SID;
+    tN2kHeadingReference ref;
+    double cog, sog;
+
+    if (ParseN2kPGN129026(N2kMsg, SID, ref, cog, sog)) {
+
+      NAVIS_pushGPS(
+        lat,
+        lon,
+        msToKnots(sog),  // m/s in Knoten umrechnen
+        RadToDeg(cog),   // Radian/Bogenmaß in Grad umrechnen
+        0,               // Satellitenanzahl (Nicht in PGN 129026 enthalten)
+        0.0,             // HDOP (Nicht in PGN 129026 enthalten)
+        NAVIS_SOURCE_NMEA2000);
+
+      eventGPS();
+
+      if (DEBUG_MODE_CANBUS) {
+        Serial.print(F("[N2K] GPS "));
+        Serial.print(lat, 6);
+        Serial.print(F(" "));
+        Serial.println(lon, 6);
       }
     }
   }
 }
 
 /**
- * Parser für Echolot/Wassertiefe (PGN 128267). 
- * Berechnet die Gesamttiefe aus gemessener Tiefe und dem Sensor-Offset.
+ * Parst die Winddaten-PGN (130306).
+ * 
+ * N2kMsg Referenz auf die NMEA2000-Nachricht.
+ * Extrahiert Windgeschwindigkeit und Windwinkel. Akzeptiert ausschließlich 
+ * scheinbaren Wind (`N2kWind_Apparent`), rechnet die Werte in Knoten und 
+ * Grad um und leitet sie weiter.
  */
-void HandleDepth(const tN2kMsg &N2kMsg) {
-  if (!extern_echolot_CAN) return; // Abbruch, wenn Echolot-Empfang via CAN deaktiviert ist
-  if (N2kMsg.PGN == 128267L) {
-    unsigned char SID; double Depth, Offset, Range;
-    if (ParseN2kPGN128267(N2kMsg, SID, Depth, Offset, Range)) {
-      extern_sensorData.Echolot = Depth + Offset; eventDepth(); // Tiefe inklusive Geber-Offset (z.B. Kiel/Wasserlinie)
-      Serial.print(F("[N2K] Depth: ")); Serial.println(extern_sensorData.Echolot);
+void HandleWind(const tN2kMsg &N2kMsg) {
+  if (!extern_wind_CAN) return;
+
+  if (N2kMsg.PGN == 130306L) {
+
+    unsigned char SID;
+    double WindSpeed, WindAngle;
+    tN2kWindReference WindReference;
+
+    if (ParseN2kPGN130306(
+          N2kMsg,
+          SID,
+          WindSpeed,
+          WindAngle,
+          WindReference)) {
+
+      // Nur scheinbaren Wind verarbeiten
+      if (WindReference == N2kWind_Apparent) {
+
+        NAVIS_pushWind(
+          RadToDeg(WindAngle),   // Radian -> Grad
+          msToKnots(WindSpeed),  // m/s -> Knoten
+          NAVIS_SOURCE_NMEA2000);
+
+        eventWind();
+      }
     }
   }
 }
 
 /**
- * Prüft fortlaufend, ob die Zeitspanne seit dem letzten Signal eines Sensors 
- * den definierten Maximalwert (Timeout) überschritten hat. Wenn ja, werden
- * die globalen Variablen genullt bzw. auf definierte Fehlerwerte gesetzt.
+ * Parst die Echolot/Wassertiefen-PGN (128267).
+ * 
+ * N2kMsg Referenz auf die NMEA2000-Nachricht.
+ * Extrahiert die reine Tiefe und rechnet den Geber-Offset (z.B. Tiefe ab 
+ * Wasserlinie oder ab Kiel) direkt mit ein, bevor der Wert übergeben wird.
+ */
+void HandleDepth(const tN2kMsg &N2kMsg) {
+  if (!extern_echolot_CAN) return;
+
+  if (N2kMsg.PGN == 128267L) {
+
+    unsigned char SID;
+    double Depth, Offset, Range;
+
+    if (ParseN2kPGN128267(
+          N2kMsg,
+          SID,
+          Depth,
+          Offset,
+          Range)) {
+
+      // Übergabe der berechneten Tiefe (Rohwert + Offset)
+      NAVIS_pushDepth(
+        Depth + Offset,
+        NAVIS_SOURCE_NMEA2000);
+
+      eventDepth();
+    }
+  }
+}
+
+/**
+ * Überprüft die Einhaltung der maximal zulässigen Sensor-Timeouts.
+ * 
+ * Vergleicht die Differenz zwischen der aktuellen Systemzeit (`now`) und 
+ * dem letzten Paket-Zeitstempel. Wird ein in der `config.h` definierter 
+ * Schwellenwert (`TIMEOUT_...`) überschritten, wird der Zeitstempel genullt 
+ * und eine Warnmeldung ausgegeben (gesteuert via DEBUG_MODE_CANBUS).
  */
 void updateSensorTimeouts() {
+
   uint32_t now = millis();
-  
-  // GPS-Timeout-Überprüfung
+
+  // GPS-Timeout Prüfung
   if (extern_gps_CAN && sensorEvents.gps_last != 0 && (now - sensorEvents.gps_last > TIMEOUT_GPS)) {
-    extern_sensorData.gps_lat = 0.0; extern_sensorData.gps_lon = 0.0; extern_sensorData.gps_speed = 0.0; extern_sensorData.gps_kurs = 0.0;
-    extern_sensorData.gps_sats = 0; extern_sensorData.gps_hdop = 99.9; sensorEvents.gps_last = 0;
-    Serial.println(F("[WARN] GPS Timeout"));
+    sensorEvents.gps_last = 0;
+    if (DEBUG_MODE_CANBUS) Serial.println(F("[WARN] N2K GPS Timeout"));
   }
-  
-  // Wind-Timeout-Überprüfung
+
+  // Wind-Timeout Prüfung
   if (extern_wind_CAN && sensorEvents.wind_last != 0 && (now - sensorEvents.wind_last > TIMEOUT_WIND)) {
-    extern_sensorData.winddir_gemessen = -999.0; extern_sensorData.windspeed_gemessen = -1.0; sensorEvents.wind_last = 0;
-    Serial.println(F("[WARN] Wind Timeout"));
+    sensorEvents.wind_last = 0;
+    if (DEBUG_MODE_CANBUS) Serial.println(F("[WARN] N2K Wind Timeout"));
   }
-  
-  // Echolot-Timeout-Überprüfung
+
+  // Wassertiefen-Timeout Prüfung
   if (extern_echolot_CAN && sensorEvents.depth_last != 0 && (now - sensorEvents.depth_last > TIMEOUT_DEPTH)) {
-    extern_sensorData.Echolot = -1.0; sensorEvents.depth_last = 0;
-    Serial.println(F("[WARN] Depth Timeout"));
+    sensorEvents.depth_last = 0;
+    if (DEBUG_MODE_CANBUS) Serial.println(F("[WARN] N2K Depth Timeout"));
   }
 }
