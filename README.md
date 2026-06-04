@@ -2,6 +2,7 @@
 Gemeinsam entwickelt. Direkt auf dem Boot. Echt._ [1]
 Dieses Projekt ist eine hochgradig optimierte, maritime Systemzentrale auf Basis des ESP32. Es vereint die Funktionen von Kartenplotter-Schnittstellen, GPS, AIS-Empfang, digitalem Kompass, künstlichem Horizont und Windsensorik in einer zentralen, stromspander Hardwarekomponente. [1, 2]
 Das System ist von Seglern für Segler konzipiert: Vollständig modular aufgebaut, auf maximale Stabilität im harten Bordalltag getrimmt und plattformunabhängig per Webbrowser bedienbar. [1]
+![Seekarte](Karte.png)
 ________________________________________
 ⚓ Die entscheidenden Vorteile an Bord
 •	Kompakt & Stromsparend: Ersetzt mehrere teure Einzelinstrumente durch einen einzigen Mikrocontroller mit minimalem Stromverbrauch (ideal für Langfahrt unter Segel).
