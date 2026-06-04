@@ -19,8 +19,8 @@ Die größte Herausforderung an Bord ist die Signalqualität bei Seegang, Kräng
 GPS & Navigations-Vektoren
 •	GPS.cpp/h: Neben den reinen Längen- und Breitengraden extrahiert das Modul die NMEA-Sätze zur Berechnung des wahren Vektors über Grund.
 •	Magnetische Deklination (Mag_Dec.cpp/h): Da der geografische Nordpol nicht dem magnetischen Nordpol entspricht, rechnet dieses Modul den gemessenen Magnetkurs (Magnetic Heading) anhand hinterlegter Tabellen oder mathematischer Modelle in den wahren Kurs (True Heading) um.
-![Seekarte](Kompass.png)
-![Seekarte](Horizont.png)
+<img src="Kompass.png" alt="Seekarte" width="400">
+<img src="Horizont.png" alt="Seekarte" width="400">
 ________________________________________
 🖥️ User-Schnittstellen & Kartenmaterial-Integration
 Die Benutzeroberfläche trennt die reine Instrumentenanzeige von der taktischen Navigation auf der Karte. Das Frontend kommuniziert asynchron über WebSockets mit dem ESP32 Core. [1]
