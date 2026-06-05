@@ -1,10 +1,10 @@
-<!doctype html>
+
 <html lang="de">
-<head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <title>Karte — NAVIS Marine Dashboard</title>
-    <!-- Lokale Leaflet Dateien -->
+<head><script src="js/lang.js"></script>
+    <meta charset="utf-8"></meta>
+    <meta name="viewport" content="width=device-width,initial-scale=1"></meta>
+    <title data-i18n="karte_txt_1">Karte — NAVIS Marine Dashboard</title>
+    
     <link rel="stylesheet" href="leaflet/leaflet.css">
     <style>
         /* 🟦 GRUNDLAYOUT */
@@ -69,15 +69,15 @@
 
     </style>
     
-</head>
+
 <body>
 <div id="navbar">
-    <a href="index.html" class="navbtn">Dashboard</a>
-    <a href="tide.html" class="navbtn">Tide</a>
-    <a href="autopilot.html" class="navbtn">Autopilot</a>
-    <a href="kompass.html" class="navbtn">Kompass</a>
-    <a href="horizont.html" class="navbtn">Horizont</a>
-    <a href="system_settings.html" class="navbtn">System-Settings</a>
+    <a href="index.html" class="navbtn" data-i18n="karte_txt_2">Dashboard</a>
+    <a href="tide.html" class="navbtn" data-i18n="karte_txt_3">Tide</a>
+    <a href="autopilot.html" class="navbtn" data-i18n="karte_txt_4">Autopilot</a>
+    <a href="kompass.html" class="navbtn" data-i18n="karte_txt_5">Kompass</a>
+    <a href="horizont.html" class="navbtn" data-i18n="karte_txt_6">Horizont</a>
+    <a href="system_settings.html" class="navbtn" data-i18n="karte_txt_7">System-Settings</a>
 </div>
 <div class="panel">
     <div id="map"></div>
@@ -85,35 +85,35 @@
         <table id="waypointTable">
             <thead>
                 <tr>
-                    <th>Nr.</th>
-                    <th>Lat</th>
-                    <th>Lon</th>
-                    <th>Kurs vom Schiff</th>
-                    <th>Distanz vom Schiff (sm)</th>
-                    <th>Kurs vom vorh. WP</th>
-                    <th>Distanz vom WP (sm)</th>
-                    <th>Autopilot</th>
+                    <th data-i18n="karte_txt_8">Nr.</th>
+                    <th data-i18n="karte_txt_9">Lat</th>
+                    <th data-i18n="karte_txt_10">Lon</th>
+                    <th data-i18n="karte_txt_11">Kurs vom Schiff</th>
+                    <th data-i18n="karte_txt_12">Distanz vom Schiff (sm)</th>
+                    <th data-i18n="karte_txt_13">Kurs vom vorh. WP</th>
+                    <th data-i18n="karte_txt_14">Distanz vom WP (sm)</th>
+                    <th data-i18n="karte_txt_15">Autopilot</th>
                 </tr>
             </thead>
             <tbody></tbody>
         </table>
     </div>
-    <button id="centerToggle">🧭 Zentrieren</button>
-	<button id="modeRoute">📍 Modus: Peilung</button>
-    <button id="nightToggle">🌙 Nachtmodus</button>
-	<div id="logDisplay">0.00 sm</div>
-	<button id="resetLogBtn">Log zurücksetzen</button>
+    <button id="centerToggle" data-i18n="karte_txt_16">🧭 Zentrieren</button>
+	<button id="modeRoute" data-i18n="karte_txt_17">📍 Modus: Peilung</button>
+    <button id="nightToggle" data-i18n="karte_txt_18">🌙 Nachtmodus</button>
+	<div id="logDisplay" data-i18n="karte_txt_19">0.00 sm</div>
+	<button id="resetLogBtn" data-i18n="karte_txt_20">Log zurücksetzen</button>
 	
     <div id="waypointInfo"></div>
-    <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
+    <div id="legend" data-i18n="karte_txt_21">🔴 Kompasskurs: --°<br data-i18n="karte_txt_22">🟡 GPS-Kurs: --°<br data-i18n="karte_txt_23">🟢 Wind: --° / -- kn</div>
 
-    <!-- Wettersteuerung -->
+    
     <div id="controls"></div>
 </div>
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet/navis-tilelayer.js"></script>
 <script src="leaflet/leaflet-velocity.min.js"></script>
-<!-- NAVIS Module -->
+
 
 <script>
 /* ------------------------------
@@ -254,7 +254,7 @@ layerOSM.addTo(map);
 
 
 // OpenWeatherMap API Key
-const WEATHER_API_KEY = "your key";
+const WEATHER_API_KEY = "052994578ac0357e51c1a900f2212731";
 
 // OpenWeatherMap-Layer
 const rainLayer = L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.7 });
