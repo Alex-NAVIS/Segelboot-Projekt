@@ -1,10 +1,10 @@
-
+<!doctype html>
 <html lang="de">
-<head><script src="js/lang.js"></script>
-    <meta charset="utf-8"></meta>
-    <meta name="viewport" content="width=device-width,initial-scale=1"></meta>
-    <title data-i18n="karte_txt_1">Karte — NAVIS Marine Dashboard</title>
-    
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>Karte — NAVIS Marine Dashboard</title>
+    <!-- Lokale Leaflet Dateien -->
     <link rel="stylesheet" href="leaflet/leaflet.css">
     <style>
         /* 🟦 GRUNDLAYOUT */
@@ -69,15 +69,15 @@
 
     </style>
     
-
+</head>
 <body>
 <div id="navbar">
-    <a href="index.html" class="navbtn" data-i18n="karte_txt_2">Dashboard</a>
-    <a href="tide.html" class="navbtn" data-i18n="karte_txt_3">Tide</a>
-    <a href="autopilot.html" class="navbtn" data-i18n="karte_txt_4">Autopilot</a>
-    <a href="kompass.html" class="navbtn" data-i18n="karte_txt_5">Kompass</a>
-    <a href="horizont.html" class="navbtn" data-i18n="karte_txt_6">Horizont</a>
-    <a href="system_settings.html" class="navbtn" data-i18n="karte_txt_7">System-Settings</a>
+    <a href="index.html" class="navbtn">Dashboard</a>
+    <a href="tide.html" class="navbtn">Tide</a>
+    <a href="autopilot.html" class="navbtn">Autopilot</a>
+    <a href="kompass.html" class="navbtn">Kompass</a>
+    <a href="horizont.html" class="navbtn">Horizont</a>
+    <a href="system_settings.html" class="navbtn">System-Settings</a>
 </div>
 <div class="panel">
     <div id="map"></div>
@@ -85,35 +85,140 @@
         <table id="waypointTable">
             <thead>
                 <tr>
-                    <th data-i18n="karte_txt_8">Nr.</th>
-                    <th data-i18n="karte_txt_9">Lat</th>
-                    <th data-i18n="karte_txt_10">Lon</th>
-                    <th data-i18n="karte_txt_11">Kurs vom Schiff</th>
-                    <th data-i18n="karte_txt_12">Distanz vom Schiff (sm)</th>
-                    <th data-i18n="karte_txt_13">Kurs vom vorh. WP</th>
-                    <th data-i18n="karte_txt_14">Distanz vom WP (sm)</th>
-                    <th data-i18n="karte_txt_15">Autopilot</th>
+                    <th>Nr.</th>
+                    <th>Lat</th>
+                    <th>Lon</th>
+                    <th>Kurs vom Schiff</th>
+                    <th>Distanz vom Schiff (sm)</th>
+                    <th>Kurs vom vorh. WP</th>
+                    <th>Distanz vom WP (sm)</th>
+                    <th>Autopilot</th>
                 </tr>
             </thead>
             <tbody></tbody>
         </table>
     </div>
-    <button id="centerToggle" data-i18n="karte_txt_16">🧭 Zentrieren</button>
-	<button id="modeRoute" data-i18n="karte_txt_17">📍 Modus: Peilung</button>
-    <button id="nightToggle" data-i18n="karte_txt_18">🌙 Nachtmodus</button>
-	<div id="logDisplay" data-i18n="karte_txt_19">0.00 sm</div>
-	<button id="resetLogBtn" data-i18n="karte_txt_20">Log zurücksetzen</button>
+    <button id="centerToggle">🧭 Zentrieren</button>
+	<button id="modeRoute">📍 Modus: Peilung</button>
+    <button id="nightToggle">🌙 Nachtmodus</button>
+	<div id="logDisplay">0.00 sm</div>
+	<button id="resetLogBtn">Log zurücksetzen</button>
 	
     <div id="waypointInfo"></div>
-    <div id="legend" data-i18n="karte_txt_21">🔴 Kompasskurs: --°<br data-i18n="karte_txt_22">🟡 GPS-Kurs: --°<br data-i18n="karte_txt_23">🟢 Wind: --° / -- kn</div>
+    <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
 
-    
+    <!-- Wettersteuerung -->
     <div id="controls"></div>
+	
+<!-- NAVIS Vertikales Wetter Control Panel (Unten Rechts, 50% Höhe) -->
+<div id="navis-weather-panel" style="
+    position: absolute; 
+    bottom: 20px; 
+    right: 20px; 
+    z-index: 1000; 
+    height: 50vh; 
+    width: 180px;
+	 /* 50% Transparenz (Alpha = 0.5) lässt die Seekarte perfekt durchscheinen */
+    background: rgba(255, 255, 255, 0.5); 
+    /* Der Unschärfe-Effekt sorgt dafür, dass die Schrift trotz Karte lesbar bleibt */
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(5px);
+    border-radius: 12px; 
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+    font-family: 'Segoe UI', -apple-system, sans-serif;
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+">
+    <!-- Header: Titel und Revierauswahl -->
+    <div style="margin-bottom: 10px; flex-shrink: 0;">
+        <div style="font-weight: bold; color: #1e3a8a; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>💨</span> NAVIS Weather 72h
+        </div>
+        <select id="weather-file-select" onchange="loadNewWeatherData(this.value)" style="
+            width: 100%; 
+            padding: 6px; 
+            border-radius: 6px; 
+            border: 1px solid #cbd5e1; 
+            background: white;
+            font-size: 13px;
+            color: #334155;
+            outline: none;
+        ">
+            <option value="">-- Revier wählen --</option>
+        </select>
+    </div>
+    
+    <!-- Mittlerer Bereich: Absolut sicherer Vertikal-Slider + Zeitanzeige -->
+    <div style="
+        flex-grow: 1; 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between;
+        margin: 15px 0;
+        position: relative;
+        overflow: hidden; /* Verhindert das Verlassen der Box */
+    ">
+        <!-- Sicherer vertikaler Container für den gedrehten Slider -->
+        <div style="
+            width: 50px; 
+            height: 100%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            position: relative;
+        ">
+            <!-- 
+               Der Trick: Wir machen den Slider exakt so lang, wie der Container hoch ist.
+               Durch das absolute Zentrieren und Rotieren bleibt er perfekt im Rahmen!
+            -->
+            <input type="range" id="weather-slider" min="0" max="71" value="0" oninput="updateWeatherFrame(this.value)" disabled style="
+                position: absolute;
+                width: 150px; /* Wird dynamisch per JavaScript an die Box-Höhe angepasst */
+                height: 8px;
+                transform: rotate(90deg);
+                cursor: pointer;
+                accent-color: #1e3a8a;
+                margin: 0;
+            ">
+        </div>
+        
+        <!-- Große Zeitanzeige auf der linken/rechten Seite im Panel -->
+        <div style="display: flex; flex-direction: column; justify-content: center; flex-grow: 1; text-align: center; padding-right: 20px;">
+            <div id="weather-time-label" style="font-size: 32px; font-weight: bold; color: #1e3a8a; line-height: 1;">+0h</div>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 5px;">Vorhersage</div>
+        </div>
+    </div>
+    
+    <!-- Footer: Kompakte Live-Daten-Anzeige -->
+    <div id="weather-info-bar" style="
+        margin-top: auto; 
+        font-size: 12px; 
+        color: #334155; 
+        border-top: 1px solid rgba(0,0,0,0.08); 
+        padding-top: 10px; 
+        display: none;
+        line-height: 1.4;
+        flex-shrink: 0;
+    ">
+        <div style="display: flex; justify-content: space-between;">
+            <span>💨 Wind:</span> <span id="info-wind" style="font-weight: bold; color: #1e3a8a;">-- kn</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+            <span>🌊 Welle:</span> <span id="info-wave" style="font-weight: bold; color: #0891b2;">-- m</span>
+        </div>
+    </div>
+</div>
+
+
+	
 </div>
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet/navis-tilelayer.js"></script>
 <script src="leaflet/leaflet-velocity.min.js"></script>
-
+<!-- NAVIS Module -->
 
 <script>
 /* ------------------------------
@@ -168,59 +273,184 @@ const target = JSON.parse(JSON.stringify(state));
 const trackPoints = [];
 let liveTrackLine = null;
 
-/* ------------------------------
-   Optionaler Wetter-Loader (Fail-Safe)
------------------------------- */
-let windLayerDemo = null;
+// ======================================================================
+// NAVIS 72h Offline-Wettersystem - JavaScript-Steuerung
+// ======================================================================
 
-function loadWindData(filename) {
-    return new Promise((resolve) => {
-        if (!filename) {
-            resolve(false);
-            return;
-        }
-        // alten Layer entfernen
-        if (windLayerDemo) {
-            map.removeLayer(windLayerDemo);
-            windLayerDemo = null;
-        }
-        fetch("Wetter/" + filename + "?t=" + Date.now())
-            .then(res => res.json())
-            .then(data => {
-                windLayerDemo = L.velocityLayer({
-                    data: data,
-                    displayValues: true,
-                    displayOptions: {
-                        velocityType: "Wind",
-                        position: "bottomleft",
-                        emptyString: "keine Daten"
-                    },
-                    maxVelocity: 15,
-                    velocityScale: 0.008,
-                    particleAge: 120,
-                    lineWidth: 3,
-                    particleMultiplier: 1 / 300,
-                    frameRate: 25,
-                    colorScale: ["#ffffff", "#ffff66", "#ffcc33", "#ff6600", "#ff0000"]
-                });
-                layers.wind = windLayerDemo;
-                resolve(true);
-            })
-            .catch(() => {
-                console.warn("Fehler beim Laden:", filename);
-                resolve(false);
+let activeWeatherData = null; // Speichert das geladene 72h-JSON-Paket im RAM
+let currentWindLayer = null;   // Referenz auf die fließenden Windpartikel
+let currentWaveLayer = null;   // Für zukünftige Wellen-Pfeile
+
+/**
+ * 1. Initialisierung beim Laden der Seite
+ * Holt den dynamischen Index vom ESP32-LittleFS und befüllt das Dropdown-Menü
+ */
+function initNavisWeather() {
+    fetch('/Wetter/index.json?t=' + Date.now())
+        .then(res => {
+            if (!res.ok) throw new Error("Indexdatei nicht gefunden.");
+            return res.json();
+        })
+        .then(files => {
+            const select = document.getElementById('weather-file-select');
+            // Dropdown leeren, außer dem Standardeintrag
+            select.innerHTML = '<option value="">-- Revier wählen --</option>';
+            
+            files.forEach(f => {
+                let opt = document.createElement('option');
+                opt.value = f.file;
+                opt.text = f.label;
+                select.add(opt);
             });
-    });
+        })
+        .catch(err => console.error("Wetter-Index konnte nicht geladen werden:", err));
 }
 
-function loadWindIndex() {
-    return fetch("Wetter/index.json")
-        .then(res => res.json())
-        .catch(() => {
-            console.warn("Keine Wind-Index Datei");
-            return [];
+/**
+ * 2. Revier-Wetterdaten vom Boot laden
+ * Wird aufgerufen, wenn im Dropdown-Menü ein neues Revier gewählt wird
+ */
+function loadNewWeatherData(filename) {
+    if (!filename) {
+        resetWeatherLayers();
+        return;
+    }
+    
+    const slider = document.getElementById('weather-slider');
+    slider.disabled = true;
+    
+    // Ruft Ihren sauberen handleWetterRequest im ESP32-Backend auf
+    fetch('/Wetter/' + filename + '?t=' + Date.now())
+        .then(res => {
+            if (!res.ok) throw new Error("Wetterdaten-Request fehlgeschlagen.");
+            return res.json();
+        })
+        .then(data => {
+            // Gesamtes 72h-Paket (inkl. Wind U/V und Wellen) im RAM sichern
+            activeWeatherData = data; 
+            
+            // Slider aktivieren und auf Startposition (Jetzt) zurücksetzen
+            slider.disabled = false;
+            slider.value = 0;
+            
+            // 🛠️ FIX: Berechnet die exakte Pixelhöhe des Panels und passt die 
+            // physische Länge des rotierten Sliders passgenau an den Container an
+            const panel = document.getElementById('navis-weather-panel');
+            if (panel) {
+                const containerHeight = panel.clientHeight;
+                // 55% der Boxhöhe ist der perfekte Wert für den mittleren Bereich
+                slider.style.width = (containerHeight * 0.55) + 'px'; 
+            }
+            
+            // Kompakte Info-Bar im Footer einblenden
+            document.getElementById('weather-info-bar').style.display = 'block';
+            
+            // Vorhersage-Frame 0 sofort auf der Karte rendern
+            updateWeatherFrame(0);
+        })
+        .catch(err => {
+            alert("Fehler beim Laden der Offline-Wetterdatei vom Boot.");
+            console.error(err);
+            resetWeatherLayers();
         });
 }
+
+/**
+ * 3. Slider-Bewegung verarbeiten & Wetter-Frame rendern
+ * Wird aufgerufen, wenn der vertikale Regler verschoben wird (0 bis 71)
+ */
+function updateWeatherFrame(hourIdx) {
+    if (!activeWeatherData || !activeWeatherData.frames || !activeWeatherData.frames[hourIdx]) return;
+    
+    const meta = activeWeatherData.metadata;
+    const frame = activeWeatherData.frames[hourIdx];
+    
+    // Große Zeitanzeige neben dem vertikalen Schieberegler aktualisieren
+    document.getElementById('weather-time-label').innerText = `+${hourIdx}h`;
+    
+    // Alten Wind-Partikel-Layer von der Leaflet-Karte entfernen
+    if (currentWindLayer) {
+        map.removeLayer(currentWindLayer);
+    }
+    
+    // 1D-Datenarrays aus dem aktuellen Frame in GRIB-U/V-Struktur für leaflet-velocity packen
+    const velocityData = [
+        {
+            "header": {
+                "refTime": meta.created,
+                "la1": meta.la1, "lo1": meta.lo1,
+                "la2": meta.la2, "lo2": meta.lo2,
+                "dx": meta.dx, "dy": meta.dy,
+                "nx": meta.nx, "ny": meta.ny,
+                "parameterCategory": 2, "parameterNumber": 2,
+                "parameterNumberName": "U-component_of_wind"
+            },
+            "data": frame.wind_u
+        },
+        {
+            "header": {
+                "refTime": meta.created,
+                "la1": meta.la1, "lo1": meta.lo1,
+                "la2": meta.la2, "lo2": meta.lo2,
+                "dx": meta.dx, "dy": meta.dy,
+                "nx": meta.nx, "ny": meta.ny,
+                "parameterCategory": 2, "parameterNumber": 3,
+                "parameterNumberName": "V-component_of_wind"
+            },
+            "data": frame.wind_v
+        }
+    ];
+
+    // Animierte Windströmungen mit dem minimierten Plugin neu erzeugen
+    currentWindLayer = L.velocityLayer({
+        displayValues: false, // Eigene Text-Anzeige im Footer genutzt, spart Kartenplatz
+        data: velocityData,
+        maxVelocity: meta.dx === 0.25 ? 20 : 15, // Skalierungs-Anpassung basierend auf Raster
+        velocityScale: 0.006,  // Fließgeschwindigkeit der Fäden im Cockpit
+        opacity: 0.85
+    });
+    
+    // Layer auf die Karte zeichnen
+    currentWindLayer.addTo(map);
+    
+    // 📊 Textwerte in der Info-Bar für den aktuellen Zeitschritt aktualisieren
+    // Da wir ein Flächenraster haben, zeigen wir im Cockpit-Panel exemplarisch 
+    // den Durchschnitt oder die Maximalwerte des Frames an (wird später an Bootsposition gekoppelt)
+    if (frame.wind_u.length > 0) {
+        // Berechne beispielhaft die Windstärke des ersten Rasterpunkts für das Panel
+        const u = frame.wind_u[0];
+        const v = frame.wind_v[0];
+        const speedMS = math ? Math.sqrt(u*u + v*v) : 0;
+        const speedKnots = Math.round(speedMS * 1.94384); // m/s zu Knoten
+        
+        const waveH = frame.wave_height[0] || 0;
+        
+        document.getElementById('info-wind').innerText = `${speedKnots} kn`;
+        document.getElementById('info-wave').innerText = `${waveH.toFixed(1)} m`;
+    }
+}
+
+/**
+ * 4. Wettersystem zurücksetzen
+ * Säubert die Karte und sperrt den Slider, wenn kein Revier aktiv ist
+ */
+function resetWeatherLayers() {
+    if (currentWindLayer) {
+        map.removeLayer(currentWindLayer);
+        currentWindLayer = null;
+    }
+    const slider = document.getElementById('weather-slider');
+    slider.disabled = true;
+    slider.value = 0;
+    
+    document.getElementById('weather-time-label').innerText = "+0h";
+    document.getElementById('weather-info-bar').style.display = 'none';
+    activeWeatherData = null;
+}
+
+// Event-Listener startet das Wettersystem, sobald die Karte bereit ist
+document.addEventListener("DOMContentLoaded", initNavisWeather);
+
 
 /* ------------------------------
    Wegpunkte / Marker / Linien (ohne Tabelle)
@@ -253,115 +483,6 @@ const layerOSM = new L.TileLayer.Throttled(
 layerOSM.addTo(map);
 
 
-// OpenWeatherMap API Key
-const WEATHER_API_KEY = "052994578ac0357e51c1a900f2212731";
-
-// OpenWeatherMap-Layer
-const rainLayer = L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.7 });
-const cloudsLayer = L.tileLayer(`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.5 });
-const pressureLayer = L.tileLayer(`https://tile.openweathermap.org/map/pressure_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.6 });
-const tempLayer = L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${WEATHER_API_KEY}`, { opacity: 0.6 });
-
-// Layer-Management
-const layers = {
-    wind: windLayerDemo,
-    rain: rainLayer,
-    clouds: cloudsLayer,
-    pressure: pressureLayer,
-    temp: tempLayer
-};
-
-// Funktion zum Hinzufügen oder Entfernen von Layern
-function toggleLayer(layerName, isVisible) {
-    const layer = layers[layerName];
-    if (!layer) return; // wichtig!
-
-    if (isVisible) {
-        layer.addTo(map);
-    } else {
-        map.removeLayer(layer);
-    }
-}
-
-
-// Dynamisches Erstellen der Checkboxen
-const controlsDiv = document.getElementById('controls');
-const layerInfo = [
-    { id: 'toggleWind', label: '💨 Windanimation', key: 'wind' },
-    { id: 'toggleRain', label: '🌧 Regen', key: 'rain' },
-    { id: 'toggleClouds', label: '☁ Wolken', key: 'clouds' },
-    { id: 'togglePressure', label: '🧭 Luftdruck', key: 'pressure' },
-    { id: 'toggleTemp', label: '🌡 Temperatur', key: 'temp' }
-];
-
-
-layerInfo.forEach(info => {
-    const label = document.createElement('label');
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.id = info.id;
-    checkbox.checked = false; // Standardmäßig deaktiviert
-    checkbox.addEventListener('change', function(e) {
-        toggleLayer(info.key, e.target.checked);
-    });
-    label.appendChild(checkbox);
-    label.appendChild(document.createTextNode(info.label));
-    controlsDiv.appendChild(label);
-});
-
-// ------------------------------
-// Wind-Auswahl Dropdown
-// ------------------------------
-const select = document.createElement("select");
-select.id = "windSelect";
-controlsDiv.appendChild(select);
-
-loadWindIndex().then(files => {
-
-    files.forEach(entry => {
-        const option = document.createElement("option");
-        option.value = entry.file;
-        option.textContent = entry.label;
-        select.appendChild(option);
-    });
-
-});
-
-select.addEventListener("change", function () {
-    const file = this.value;
-
-    loadWindData(file).then(() => {
-        const windCheckbox = document.getElementById("toggleWind");
-
-        if (windCheckbox && windCheckbox.checked) {
-            toggleLayer('wind', true);
-        }
-    });
-});
-
-// Winddaten Index laden
-loadWindIndex().then(files => {
-
-    if (files.length === 0) {
-        const windCheckbox = document.getElementById("toggleWind");
-        if (windCheckbox) {
-            windCheckbox.disabled = true;
-            windCheckbox.parentElement.style.opacity = 0.4;
-        }
-        return;
-    }
-
-    // erstes File laden
-    loadWindData(files[0].file);
-});
-
-
-// Standardmäßig aktivieren
-toggleLayer('rain', false);
-toggleLayer('clouds', false);
-toggleLayer('pressure', false);
-toggleLayer('temp', false);
-toggleLayer('wind', false);
 
 /* ------------------------------
    Grid, CoordBox, Geodesy etc.
