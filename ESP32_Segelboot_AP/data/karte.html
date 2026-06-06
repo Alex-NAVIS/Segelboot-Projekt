@@ -106,112 +106,115 @@
 	
     <div id="waypointInfo"></div>
     <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
-
-    <!-- Wettersteuerung -->
-    <div id="controls"></div>
 	
-<!-- NAVIS Vertikales Wetter Control Panel (Unten Rechts, 50% Höhe) -->
+	<!-- NAVIS Vertikales Wetter Control Panel (Unten Rechts, 50% Höhe, 180px Breite) -->
 <div id="navis-weather-panel" style="
     position: absolute; 
     bottom: 20px; 
     right: 20px; 
     z-index: 1000; 
     height: 50vh; 
-    width: 180px;
-	 /* 50% Transparenz (Alpha = 0.5) lässt die Seekarte perfekt durchscheinen */
-    background: rgba(255, 255, 255, 0.5); 
-    /* Der Unschärfe-Effekt sorgt dafür, dass die Schrift trotz Karte lesbar bleibt */
+    width: 180px; 
+    background: rgba(0, 43, 58, 0.55); /* Harmonisch abgestimmtes NAVIS-Blau mit Transparenz */
     backdrop-filter: blur(8px); 
-    -webkit-backdrop-filter: blur(5px);
-    border-radius: 12px; 
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15); 
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 10px; 
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
     font-family: 'Segoe UI', -apple-system, sans-serif;
-    padding: 15px;
+    padding: 12px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    border: 1px solid rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 85, 102, 0.4); /* NAVIS Rahmenfarbe */
 ">
     <!-- Header: Titel und Revierauswahl -->
     <div style="margin-bottom: 10px; flex-shrink: 0;">
-        <div style="font-weight: bold; color: #1e3a8a; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+        <div style="font-weight: bold; color: #00ffff; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
             <span>💨</span> NAVIS Weather 72h
         </div>
         <select id="weather-file-select" onchange="loadNewWeatherData(this.value)" style="
             width: 100%; 
-            padding: 6px; 
-            border-radius: 6px; 
-            border: 1px solid #cbd5e1; 
-            background: white;
-            font-size: 13px;
-            color: #334155;
+            padding: 5px; 
+            border-radius: 4px; 
+            border: 1px solid #007a99; 
+            background: #003d52;
+            font-size: 12px;
+            color: #00ffff;
             outline: none;
+            font-weight: bold;
+            cursor: pointer;
         ">
-            <option value="">-- Revier wählen --</option>
+            <option value="">-- Revier --</option>
         </select>
     </div>
     
-    <!-- Mittlerer Bereich: Absolut sicherer Vertikal-Slider + Zeitanzeige -->
+    <!-- Mittlerer Bereich: Rotiert zentrierter Vertikal-Slider + Zeitanzeige -->
     <div style="
         flex-grow: 1; 
         display: flex; 
         align-items: center; 
         justify-content: space-between;
-        margin: 15px 0;
+        margin: 10px 0;
         position: relative;
-        overflow: hidden; /* Verhindert das Verlassen der Box */
+        overflow: hidden;
     ">
-        <!-- Sicherer vertikaler Container für den gedrehten Slider -->
+        <!-- Container für den Slider -->
         <div style="
-            width: 50px; 
+            width: 35px; 
             height: 100%; 
             display: flex; 
             align-items: center; 
             justify-content: center;
             position: relative;
         ">
-            <!-- 
-               Der Trick: Wir machen den Slider exakt so lang, wie der Container hoch ist.
-               Durch das absolute Zentrieren und Rotieren bleibt er perfekt im Rahmen!
-            -->
             <input type="range" id="weather-slider" min="0" max="71" value="0" oninput="updateWeatherFrame(this.value)" disabled style="
                 position: absolute;
-                width: 150px; /* Wird dynamisch per JavaScript an die Box-Höhe angepasst */
-                height: 8px;
+                width: 120px; /* Wird per JS exakt skaliert */
+                height: 6px;
                 transform: rotate(90deg);
                 cursor: pointer;
-                accent-color: #1e3a8a;
+                accent-color: #00ffff;
                 margin: 0;
+                background: rgba(0, 122, 153, 0.3);
+                border-radius: 3px;
             ">
         </div>
         
-        <!-- Große Zeitanzeige auf der linken/rechten Seite im Panel -->
-        <div style="display: flex; flex-direction: column; justify-content: center; flex-grow: 1; text-align: center; padding-right: 20px;">
-            <div id="weather-time-label" style="font-size: 32px; font-weight: bold; color: #1e3a8a; line-height: 1;">+0h</div>
-            <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 5px;">Vorhersage</div>
+        <!-- Große Zeitanzeige -->
+        <div style="display: flex; flex-direction: column; justify-content: center; flex-grow: 1; text-align: center; padding-right: 5px;">
+            <div id="weather-time-label" style="font-size: 28px; font-weight: bold; color: #00ffff; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">+0h</div>
+            <div style="font-size: 10px; color: #00ffaa; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.6);">Vorhersage</div>
         </div>
     </div>
     
-    <!-- Footer: Kompakte Live-Daten-Anzeige -->
+    <!-- Footer: Integrierte Info-Bar (Wellen & Wind) -->
     <div id="weather-info-bar" style="
         margin-top: auto; 
-        font-size: 12px; 
-        color: #334155; 
-        border-top: 1px solid rgba(0,0,0,0.08); 
-        padding-top: 10px; 
+        font-size: 11px; 
+        color: #ffffff; 
+        border-top: 1px solid rgba(0, 85, 102, 0.4); 
+        padding-top: 8px; 
         display: none;
         line-height: 1.4;
         flex-shrink: 0;
+        background: rgba(0, 61, 82, 0.4);
+        margin-left: -12px;
+        margin-right: -12px;
+        margin-bottom: -12px;
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-bottom: 12px;
+        border-bottom-left-radius: 10px;
+        border-bottom-right-radius: 10px;
     ">
         <div style="display: flex; justify-content: space-between;">
-            <span>💨 Wind:</span> <span id="info-wind" style="font-weight: bold; color: #1e3a8a;">-- kn</span>
+            <span style="color: #00ffaa;">Wind:</span> <span id="info-wind" style="font-weight: bold; color: #00ffff;">-- kn</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-            <span>🌊 Welle:</span> <span id="info-wave" style="font-weight: bold; color: #0891b2;">-- m</span>
+            <span style="color: #00ffaa;">Welle:</span> <span id="info-wave" style="font-weight: bold; color: #00ffff;">-- m</span>
         </div>
     </div>
 </div>
-
 
 	
 </div>
