@@ -59,14 +59,11 @@
         #waypointTable button:hover { background:#00b0c0; }
 
         /* Wettersteuerung */
-		#controls { position: absolute; bottom: 10px; right: 10px; background: rgba(26, 31, 40, 0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(37, 42, 56, 0.4); display: flex; flex-direction: column; gap: 4px; z-index: 1000; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); backdrop-filter: blur(3px); }
-		#controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-family: 'Segoe UI', sans-serif; font-size: 12px; font-weight: 400; color: rgba(255, 255, 255, 0.85); transition: color 0.2s; line-height: 1.2; padding: 1px 0; }
-		#controls label:hover { color: #00bcd4; }
-		#controls input[type="checkbox"] { -webkit-appearance: none; -moz-appearance: none; appearance: none; width: 14px; height: 14px; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0, 125, 145, 0.6); border-radius: 3px; cursor: pointer; position: relative; outline: none; transition: all 0.2s ease; margin: 0; flex-shrink: 0; }
-		#controls input[type="checkbox"]:checked { background: rgba(0, 188, 212, 0.85); border-color: #00bcd4; }
-		#controls input[type="checkbox"]:checked::after { content: '✔'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ffffff; font-size: 10px; font-weight: normal; }
-		#controls input[type="checkbox"]:hover { border-color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.8); box-shadow: 0 0 5px rgba(255, 255, 255, 0.2); }
-
+		#navis-weather-panel { position: absolute; bottom: 20px; right: 20px; z-index: 1000; height: 50vh; width: 180px; background: rgba(0, 43, 58, 0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: 'Segoe UI', sans-serif; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; border: 1px solid rgba(0, 85, 102, 0.4); transition: width 0.25s ease; }
+		#navis-weather-panel[data-state="collapsed"] { width: 180px; }
+		#navis-weather-panel[data-state="expanded"] { width: 320px; }
+		#navis-weather-panel[data-state="collapsed"]:hover { width: 320px; }
+		#navis-weather-panel[data-state="pinned"] { width: 320px; box-shadow: 0 6px 25px rgba(0,0,0,0.7); }
     </style>
     
 </head>
@@ -149,41 +146,22 @@
     </div>
     
     <!-- Mittlerer Bereich: Rotiert zentrierter Vertikal-Slider + Zeitanzeige -->
+        <!-- Mitte: Vertikal-Slider + Reale Zeitanzeige -->
     <div style="
-        flex-grow: 1; 
-        display: flex; 
-        align-items: center; 
-        justify-content: space-between;
-        margin: 10px 0;
-        position: relative;
-        overflow: hidden;
+        flex-grow: 1; display: flex; align-items: center; justify-content: space-between;
+        margin: 5px 0; position: relative; overflow: hidden;
     ">
-        <!-- Container für den Slider -->
-        <div style="
-            width: 35px; 
-            height: 100%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            position: relative;
-        ">
+        <div style="width: 35px; height: 100%; display: flex; align-items: center; justify-content: center; position: relative;">
             <input type="range" id="weather-slider" min="0" max="71" value="0" oninput="updateWeatherFrame(this.value)" disabled style="
-                position: absolute;
-                width: 120px; /* Wird per JS exakt skaliert */
-                height: 6px;
-                transform: rotate(90deg);
-                cursor: pointer;
-                accent-color: #00ffff;
-                margin: 0;
-                background: rgba(0, 122, 153, 0.3);
-                border-radius: 3px;
+                position: absolute; width: 110px; height: 6px; transform: rotate(90deg);
+                cursor: pointer; accent-color: #00ffff; margin: 0; background: rgba(0, 122, 153, 0.3); border-radius: 3px;
             ">
         </div>
         
-        <!-- Große Zeitanzeige -->
         <div style="display: flex; flex-direction: column; justify-content: center; flex-grow: 1; text-align: center; padding-right: 5px;">
-            <div id="weather-time-label" style="font-size: 28px; font-weight: bold; color: #00ffff; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">+0h</div>
-            <div style="font-size: 10px; color: #00ffaa; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.6);">Vorhersage</div>
+            <div id="weather-time-label" style="font-size: 24px; font-weight: bold; color: #00ffff; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">+0h</div>
+            <!-- Hier wird das reale Datum/Uhrzeit live eingeblendet -->
+            <div id="weather-real-time" style="font-size: 11px; color: #00ffaa; font-weight: bold; margin-top: 5px; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,0.6);">--.--.<br>--:--</div>
         </div>
     </div>
     
@@ -207,16 +185,23 @@
         border-bottom-left-radius: 10px;
         border-bottom-right-radius: 10px;
     ">
-        <div style="display: flex; justify-content: space-between;">
-            <span style="color: #00ffaa;">Wind:</span> <span id="info-wind" style="font-weight: bold; color: #00ffff;">-- kn</span>
-        </div>
+		<div style="display: flex; justify-content: space-between;">
+			<span style="color: #00ffaa;">Wind:</span> <span id="info-wind" style="font-weight: bold; color: #00ffff;">-- kn / --°</span>
+		</div>
         <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-            <span style="color: #00ffaa;">Welle:</span> <span id="info-wave" style="font-weight: bold; color: #00ffff;">-- m</span>
+            <span style="color: #00ffaa;">Welle:</span> <span id="info-wave-h" style="font-weight: bold; color: #00ffff;">-- m</span>
+        </div>
+		 <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+            <span style="color: #00ffaa;">Wellenlauf:</span> 
+            <span id="info-wave-d" style="font-weight: bold; color: #00ffff;">--°</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+            <span style="color: #00ffaa;">Periode:</span> 
+            <span id="info-wave-p" style="font-weight: bold; color: #00ffff;">-- s</span>
         </div>
     </div>
 </div>
 
-	
 </div>
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet/navis-tilelayer.js"></script>
@@ -276,107 +261,184 @@ const target = JSON.parse(JSON.stringify(state));
 const trackPoints = [];
 let liveTrackLine = null;
 
-// ======================================================================
-// NAVIS 72h Offline-Wettersystem - JavaScript-Steuerung
-// ======================================================================
+/* ----------------------------------------------------------------------
+   ⛵ NAVIS 72h Offline-Wettersystem - JavaScript-Steuerung (PC & Boot)
+   ---------------------------------------------------------------------- */
 
-let activeWeatherData = null; // Speichert das geladene 72h-JSON-Paket im RAM
-let currentWindLayer = null;   // Referenz auf die fließenden Windpartikel
-let currentWaveLayer = null;   // Für zukünftige Wellen-Pfeile
+let activeWeatherData = null; // Speichert das geladene 72h-Paket im RAM
+let currentWindLayer = null;   // Referenz auf die aktuell animierten Windfäden
 
 /**
  * 1. Initialisierung beim Laden der Seite
- * Holt den dynamischen Index vom ESP32-LittleFS und befüllt das Dropdown-Menü
+ * Erkennt automatisch PC- oder Boot-Betrieb und scannt das Verzeichnis 
+ * vollautomatisch nach ALLEN verfügbaren JSON-Wetterdateien.
  */
 function initNavisWeather() {
-    fetch('/Wetter/index.json?t=' + Date.now())
-        .then(res => {
-            if (!res.ok) throw new Error("Indexdatei nicht gefunden.");
-            return res.json();
-        })
-        .then(files => {
-            const select = document.getElementById('weather-file-select');
-            // Dropdown leeren, außer dem Standardeintrag
-            select.innerHTML = '<option value="">-- Revier wählen --</option>';
-            
-            files.forEach(f => {
-                let opt = document.createElement('option');
-                opt.value = f.file;
-                opt.text = f.label;
-                select.add(opt);
+    const select = document.getElementById('weather-file-select');
+    if (!select) return;
+    
+    // Erkennt, ob die Karte lokal auf dem PC-Server läuft
+    const isPCServer = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (isPCServer) {
+        console.log("⛵ NAVIS: PC-Servermodus aktiv. Scanne Ordner /Wetter/ dynamisch...");
+        
+        // Wir rufen direkt den Ordner auf. Der Python-Server antwortet mit einer HTML-Dateiliste
+        fetch('Wetter/')
+            .then(res => res.text())
+            .then(htmlText => {
+                select.innerHTML = '<option value="">-- Revier --</option>';
+                
+                // Wir nutzen ein temporäres DOM-Element, um die Links aus dem HTML des Python-Servers zu extrahieren
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const links = doc.querySelectorAll('a');
+                
+                let dateiGefunden = false;
+                
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    // Filtere nur echte Wetter-JSONs heraus und ignoriere die index.json am PC
+                    if (href && href.endsWith('.json') && href !== 'index.json') {
+                        dateiGefunden = true;
+                        
+                        // Erzeuge ein schönes Label aus dem Dateinamen (z.B. wind_ostsee_kiel.json -> Ostsee Kiel)
+                        let label = href.replace('.json', '').replace('wind_', '').replace('_', ' ');
+                        // Worte im Label groß schreiben (Capitalize)
+                        label = label.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                        
+                        let opt = document.createElement('option');
+                        opt.value = 'Wetter/' + href; // Relativer Pfad für den PC-Server
+                        opt.text = label;
+                        select.add(opt);
+                    }
+                });
+                
+                if (!dateiGefunden) {
+                    select.innerHTML = '<option value="">Keine JSONs</option>';
+                }
+            })
+            .catch(err => {
+                console.error("Fehler beim automatischen PC-Ordner-Scan:", err);
+                select.innerHTML = '<option value="">Fehler Scan</option>';
             });
-        })
-        .catch(err => console.error("Wetter-Index konnte nicht geladen werden:", err));
+            
+    } else {
+        // Normaler Boot-Betrieb über das echte ESP32-LittleFS auf See (Nutzt Ihre index.json)
+        fetch('/Wetter/index.json?t=' + Date.now())
+            .then(res => {
+                if (!res.ok) throw new Error("Indexdatei auf ESP32 fehlt.");
+                return res.json();
+            })
+            .then(files => {
+                select.innerHTML = '<option value="">-- Revier --</option>';
+                files.forEach(f => {
+                    let opt = document.createElement('option');
+                    opt.value = '/Wetter/' + f.file; // Absoluter Pfad für den ESP32
+                    opt.text = f.label;
+                    select.add(opt);
+                });
+            })
+            .catch(err => console.warn("Wetter-Index konnte nicht vom ESP32 geladen werden:", err));
+    }
 }
 
+
 /**
- * 2. Revier-Wetterdaten vom Boot laden
- * Wird aufgerufen, wenn im Dropdown-Menü ein neues Revier gewählt wird
+ * 2. Wetterdaten laden
  */
-function loadNewWeatherData(filename) {
-    if (!filename) {
+function loadNewWeatherData(fileUrl) {
+    const slider = document.getElementById('weather-slider');
+    const infoBar = document.getElementById('weather-info-bar');
+
+    if (!fileUrl) {
         resetWeatherLayers();
         return;
     }
     
-    const slider = document.getElementById('weather-slider');
-    slider.disabled = true;
-    
-    // Ruft Ihren sauberen handleWetterRequest im ESP32-Backend auf
-    fetch('/Wetter/' + filename + '?t=' + Date.now())
+    if (slider) slider.disabled = true;
+
+    // Cache-Buster nur im echten Boot-Modus (HTTP/WLAN) nutzen
+    const isPC = window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const fetchUrl = fileUrl + (isPC ? '' : '?t=' + Date.now());
+
+    fetch(fetchUrl)
         .then(res => {
-            if (!res.ok) throw new Error("Wetterdaten-Request fehlgeschlagen.");
+            if (!res.ok) throw new Error("Wetterdatei konnte nicht geladen werden.");
             return res.json();
         })
         .then(data => {
-            // Gesamtes 72h-Paket (inkl. Wind U/V und Wellen) im RAM sichern
-            activeWeatherData = data; 
+            activeWeatherData = data; // Im RAM sichern
             
-            // Slider aktivieren und auf Startposition (Jetzt) zurücksetzen
-            slider.disabled = false;
-            slider.value = 0;
-            
-            // 🛠️ FIX: Berechnet die exakte Pixelhöhe des Panels und passt die 
-            // physische Länge des rotierten Sliders passgenau an den Container an
-            const panel = document.getElementById('navis-weather-panel');
-            if (panel) {
-                const containerHeight = panel.clientHeight;
-                // 55% der Boxhöhe ist der perfekte Wert für den mittleren Bereich
-                slider.style.width = (containerHeight * 0.55) + 'px'; 
+            if (slider) {
+                slider.disabled = false;
+                slider.value = 0;
             }
-            
-            // Kompakte Info-Bar im Footer einblenden
-            document.getElementById('weather-info-bar').style.display = 'block';
-            
-            // Vorhersage-Frame 0 sofort auf der Karte rendern
+
+            // Slider-Länge dynamisch an das 50vh Panel anpassen
+            const panel = document.getElementById('navis-weather-panel');
+            if (panel && slider) {
+                const containerHeight = panel.clientHeight;
+                slider.style.width = (containerHeight * 0.45) + 'px';
+            }
+
+            if (infoBar) infoBar.style.display = 'block';
+
+            // Ersten Frame sofort rendern
             updateWeatherFrame(0);
         })
         .catch(err => {
-            alert("Fehler beim Laden der Offline-Wetterdatei vom Boot.");
-            console.error(err);
+            console.error("Fehler beim Laden der Wetterdatei:", err);
             resetWeatherLayers();
         });
 }
 
+let currentHourIdx = 0; // Speichert global die aktuell eingestellte Slider-Stunde
+
 /**
  * 3. Slider-Bewegung verarbeiten & Wetter-Frame rendern
- * Wird aufgerufen, wenn der vertikale Regler verschoben wird (0 bis 71)
  */
 function updateWeatherFrame(hourIdx) {
-    if (!activeWeatherData || !activeWeatherData.frames || !activeWeatherData.frames[hourIdx]) return;
+    hourIdx = parseInt(hourIdx, 10);
+    currentHourIdx = hourIdx; // Stunde global sichern für den Maus-Lauscher
     
+    if (!activeWeatherData || !activeWeatherData.frames || !activeWeatherData.frames[hourIdx]) return;
+
     const meta = activeWeatherData.metadata;
     const frame = activeWeatherData.frames[hourIdx];
-    
-    // Große Zeitanzeige neben dem vertikalen Schieberegler aktualisieren
-    document.getElementById('weather-time-label').innerText = `+${hourIdx}h`;
-    
-    // Alten Wind-Partikel-Layer von der Leaflet-Karte entfernen
+
+    // Zeitanzeige im Panel aktualisieren (+Xh)
+    const timeLabel = document.getElementById('weather-time-label');
+    if (timeLabel) timeLabel.innerText = `+${hourIdx}h`;
+	
+    // Reale Uhrzeit berechnen (Basis 'created' + Slider-Stunden)
+const realTimeLabel = document.getElementById('weather-real-time');
+if (realTimeLabel && frame.time) {
+    const forecastDate = new Date(frame.time);
+    const datum = forecastDate.toLocaleDateString(
+        'de-DE',
+        {
+            weekday: 'short',
+            day: '2-digit',
+            month: '2-digit'
+        }
+    );
+    const zeit = forecastDate.toLocaleTimeString(
+        'de-DE',
+        {
+            hour: '2-digit',
+            minute: '2-digit'
+        }
+    );
+    realTimeLabel.innerHTML = `${datum}<br>${zeit}`;
+}
+	
+    // Alten Wind-Layer entfernen
     if (currentWindLayer) {
         map.removeLayer(currentWindLayer);
     }
-    
-    // 1D-Datenarrays aus dem aktuellen Frame in GRIB-U/V-Struktur für leaflet-velocity packen
+
+    // GRIB-U/V-Struktur für leaflet-velocity konvertieren
     const velocityData = [
         {
             "header": {
@@ -404,55 +466,187 @@ function updateWeatherFrame(hourIdx) {
         }
     ];
 
-    // Animierte Windströmungen mit dem minimierten Plugin neu erzeugen
+    // 60 Micro-Farbstufen generieren (Ihr bewährter fließender Verlauf)
+    const ankerFarben = [
+        { r: 0,   g: 85,  b: 102 }, { r: 0,   g: 229, b: 255 }, 
+        { r: 0,   g: 255, b: 136 }, { r: 255, g: 170, b: 0   }, { r: 255, g: 0,   b: 85  }
+    ];
+    const hochaufloesendeSkala = [];
+    for (let i = 0; i < 60; i++) {
+        const pos = (i / 59) * (ankerFarben.length - 1);
+        const idx = Math.floor(pos);
+        const rst = pos - idx;
+        const fA = ankerFarben[idx];
+        const fB = ankerFarben[idx + 1] || fA;
+        const r = Math.round(fA.r + (fB.r - fA.r) * rst);
+        const g = Math.round(fA.g + (fB.g - fA.g) * rst);
+        const b = Math.round(fA.b + (fB.b - fA.b) * rst);
+        hochaufloesendeSkala.push("#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1));
+    }
+
     currentWindLayer = L.velocityLayer({
-        displayValues: false, // Eigene Text-Anzeige im Footer genutzt, spart Kartenplatz
+        displayValues: false, 
         data: velocityData,
-        maxVelocity: meta.dx === 0.25 ? 20 : 15, // Skalierungs-Anpassung basierend auf Raster
-        velocityScale: 0.006,  // Fließgeschwindigkeit der Fäden im Cockpit
-        opacity: 0.85
+        maxVelocity: 18, lineWidth: 2.5, frameRate: 35,
+        velocityScale: 0.006, particleAge: 80, particleMultiplier: 0.005,
+        colorScale: hochaufloesendeSkala
     });
-    
-    // Layer auf die Karte zeichnen
+
     currentWindLayer.addTo(map);
     
-    // 📊 Textwerte in der Info-Bar für den aktuellen Zeitschritt aktualisieren
-    // Da wir ein Flächenraster haben, zeigen wir im Cockpit-Panel exemplarisch 
-    // den Durchschnitt oder die Maximalwerte des Frames an (wird später an Bootsposition gekoppelt)
-    if (frame.wind_u.length > 0) {
-        // Berechne beispielhaft die Windstärke des ersten Rasterpunkts für das Panel
-        const u = frame.wind_u[0];
-        const v = frame.wind_v[0];
-        const speedMS = math ? Math.sqrt(u*u + v*v) : 0;
-        const speedKnots = Math.round(speedMS * 1.94384); // m/s zu Knoten
-        
-        const waveH = frame.wave_height[0] || 0;
-        
-        document.getElementById('info-wind').innerText = `${speedKnots} kn`;
-        document.getElementById('info-wave').innerText = `${waveH.toFixed(1)} m`;
-    }
+    // Trigger ein fiktives Maus-Event auf der aktuellen Kartenmitte, 
+    // damit die Info-Bar beim Slider-Schieben sofort die neuen Werte anzeigt
+    updateInfoBarAtLatLng(map.getCenter());
 }
 
 /**
- * 4. Wettersystem zurücksetzen
- * Säubert die Karte und sperrt den Slider, wenn kein Revier aktiv ist
+ * Kernfunktion: Berechnet aus einer Maus-Koordinate (Lat/Lng) den nächstgelegenen 
+ * Datenpunkt aus dem JSON-Raster und aktualisiert die Cockpit-Info-Bar.
+ * Hochpräzise Info-Bar mit bilinearer Interpolation (Glättung zwischen den Rasterpunkten)
+ */
+function updateInfoBarAtLatLng(latlng) {
+    if (!activeWeatherData || !activeWeatherData.frames) return;
+    
+    const meta = activeWeatherData.metadata;
+    const frame = activeWeatherData.frames[currentHourIdx];
+    
+    // 1. Bounding-Box Prüfung
+	if (latlng.lat > meta.la1 || latlng.lat < meta.la2 || latlng.lng < meta.lo1 || latlng.lng > meta.lo2) {
+		document.getElementById('info-wind').innerText = "-- kn / --°";
+		document.getElementById('info-wave-h').innerText = "-- m";
+		document.getElementById('info-wave-d').innerText = "--°";
+		document.getElementById('info-wave-p').innerText = "-- s";
+		return;
+	}
+    
+    // 2. Errechne die genaue Position im Gitter als Fließkommazahl (wichtig für die Glättung!)
+    const latPos = (meta.la1 - latlng.lat) / meta.dy;
+    const lonPos = (latlng.lng - meta.lo1) / meta.dx;
+    
+    // Die vier umliegenden Ganzzahl-Indizes im Raster bestimmen (Oben links, Omen rechts, etc.)
+    const x0 = Math.floor(lonPos);
+    const x1 = Math.min(x0 + 1, meta.nx - 1);
+    const y0 = Math.floor(latPos);
+    const y1 = Math.min(y0 + 1, meta.ny - 1);
+    
+    // Die Gewichtungsfaktoren für die nähe zum jeweiligen Punkt (0.0 bis 1.0)
+    const xFactor = lonPos - x0;
+    const yFactor = latPos - y0;
+    
+    // Hilfsfunktion: Berechnet den linearen 1D-Array-Index im JSON
+    const getIdx = (x, y) => (y * meta.nx) + x;
+    
+    // 3. Bilineare Interpolation für die U-Komponente des Windes
+    const u00 = frame.wind_u[getIdx(x0, y0)] || 0;
+    const u10 = frame.wind_u[getIdx(x1, y0)] || 0;
+    const u01 = frame.wind_u[getIdx(x0, y1)] || 0;
+    const u11 = frame.wind_u[getIdx(x1, y1)] || 0;
+    const u_interpolated = (1 - yFactor) * ((1 - xFactor) * u00 + xFactor * u10) + yFactor * ((1 - xFactor) * u01 + xFactor * u11);
+    
+    // 4. Bilineare Interpolation für die V-Komponente des Windes
+    const v00 = frame.wind_v[getIdx(x0, y0)] || 0;
+    const v10 = frame.wind_v[getIdx(x1, y0)] || 0;
+    const v01 = frame.wind_v[getIdx(x0, y1)] || 0;
+    const v11 = frame.wind_v[getIdx(x1, y1)] || 0;
+    const v_interpolated = (1 - yFactor) * ((1 - xFactor) * v00 + xFactor * v10) + yFactor * ((1 - xFactor) * v01 + xFactor * v11);
+    
+    // 5. Bilineare Interpolation für die Wellenhöhe
+    const wh00 = (frame.wave_height ? frame.wave_height[getIdx(x0, y0)] : 0) || 0;
+    const wh10 = (frame.wave_height ? frame.wave_height[getIdx(x1, y0)] : 0) || 0;
+    const wh01 = (frame.wave_height ? frame.wave_height[getIdx(x0, y1)] : 0) || 0;
+    const wh11 = (frame.wave_height ? frame.wave_height[getIdx(x1, y1)] : 0) || 0;
+    const waveH_interpolated = (1 - yFactor) * ((1 - xFactor) * wh00 + xFactor * wh10) + yFactor * ((1 - xFactor) * wh01 + xFactor * wh11);
+    // Bilineare Interpolation Wellenrichtung
+	// Bilineare Interpolation Wellenrichtung
+	const wd00 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y0)] : 0) || 0;
+	const wd10 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y0)] : 0) || 0;
+	const wd01 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y1)] : 0) || 0;
+	const wd11 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y1)] : 0) || 0;
+
+	const waveD_interpolated =
+		(1 - yFactor) * ((1 - xFactor) * wd00 + xFactor * wd10) +
+		yFactor * ((1 - xFactor) * wd01 + xFactor * wd11);
+
+	// Bilineare Interpolation Wellenperiode
+	const wp00 = (frame.wave_period ? frame.wave_period[getIdx(x0, y0)] : 0) || 0;
+	const wp10 = (frame.wave_period ? frame.wave_period[getIdx(x1, y0)] : 0) || 0;
+	const wp01 = (frame.wave_period ? frame.wave_period[getIdx(x0, y1)] : 0) || 0;
+	const wp11 = (frame.wave_period ? frame.wave_period[getIdx(x1, y1)] : 0) || 0;
+
+	const waveP_interpolated =
+		(1 - yFactor) * ((1 - xFactor) * wp00 + xFactor * wp10) +
+		yFactor * ((1 - xFactor) * wp01 + xFactor * wp11);
+		
+    // 6. Nautische Berechnungen basierend auf den geglätteten Werten
+    const speedMS = Math.sqrt(u_interpolated * u_interpolated + v_interpolated * v_interpolated);
+    const speedKnots = Math.round(speedMS * 1.94384);
+    
+    // Herkunftsrichtung berechnen
+    let angleRad = Math.atan2(v_interpolated, u_interpolated);
+    let angleDeg = angleRad * (180 / Math.PI);
+    let windDirectionDeg = Math.round(270 - angleDeg) % 360;
+    
+    if (windDirectionDeg === 0 && speedKnots > 0) {
+        windDirectionDeg = 360;
+    }
+    
+    // 7. Ausgabe ins Cockpit-Display
+	console.log("info-wind", document.getElementById('info-wind'));
+	console.log("info-wave-h", document.getElementById('info-wave-h'));
+	console.log("info-wave-d", document.getElementById('info-wave-d'));
+	console.log("info-wave-p", document.getElementById('info-wave-p'));
+
+	document.getElementById('info-wind').innerText = `${speedKnots} kn / ${windDirectionDeg}°`;
+	document.getElementById('info-wave-h').innerText = waveH_interpolated > 0.05 ? `${waveH_interpolated.toFixed(1)} m` : "0.0 m";
+	document.getElementById('info-wave-d').innerText = waveD_interpolated > 0 ? `${Math.round(waveD_interpolated)}°` : "--°";
+	document.getElementById('info-wave-p').innerText = waveP_interpolated > 0 ? `${waveP_interpolated.toFixed(1)} s` : "-- s";
+}
+
+
+
+/**
+ * 4. Wettersystem komplett zurücksetzen
  */
 function resetWeatherLayers() {
     if (currentWindLayer) {
         map.removeLayer(currentWindLayer);
         currentWindLayer = null;
     }
-    const slider = document.getElementById('weather-slider');
-    slider.disabled = true;
-    slider.value = 0;
-    
-    document.getElementById('weather-time-label').innerText = "+0h";
-    document.getElementById('weather-info-bar').style.display = 'none';
     activeWeatherData = null;
+    
+    const slider = document.getElementById('weather-slider');
+    if (slider) { slider.disabled = true; slider.value = 0; }
+    
+    if (document.getElementById('weather-time-label')) document.getElementById('weather-time-label').innerText = "+0h";
+    if (document.getElementById('weather-info-bar')) document.getElementById('weather-info-bar').style.display = 'none';
+    if (document.getElementById('weather-file-select')) document.getElementById('weather-file-select').value = "";
 }
 
-// Event-Listener startet das Wettersystem, sobald die Karte bereit ist
-document.addEventListener("DOMContentLoaded", initNavisWeather);
+// Handler im DOMContentLoaded registrieren und Leaflet Maus-Lauscher koppeln
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => {
+        initNavisWeather();
+        
+        // Registriert den globalen Maus-Lauscher auf der Leaflet-Karte
+        if (typeof map !== 'undefined') {
+            map.on('mousemove', function(e) {
+                updateInfoBarAtLatLng(e.latlng);
+            });
+            
+            // Für Touchscreens (iPad/Tablet): Tippen auf die Karte aktualisiert die Werte ebenfalls
+            map.on('click', function(e) {
+                updateInfoBarAtLatLng(e.latlng);
+            });
+        }
+    }, 500);
+});
+
+
+// Handler im DOMContentLoaded registrieren
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(initNavisWeather, 500);
+});
+
 
 
 /* ------------------------------
