@@ -1,9 +1,9 @@
-
+<!DOCTYPE html>
 <html lang="de">
-<head><script src="js/lang.js"></script>
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title data-i18n="upload_txt_1">ESP LittleFS Manager</title>
+  <title>ESP LittleFS Manager</title>
   <style>
     body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0f1218; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; justify-content: start; min-height: 100vh; padding: 2rem; }
     h1 { color: #00bcd4; margin-bottom: 0.5rem; }
@@ -26,43 +26,43 @@
     .storage-bar-fill { height: 100%; background: #00bcd4; border-radius: 3px; }
     footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; width: 100%; max-width: 450px; }
   </style>
-
+</head>
 <body>
 
   <div id="navbar">
-    <a href="index.html" class="navbtn" data-i18n="upload_txt_2">← Main Menu</a>
+    <a href="index.html" class="navbtn">← Main Menu</a>
   </div>
 
-  <h1 data-i18n="upload_txt_3">ESP LittleFS Manager</h1>
-  <p data-i18n="upload_txt_4">Verwalten Sie die Dateien auf Ihrem Autopilot-System.</p>
+  <h1>ESP LittleFS Manager</h1>
+  <p>Verwalten Sie die Dateien auf Ihrem Autopilot-System.</p>
 
   <form id="uploadForm">
-    <label for="folderInput" data-i18n="upload_txt_5">Zielpfad / Unterordner</label>
-    <input type="text" id="folderInput" placeholder="z.B. js/ (optional)" value="" data-i18n-placeholder="upload_placeholder_1">
+    <label for="folderInput">Zielpfad / Unterordner</label>
+    <input type="text" id="folderInput" placeholder="z.B. js/ (optional)" value="">
 
-    <label for="fileInput" data-i18n="upload_txt_6">Datei auswählen</label>
+    <label for="fileInput">Datei auswählen</label>
     <input type="file" id="fileInput" name="file" required>
 
     <input type="submit" value="Hochladen">
 
     <div id="progressBar"><div id="progress"></div></div>
-    <div id="status" data-i18n="upload_txt_7">Bereit</div>
+    <div id="status">Bereit</div>
   </form>
 
   <div class="dashboard">
-    <label data-i18n="upload_txt_8">Speicherbelegung</label>
-    <div id="storageText" style="font-size: 0.8rem; color: #aaa;" data-i18n="upload_txt_9">Lade Daten...</div>
+    <label>Speicherbelegung</label>
+    <div id="storageText" style="font-size: 0.8rem; color: #aaa;">Lade Daten...</div>
     <div class="storage-bar-bg"><div id="storageBar" class="storage-bar-fill" style="width: 0%"></div></div>
     
-    <label style="margin-top: 1rem;" data-i18n="upload_txt_10">Dateien im System</label>
+    <label style="margin-top: 1rem;">Dateien im System</label>
     <div id="fileList">
-      
+      <!-- Wird per JS befüllt -->
     </div>
   </div>
 
   <footer>
-    <strong data-i18n="upload_txt_11">NAVIS & Eike File Upload v1.1</strong><br data-i18n="upload_txt_12">
-    Entwickelt von <span style="color:#00ffff;" data-i18n="upload_txt_13">Eike</span data-i18n="upload_txt_14"> & <span style="color:#00ffff;" data-i18n="upload_txt_15">NAVIS</span><br data-i18n="upload_txt_16">
+    <strong>NAVIS & Eike File Upload v1.1</strong><br>
+    Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
     © 2026 – System ESP32
   </footer>
 

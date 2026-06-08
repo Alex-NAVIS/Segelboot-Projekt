@@ -1,9 +1,9 @@
-
+<!DOCTYPE html>
 <html lang="de">
-<head><script src="js/lang.js"></script>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-i18n="autopilot_txt_1">Autopilot Steuerung</title>
+    <title>Autopilot Steuerung</title>
     <style>
         body { background:#001a26; color:#00e6e6; font-family:"Segoe UI",Arial,sans-serif; margin:0; text-align:center; }
         header { background:#002b3a; color:#00ffff; padding:15px; font-size:1.8em; font-weight:bold; border-bottom:2px solid #005566; }
@@ -37,84 +37,76 @@
 		#wsLed { width: 12px; height: 12px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 6px rgba(255,0,0,0.8); }
 		#rotary-svg { touch-action: none;}
 	</style>
-    
+    <!-- Lade den zentralen Sprachmanager -->
     <script src="js/lang_manager.js"></script>
-
+</head>
 <body>
-	<header><div id="wsLed"></div data-i18n="autopilot_txt_2">Autopilot Steuerung</header>
+	<header><div id="wsLed"></div>Autopilot Steuerung</header>
     <div id="navbar">
-		<a href="index.html" class="navbtn" data-i18n="nav_dashboard" data-i18n="autopilot_txt_3">Dashboard2</a>
-        <a href="karte.html" class="navbtn" data-i18n="nav_karte" data-i18n="autopilot_txt_4">Karte</a>
-        <a href="kompass.html" class="navbtn" data-i18n="nav_kompass" data-i18n="autopilot_txt_5">Kompass</a>
-        <a href="horizont.html" class="navbtn" data-i18n="nav_horizont" data-i18n="autopilot_txt_6">Horizont</a>
-		<div style="padding:10px;">
-			<select id="langSelect" onchange="changeLanguage(this.value)">
-				<!-- Standard-Sprachen -->
-				<option value="de" data-i18n="index_txt_10">Deutsch</option>
-				<option value="en" data-i18n="index_txt_11">English</option>
-				<option value="fr" data-i18n="index_txt_12">Français</option>
-				<option value="it" data-i18n="index_txt_13">Italiano</option>
-				<option value="es" data-i18n="index_txt_43">Español</option>
-				<option value="da" data-i18n="index_txt_44">Dansk</option>
-				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
-				<option value="no" data-i18n="index_txt_46">Norsk</option>
-				<option value="sv" data-i18n="index_txt_47">Svenska</option>
-				<option value="ru" data-i18n="index_txt_48">Русский</option>
-				<option value="pl" data-i18n="index_txt_49">Polski</option>
-				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
-				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
-			</select>
-		</div>
+		<a href="index.html" class="navbtn" data-i18n="nav_dashboard">Dashboard2</a>
+        <a href="karte.html" class="navbtn" data-i18n="nav_karte">Karte</a>
+        <a href="kompass.html" class="navbtn" data-i18n="nav_kompass">Kompass</a>
+        <a href="horizont.html" class="navbtn" data-i18n="nav_horizont">Horizont</a>
+        
+	<!-- Integrierter Sprachumschalter am Ende der Navbar -->
+        <div class="lang-select-container">
+            <select id="langSelect" onchange="changeLanguage(this.value)">
+                <option value="de">DE</option>
+                <option value="en">EN</option>
+                <option value="fr">FR</option>
+                <option value="it">IT</option>
+            </select>
+        </div>
 	</div>
 
     <main>
         <section class="switch-section">
-            <h2 class="section-title" data-i18n="autopilot_txt_11">Modus Auswahl</h2>
-            <div class="switch" id="modus_off" data-i18n="autopilot_txt_12">OFF</div>
-            <div class="switch" id="modus_kompass" data-i18n="autopilot_txt_13">Kompass Kurs</div>
-            <div class="switch" id="modus_wind" data-i18n="autopilot_txt_14">Windsteuerung</div>
-            <div class="switch" id="modus_gps" data-i18n="autopilot_txt_15">GPS Koordinate</div>
-			<h2 class="section-title" data-i18n="autopilot_txt_16">GPS Zielkoordinate</h2>
-			<div style="color:#ffffff; font-size:1.2em;" data-i18n="autopilot_txt_17">
-				Lat: <span id="ap_lat">--</span><br data-i18n="autopilot_txt_18">
+            <h2 class="section-title">Modus Auswahl</h2>
+            <div class="switch" id="modus_off">OFF</div>
+            <div class="switch" id="modus_kompass">Kompass Kurs</div>
+            <div class="switch" id="modus_wind">Windsteuerung</div>
+            <div class="switch" id="modus_gps">GPS Koordinate</div>
+			<h2 class="section-title">GPS Zielkoordinate</h2>
+			<div style="color:#ffffff; font-size:1.2em;">
+				Lat: <span id="ap_lat">--</span><br>
 				Lon: <span id="ap_lon">--</span>
 			</div>
         </section>
-        <h2 class="section-title" data-i18n="autopilot_txt_19">Kursübersteuerung</h2>
+        <h2 class="section-title">Kursübersteuerung</h2>
         <div class="rotary-encoder">
-            <svg id="rotary-svg" viewbox="0 0 200 200">
-                
-                <path d="M100 10 A90 90 0 0 0 100 190" fill="none" stroke="red" stroke-width="7"></path>
-                <path d="M100 10 A90 90 0 0 1 100 190" fill="none" stroke="green" stroke-width="7"></path>
-                <path id="activeSegment" fill="none"></path>
+            <svg id="rotary-svg" viewBox="0 0 200 200">
+                <!-- Halbkreis Farben -->
+                <path d="M100 10 A90 90 0 0 0 100 190" fill="none" stroke="red" stroke-width="7"/>
+                <path d="M100 10 A90 90 0 0 1 100 190" fill="none" stroke="green" stroke-width="7"/>
+                <path id="activeSegment" fill="none"/>
                 <g id="scale"></g>
 				<g id="compassScale"></g>
-				
-				<polygon id="wind_dir" points="100,5 95,20 100,65 105,20" fill="yellow"></polygon>
-				<line x1="100" y1="15" x2="100" y2="35" class="zero-line"></line>
-                <line id="warnL" x1="100" y1="20" x2="100" y2="5" class="warning"></line>
-                <line id="warnR" x1="100" y1="20" x2="100" y2="5" class="warning"></line>
-                <line id="marker" x1="100" y1="100" x2="100" y2="35" class="marker"></line>
-                <polygon class="boot" points="100,85 94,115 106,115"></polygon>
+				<!-- Windrichtungs-Pfeil -->
+				<polygon id="wind_dir" points="100,5 95,20 100,65 105,20" fill="yellow"/>
+				<line x1="100" y1="15" x2="100" y2="35" class="zero-line"/>
+                <line id="warnL" x1="100" y1="20" x2="100" y2="5" class="warning"/>
+                <line id="warnR" x1="100" y1="20" x2="100" y2="5" class="warning"/>
+                <line id="marker" x1="100" y1="100" x2="100" y2="35" class="marker"/>
+                <polygon class="boot" points="100,85 94,115 106,115"/>
             </svg>
             <div class="angle-display" id="angle_value">0°</div>
-			
+			<!-- NEU: Reset Button Rechts unterhalb -->
 			<div class="reset-container">
-				<button class="reset-btn" id="reset_angle" data-i18n="autopilot_txt_20">RESET 0°</button>
+				<button class="reset-btn" id="reset_angle">RESET 0°</button>
 			</div>	
         </div>
 		<input type="range" min="-45" max="45" value="0" step="1" id="angle_input" class="slider">
         <section class="switch-section">
-            <h2 class="section-title" data-i18n="autopilot_txt_21">Pinne Steuerung</h2>
-            <div class="switch" id="pinnen_einfahren" data-i18n="autopilot_txt_22">Pinne Einfahren</div>
-            <div class="switch" id="pinnen_ausfahren" data-i18n="autopilot_txt_23">Pinne Ausfahren</div>
-            <div class="switch" id="pinnen_stop" data-i18n="autopilot_txt_24">Stop</div>
+            <h2 class="section-title">Pinne Steuerung</h2>
+            <div class="switch" id="pinnen_einfahren">Pinne Einfahren</div>
+            <div class="switch" id="pinnen_ausfahren">Pinne Ausfahren</div>
+            <div class="switch" id="pinnen_stop">Stop</div>
         </section>
     </main>
 
     <footer class="footer">
-        <strong data-i18n="autopilot_txt_25">Marine Autopilot v1.1</strong><br data-i18n="autopilot_txt_26">
-        Entwickelt von den Partnern <span style="color:#00ffff;" data-i18n="autopilot_txt_27">Eike</span data-i18n="autopilot_txt_28"> & <span style="color:#00ffff;" data-i18n="autopilot_txt_29">NAVIS</span>.<br data-i18n="autopilot_txt_30">
+        <strong>Marine Autopilot v1.1</strong><br>
+        Entwickelt von den Partnern <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span>.<br>
         © 2025 – System ESP32
     </footer>
 	<script>

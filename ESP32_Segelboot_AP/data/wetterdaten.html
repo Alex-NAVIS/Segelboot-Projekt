@@ -1,8 +1,8 @@
-
+<!DOCTYPE html>
 <html>
-<head><script src="js/lang.js"></script>
+<head>
 <meta charset="UTF-8">
-<title data-i18n="wetterdaten_txt_1">NAVIS Wind Batch Generator</title>
+<title>NAVIS Wind Batch Generator</title>
 
 <style>
 
@@ -76,33 +76,33 @@ color:#00ffff;
 
 </style>
 
-
+</head>
 
 <body>
 
-<h1 data-i18n="wetterdaten_txt_2">NAVIS Wind Batch Generator</h1>
+<h1>NAVIS Wind Batch Generator</h1>
 
-<div class="panel" data-i18n="wetterdaten_txt_3">
+<div class="panel">
 
 Region
 
 <select id="region">
-<option value="northsea" data-i18n="wetterdaten_txt_4">Nordsee</option>
-<option value="europe" data-i18n="wetterdaten_txt_5">Europa</option>
-<option value="global" data-i18n="wetterdaten_txt_6">Global</option>
+<option value="northsea">Nordsee</option>
+<option value="europe">Europa</option>
+<option value="global">Global</option>
 </select>
 
-<br><br data-i18n="wetterdaten_txt_7">
+<br><br>
 
 Start Datum
-<input type="date" id="start" data-i18n="wetterdaten_txt_8">
+<input type="date" id="start">
 
 End Datum
 <input type="date" id="end">
 
 <br><br>
 
-<button onclick="startBatch()" data-i18n="wetterdaten_txt_9">Batch erzeugen</button>
+<button onclick="startBatch()">Batch erzeugen</button>
 
 <div id="status"></div>
 

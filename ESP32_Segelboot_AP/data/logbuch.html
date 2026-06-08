@@ -1,8 +1,8 @@
-
+<!DOCTYPE html>
 <html>
-<head><script src="js/lang.js"></script>
+<head>
 <meta charset="UTF-8">
-<title data-i18n="logbuch_txt_1">NAVIS Bordlogbuch</title>
+<title>NAVIS Bordlogbuch</title>
 
 <style>
 	body { background-color: #001a26; color: #00e6e6; font-family: "Segoe UI", Arial, sans-serif; margin: 0; overflow-x: hidden; text-align: center; }
@@ -21,89 +21,89 @@
 	@media (max-width: 600px) { .button-panel { grid-template-columns: repeat(2, 1fr); } textarea { width: 90%; } }
 	footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
 </style>
-
+</head>
 
 <body>
 
-<header data-i18n="logbuch_txt_2">NAVIS Bordlogbuch</header>
+<header>NAVIS Bordlogbuch</header>
 
 <nav id="navbar">
-    <a href="index.html" class="navbtn" data-i18n="logbuch_txt_3">Dashboard</a>
-    <a href="karte.html" class="navbtn" data-i18n="logbuch_txt_4">Karte</a>
-    <a href="kompass.html" class="navbtn" data-i18n="logbuch_txt_5">Kompass</a>
-    <a href="horizont.html" class="navbtn" data-i18n="logbuch_txt_6">Horizont</a>
-    <a href="autopilot.html" class="navbtn" data-i18n="logbuch_txt_7">Autopilot</a>
+    <a href="index.html" class="navbtn">Dashboard</a>
+    <a href="karte.html" class="navbtn">Karte</a>
+    <a href="kompass.html" class="navbtn">Kompass</a>
+    <a href="horizont.html" class="navbtn">Horizont</a>
+    <a href="autopilot.html" class="navbtn">Autopilot</a>
 </nav>
 
-<div id="status" data-i18n="logbuch_txt_8">Bereit für Logbuch-Eintrag...</div>
+<div id="status">Bereit für Logbuch-Eintrag...</div>
 
-
+<!-- Manöver -->
 <div class="group">
-    <div class="section-title" data-i18n="logbuch_txt_9">Manöver</div>
+    <div class="section-title">Manöver</div>
     <div class="button-panel">
-        <button class="logbtn" onclick="logEvent('hafen_auslaufen')" data-i18n="logbuch_txt_10">⛵ Ausgelaufen</button>
-        <button class="logbtn" onclick="logEvent('hafen_einlaufen')" data-i18n="logbuch_txt_11">⛵ Eingelaufen</button>
-        <button class="logbtn" onclick="logEvent('anker_gesetzt')" data-i18n="logbuch_txt_12">⚓ Anker gesetzt</button>
-        <button class="logbtn" onclick="logEvent('anker_gehoben')" data-i18n="logbuch_txt_13">⚓ Anker gehoben</button>
-        <button class="logbtn" onclick="logEvent('segel_gesetzt')" data-i18n="logbuch_txt_14">Segel gesetzt</button>
-        <button class="logbtn" onclick="logEvent('segel_geborgen')" data-i18n="logbuch_txt_15">Segel geborgen</button>
-        <button class="logbtn" onclick="logEvent('reff1')" data-i18n="logbuch_txt_16">Reff 1</button>
-        <button class="logbtn" onclick="logEvent('reff2')" data-i18n="logbuch_txt_17">Reff 2</button>
-        <button class="logbtn" onclick="logEvent('reff_raus')" data-i18n="logbuch_txt_18">Reff raus</button>
-        <button class="logbtn" onclick="logEvent('wende')" data-i18n="logbuch_txt_19">Wende</button>
-        <button class="logbtn" onclick="logEvent('halse')" data-i18n="logbuch_txt_20">Halse</button>
-        <button class="logbtn" onclick="logEvent('motor_start')" data-i18n="logbuch_txt_21">Motor START</button>
-        <button class="logbtn" onclick="logEvent('motor_stop')" data-i18n="logbuch_txt_22">Motor STOP</button>
+        <button class="logbtn" onclick="logEvent('hafen_auslaufen')">⛵ Ausgelaufen</button>
+        <button class="logbtn" onclick="logEvent('hafen_einlaufen')">⛵ Eingelaufen</button>
+        <button class="logbtn" onclick="logEvent('anker_gesetzt')">⚓ Anker gesetzt</button>
+        <button class="logbtn" onclick="logEvent('anker_gehoben')">⚓ Anker gehoben</button>
+        <button class="logbtn" onclick="logEvent('segel_gesetzt')">Segel gesetzt</button>
+        <button class="logbtn" onclick="logEvent('segel_geborgen')">Segel geborgen</button>
+        <button class="logbtn" onclick="logEvent('reff1')">Reff 1</button>
+        <button class="logbtn" onclick="logEvent('reff2')">Reff 2</button>
+        <button class="logbtn" onclick="logEvent('reff_raus')">Reff raus</button>
+        <button class="logbtn" onclick="logEvent('wende')">Wende</button>
+        <button class="logbtn" onclick="logEvent('halse')">Halse</button>
+        <button class="logbtn" onclick="logEvent('motor_start')">Motor START</button>
+        <button class="logbtn" onclick="logEvent('motor_stop')">Motor STOP</button>
     </div>
 </div>
 
-
+<!-- Sicherheit -->
 <div class="group">
-    <div class="section-title" data-i18n="logbuch_txt_23">Sicherheit & Übungen</div>
+    <div class="section-title">Sicherheit & Übungen</div>
     <div class="button-panel">
-        <button class="logbtn" onclick="logEvent('sicherheitseinweisung')" data-i18n="logbuch_txt_24">Einweisung</button>
-        <button class="logbtn" onclick="logEvent('mob_uebung')" data-i18n="logbuch_txt_25">MOB Übung</button>
-        <button class="logbtn" onclick="logEvent('mob_alarm')" data-i18n="logbuch_txt_26">🔴 MOB ALARM</button>
-        <button class="logbtn" onclick="logEvent('rettungswesten_kontrolle')" data-i18n="logbuch_txt_27">Westen Check</button>
+        <button class="logbtn" onclick="logEvent('sicherheitseinweisung')">Einweisung</button>
+        <button class="logbtn" onclick="logEvent('mob_uebung')">MOB Übung</button>
+        <button class="logbtn" onclick="logEvent('mob_alarm')">🔴 MOB ALARM</button>
+        <button class="logbtn" onclick="logEvent('rettungswesten_kontrolle')">Westen Check</button>
     </div>
 </div>
 
-
+<!-- Wetter -->
 <div class="group">
-    <div class="section-title" data-i18n="logbuch_txt_28">Wind & Wellen</div><br>
+    <div class="section-title">Wind & Wellen</div><br>
     <div>
-        <label data-i18n="logbuch_txt_29">Wind:</label>
+        <label>Wind:</label>
         <select id="winddir">
-            <option data-i18n="logbuch_txt_30">N</option><option data-i18n="logbuch_txt_31">NE</option><option data-i18n="logbuch_txt_32">E</option><option data-i18n="logbuch_txt_33">SE</option>
-            <option data-i18n="logbuch_txt_34">S</option><option data-i18n="logbuch_txt_35">SW</option><option>W</option><option data-i18n="logbuch_txt_36">NW</option>
+            <option>N</option><option>NE</option><option>E</option><option>SE</option>
+            <option>S</option><option>SW</option><option>W</option><option>NW</option>
         </select>
         <select id="wind">
-            <option value="" data-i18n="logbuch_txt_37">Bft</option>
+            <option value="">Bft</option>
             <option>0</option><option>1</option><option>2</option><option>3</option>
             <option>4</option><option>5</option><option>6</option><option>7</option>
         </select>
     </div>
     <div style="margin-top:10px;">
-        <label data-i18n="logbuch_txt_38">Welle:</label>
+        <label>Welle:</label>
         <select id="waves">
-            <option data-i18n="logbuch_txt_39">ruhig</option><option data-i18n="logbuch_txt_40">0.5 m</option><option data-i18n="logbuch_txt_41">1 m</option>
-            <option data-i18n="logbuch_txt_42">1.5 m</option><option data-i18n="logbuch_txt_43">2 m</option>
+            <option>ruhig</option><option>0.5 m</option><option>1 m</option>
+            <option>1.5 m</option><option>2 m</option>
         </select>
     </div>
-    <button class="logbtn save-btn" onclick="sendWeather()" data-i18n="logbuch_txt_44">Wetter speichern</button>
+    <button class="logbtn save-btn" onclick="sendWeather()">Wetter speichern</button>
 </div>
 
-
+<!-- Freitext -->
 <div class="group">
-    <div class="section-title" data-i18n="logbuch_txt_45">Logbuch Notiz</div><br>
-    <textarea id="note" placeholder="Freitext Logbucheintrag..." data-i18n-placeholder="logbuch_placeholder_1"></textarea><br>
-    <button class="logbtn save-btn" onclick="sendNote()" data-i18n="logbuch_txt_46">Notiz speichern</button>
+    <div class="section-title">Logbuch Notiz</div><br>
+    <textarea id="note" placeholder="Freitext Logbucheintrag..."></textarea><br>
+    <button class="logbtn save-btn" onclick="sendNote()">Notiz speichern</button>
 </div>
 
 
 <footer>
-	<strong data-i18n="logbuch_txt_47">Marine Logbuch v1.1</strong><br data-i18n="logbuch_txt_48">
-	Entwickelt von <span style="color:#00ffff;" data-i18n="logbuch_txt_49">Eike</span data-i18n="logbuch_txt_50"> & <span style="color:#00ffff;" data-i18n="logbuch_txt_51">NAVIS</span><br data-i18n="logbuch_txt_52">
+	<strong>Marine Logbuch v1.1</strong><br>
+	Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
 	© 2026 – Bootssystem ESP32 • Live Monitoring
 </footer>
 

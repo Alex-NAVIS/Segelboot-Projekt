@@ -1,9 +1,9 @@
-
+<!DOCTYPE html>
 <html lang="de">
-<head><script src="js/lang.js"></script>
+<head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title data-i18n="index_txt_1">Bootssystem Übersicht</title>
+	<title>Bootssystem Übersicht</title>
 	<style>
 		body { background-color: #001a26; color: #00e6e6; font-family: "Segoe UI", Arial, sans-serif; margin: 0; overflow-x: hidden; text-align: center; }
 		header { background-color: #002b3a; color: #00ffff; padding: 15px; font-size: 1.8em; font-weight: bold; border-bottom: 2px solid #005566; }
@@ -27,101 +27,91 @@
 		.switch.on .led { background-color: limegreen; box-shadow: 0 0 10px #00ff00; }
 		footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
 	</style>
-	
+	<!-- Sprach-Manager vor dem Body laden -->
 	<script src="NAVIS_lang_manager.js"></script>
-
+</head>
 <body>
-	<header><div id="wsLed"></div data-i18n="index_txt_2">Bootssystem Übersicht</header>
+	<header><div id="wsLed"></div>Bootssystem Übersicht</header>
 	<nav id="navbar">
-		<a href="karte.html" class="navbtn" data-i18n="nav.map" data-i18n="index_txt_3">Karte</a>
-		<a href="kompass.html" class="navbtn" data-i18n="nav.compass" data-i18n="index_txt_4">Kompass</a>
-		<a href="horizont.html" class="navbtn" data-i18n="nav.horizon" data-i18n="index_txt_5">Horizont</a>
-		<a href="autopilot.html" class="navbtn" data-i18n="nav.autopilot" data-i18n="index_txt_6">Autopilot</a>
-		<a href="Alarm.html" class="navbtn" data-i18n="nav.monitoring" data-i18n="index_txt_7">Überwachung</a>
-		<a href="logbuch.html" class="navbtn" data-i18n="nav.logbook" data-i18n="index_txt_8">Log-Buch</a>
-		<a href="system_settings.html" class="navbtn" data-i18n="nav.settings" data-i18n="index_txt_9">System-Settings</a>
+		<a href="karte.html" class="navbtn" data-i18n="nav.map">Karte</a>
+		<a href="kompass.html" class="navbtn" data-i18n="nav.compass">Kompass</a>
+		<a href="horizont.html" class="navbtn" data-i18n="nav.horizon">Horizont</a>
+		<a href="autopilot.html" class="navbtn" data-i18n="nav.autopilot">Autopilot</a>
+		<a href="Alarm.html" class="navbtn" data-i18n="nav.monitoring">Überwachung</a>
+		<a href="logbuch.html" class="navbtn" data-i18n="nav.logbook">Log-Buch</a>
+		<a href="system_settings.html" class="navbtn" data-i18n="nav.settings">System-Settings</a>
 		<div style="padding:10px;">
 			<select id="langSelect" onchange="changeLanguage(this.value)">
-				<!-- Standard-Sprachen -->
-				<option value="de" data-i18n="index_txt_10">Deutsch</option>
-				<option value="en" data-i18n="index_txt_11">English</option>
-				<option value="fr" data-i18n="index_txt_12">Français</option>
-				<option value="it" data-i18n="index_txt_13">Italiano</option>
-				<option value="es" data-i18n="index_txt_43">Español</option>
-				<option value="da" data-i18n="index_txt_44">Dansk</option>
-				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
-				<option value="no" data-i18n="index_txt_46">Norsk</option>
-				<option value="sv" data-i18n="index_txt_47">Svenska</option>
-				<option value="ru" data-i18n="index_txt_48">Русский</option>
-				<option value="pl" data-i18n="index_txt_49">Polski</option>
-				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
-				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
+				<option value="de">Deutsch</option>
+				<option value="en">English</option>
+				<option value="fr">Français</option>
+				<option value="it">Italiano</option>
 			</select>
 		</div>
 	</nav>
 
-	<h2 class="section-title" data-i18n="index_txt_14">Telemetrie-Daten</h2>
+	<h2 class="section-title">Telemetrie-Daten</h2>
 
 	<div class="sensor-data">
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_15">Lage</div>
-			<div class="data-value" data-i18n="index_txt_16">Roll: <span id="roll">--</span data-i18n="index_txt_17">° / Pitch: <span id="pitch">--</span>°</div>
+			<div class="data-title">Lage</div>
+			<div class="data-value">Roll: <span id="roll">--</span>° / Pitch: <span id="pitch">--</span>°</div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_18">Kompass</div>
+			<div class="data-title">Kompass</div>
 			<div class="data-value"><span id="kompass">--</span>°</div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_19">Wind (gemessen)</div>
+			<div class="data-title">Wind (gemessen)</div>
 			<div class="data-value"><span id="winddir_gemessen">--</span>° / <span id="windspeed_gemessen">--</span> kn</div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_20">Wind (berechnet)</div>
+			<div class="data-title">Wind (berechnet)</div>
 			<div class="data-value"><span id="winddir_berechnet">--</span>° / <span id="windspeed_berechnet">--</span> kn</div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_21">Position</div>
+			<div class="data-title">Position</div>
 			<div class="data-value"><span id="gps_lat">--</span>, <span id="gps_lon">--</span></div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_22">Geschwindigkeit / Kurs</div>
-			<div class="data-value"><span id="gps_speed">--</span data-i18n="index_txt_23"> kn / <span id="gps_kurs">--</span>°</div>
+			<div class="data-title">Geschwindigkeit / Kurs</div>
+			<div class="data-value"><span id="gps_speed">--</span> kn / <span id="gps_kurs">--</span>°</div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_24">Datum / Zeit</div>
+			<div class="data-title">Datum / Zeit</div>
 			<div class="data-value"><span id="gps_datum">--</span><br><span id="gps_uhrzeit">--</span></div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_25">Missweisung</div>
+			<div class="data-title">Missweisung</div>
 			<div class="data-value"><span id="missweisung">--</span>°</div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_26">Echolot</div>
-			<div class="data-value"><span id="Echolot">--</span data-i18n="index_txt_27"> m</div>
+			<div class="data-title">Echolot</div>
+			<div class="data-value"><span id="Echolot">--</span> m</div>
 		</div>
 		<div class="data-box">
-			<div class="data-title" data-i18n="index_txt_28">Autopilot</div>
-			<div class="data-value" data-i18n="index_txt_29">
-				Modus: <span id="ap_mode">--</span><br data-i18n="index_txt_30">
-				Offset: <span id="ap_offset">--</span>°<br data-i18n="index_txt_31">
+			<div class="data-title">Autopilot</div>
+			<div class="data-value">
+				Modus: <span id="ap_mode">--</span><br>
+				Offset: <span id="ap_offset">--</span>°<br>
 				Ziel: <span id="ap_lat">--</span>, <span id="ap_lon">--</span>
 			</div>
 		</div>
 	</div>
 
 	<div class="switch-section">
-		<h2 class="section-title" data-i18n="index_txt_32">Beleuchtungssystem</h2>
+		<h2 class="section-title">Beleuchtungssystem</h2>
 		<div class="switch-panel">
-			<div class="switch off" id="relay_d" data-i18n="index_txt_33">Koje Bug<span class="led"></span></div>
-			<div class="switch off" id="relay_c" data-i18n="index_txt_34">Licht Salon<span class="led"></span></div>
-			<div class="switch off" id="relay_a" data-i18n="index_txt_35">Koje Steuerbord<span class="led"></span></div>
-			<div class="switch off" id="relay_b" data-i18n="index_txt_36">Koje Backbord<span class="led"></span></div>
+			<div class="switch off" id="relay_d">Koje Bug<span class="led"></span></div>
+			<div class="switch off" id="relay_c">Licht Salon<span class="led"></span></div>
+			<div class="switch off" id="relay_a">Koje Steuerbord<span class="led"></span></div>
+			<div class="switch off" id="relay_b">Koje Backbord<span class="led"></span></div>
 		</div>
 	</div>
 
 	<footer>
-		<strong data-i18n="index_txt_37">Marine Dashboard v1.1</strong><br data-i18n="index_txt_38">
-		Entwickelt von <span style="color:#00ffff;" data-i18n="index_txt_39">Eike</span data-i18n="index_txt_40"> & <span style="color:#00ffff;" data-i18n="index_txt_41">NAVIS</span><br data-i18n="index_txt_42">
+		<strong>Marine Dashboard v1.1</strong><br>
+		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
 		© 2025 – Bootssystem ESP32 • Live Monitoring
 	</footer>
 

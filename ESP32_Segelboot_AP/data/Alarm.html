@@ -1,9 +1,9 @@
-
+<!DOCTYPE html>
 <html lang="de">
-<head><script src="js/lang.js"></script>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-i18n="title_alarms" data-i18n="alarm_txt_1">Alarm Einstellungen</title>
+    <title data-i18n="title_alarms">Alarm Einstellungen</title>
     <style>
         body { background:#001a26; color:#00e6e6; font-family:"Segoe UI", Arial, sans-serif; margin: 0; text-align: center; }
         header { background:#002b3a; color:#00ffff; padding: 15px; font-size: 1.6em; font-weight: bold; border-bottom: 2px solid #005566; }
@@ -31,42 +31,42 @@
         footer { margin: 30px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color:#00b8d4; font-size:.85 em; text-align: center; opacity:.9; line-height: 1.4; }
     </style>
     
-    
+    <!-- Sprach-Manager vor dem Body laden -->
     <script src="js/lang_manager.js"></script>
-
+</head>
 <body>
 
-    <header data-i18n="title_alarms" data-i18n="alarm_txt_2">Alarm Einstellungen</header>
+    <header data-i18n="title_alarms">Alarm Einstellungen</header>
 
     <nav id="navbar">
         <div id="wsStatus">
             <div id="wsLed"></div>
-            <span data-i18n="alarm_txt_3">WS</span>
+            <span>WS</span>
         </div>
-        <a href="index.html" class="navbtn" data-i18n="nav_dashboard" data-i18n="alarm_txt_4">Dashboard</a>
-        <a href="karte.html" class="navbtn" data-i18n="nav_karte" data-i18n="alarm_txt_5">Karte</a>
-        <a href="autopilot.html" class="navbtn" data-i18n="nav_autopilot" data-i18n="alarm_txt_6">Autopilot</a>
-        <a href="kompass.html" class="navbtn" data-i18n="nav_kompass" data-i18n="alarm_txt_7">Kompass</a>
-        <a href="horizont.html" class="navbtn" data-i18n="nav_horizont" data-i18n="alarm_txt_8">Horizont</a>
+        <a href="index.html" class="navbtn" data-i18n="nav_dashboard">Dashboard</a>
+        <a href="karte.html" class="navbtn" data-i18n="nav_karte">Karte</a>
+        <a href="autopilot.html" class="navbtn" data-i18n="nav_autopilot">Autopilot</a>
+        <a href="kompass.html" class="navbtn" data-i18n="nav_kompass">Kompass</a>
+        <a href="horizont.html" class="navbtn" data-i18n="nav_horizont">Horizont</a>
         
-        
+        <!-- Integrierter Sprachumschalter am Ende der Navbar -->
         <div class="lang-select-container">
             <select id="langSelect" onchange="changeLanguage(this.value)">
-                <option value="de" data-i18n="alarm_txt_9">DE</option>
-                <option value="en" data-i18n="alarm_txt_10">EN</option>
-                <option value="fr" data-i18n="alarm_txt_11">FR</option>
-                <option value="it" data-i18n="alarm_txt_12">IT</option>
+                <option value="de">DE</option>
+                <option value="en">EN</option>
+                <option value="fr">FR</option>
+                <option value="it">IT</option>
             </select>
         </div>
     </nav>
 
     <div class="main">
-        
+        <!-- ================= Geschwindigkeit ================= -->
         <div class="group">
-            <div class="group-title" data-i18n="group_speed" data-i18n="alarm_txt_13">Geschwindigkeit Boot</div>
+            <div class="group-title" data-i18n="group_speed">Geschwindigkeit Boot</div>
             <div class="alarm-box">
                 <div class="alarm-head">
-                    <label><input type="checkbox" id="en_speed_max"><span data-i18n="lbl_speed_max" data-i18n="alarm_txt_14">Geschwindigkeit zu hoch</span></label>
+                    <label><input type="checkbox" id="en_speed_max"><span data-i18n="lbl_speed_max">Geschwindigkeit zu hoch</span></label>
                 </div>
                 <div class="slider-row">
                     <input type="range" id="alarm_speed_max" min="0" max="20" step="0.1" value="10" oninput="upd(this,'v_speed_max')">
@@ -75,7 +75,7 @@
             </div>
             <div class="alarm-box">
                 <div class="alarm-head">
-                    <label><input type="checkbox" id="en_speed_min"><span data-i18n="lbl_speed_min" data-i18n="alarm_txt_15">Geschwindigkeit zu niedrig</span></label>
+                    <label><input type="checkbox" id="en_speed_min"><span data-i18n="lbl_speed_min">Geschwindigkeit zu niedrig</span></label>
                 </div>
                 <div class="slider-row">
                     <input type="range" id="alarm_speed_min" min="0" max="20" step="0.1" value="2" oninput="upd(this,'v_speed_min')">
@@ -84,26 +84,26 @@
             </div>
         </div>
 
-        
+        <!-- ================= Wassertiefe Echolot ================= -->
         <div class="group">
-            <div class="group-title" data-i18n="group_depth" data-i18n="alarm_txt_16">Wassertiefe</div>
+            <div class="group-title" data-i18n="group_depth">Wassertiefe</div>
             <div class="alarm-box">
                 <div class="alarm-head">
-                    <label><input type="checkbox" id="en_echolot"><span data-i18n="lbl_depth_low" data-i18n="alarm_txt_17">Wassertiefe geringer als...</span></label>
+                    <label><input type="checkbox" id="en_echolot"><span data-i18n="lbl_depth_low">Wassertiefe geringer als...</span></label>
                 </div>
                 <div class="slider-row">
                     <input type="range" id="alarm_echolot_dev" min="1" max="8" step="0.1" value="4" oninput="upd(this,'v_echolot_dev')">
-                    <div class="value"><span id="v_echolot_dev">4</span data-i18n="alarm_txt_18"> m</div>
+                    <div class="value"><span id="v_echolot_dev">4</span> m</div>
                 </div>
             </div>
         </div>
 
-        
+        <!-- ================= Steuerkurs ================= -->
         <div class="group">
-            <div class="group-title" data-i18n="group_course" data-i18n="alarm_txt_19">Abweichung vom Kurs</div>
+            <div class="group-title" data-i18n="group_course">Abweichung vom Kurs</div>
             <div class="alarm-box">
                 <div class="alarm-head">
-                    <label><input type="checkbox" id="en_course_dev"><span data-i18n="lbl_course_dev" data-i18n="alarm_txt_20">Kursabweichung</span></label>
+                    <label><input type="checkbox" id="en_course_dev"><span data-i18n="lbl_course_dev">Kursabweichung</span></label>
                 </div>
                 <div class="slider-row">
                     <input type="range" id="alarm_course_dev" min="1" max="15" step="0.1" value="5" oninput="upd(this,'v_course_dev')">
@@ -112,12 +112,12 @@
             </div>
         </div>
 
-        
+        <!-- ================= Bootslage ================= -->
         <div class="group">
-            <div class="group-title" data-i18n="group_attitude" data-i18n="alarm_txt_21">Bootslage</div>
+            <div class="group-title" data-i18n="group_attitude">Bootslage</div>
             <div class="alarm-box">
                 <div class="alarm-head">
-                    <label><input type="checkbox" id="en_roll"><span data-i18n="lbl_roll" data-i18n="alarm_txt_22">Krängung (Roll)</span></label>
+                    <label><input type="checkbox" id="en_roll"><span data-i18n="lbl_roll">Krängung (Roll)</span></label>
                 </div>
                 <div class="slider-row">
                     <input type="range" id="alarm_roll" min="0" max="60" step="1" value="25" oninput="upd(this,'v_roll')">
@@ -126,7 +126,7 @@
             </div>
             <div class="alarm-box">
                 <div class="alarm-head">
-                    <label><input type="checkbox" id="en_pitch"><span data-i18n="lbl_pitch" data-i18n="alarm_txt_23">Nick (Pitch)</span></label>
+                    <label><input type="checkbox" id="en_pitch"><span data-i18n="lbl_pitch">Nick (Pitch)</span></label>
                 </div>
                 <div class="slider-row">
                     <input type="range" id="alarm_pitch" min="0" max="60" step="1" value="25" oninput="upd(this,'v_pitch')">
@@ -134,12 +134,12 @@
                 </div>
             </div>
         </div>
-		
+		<!-- ================= Wind ================= -->
 		<div class="group">
-			<div class="group-title" data-i18n="group_wind" data-i18n="alarm_txt_24">Wind</div>
+			<div class="group-title" data-i18n="group_wind">Wind</div>
 			<div class="alarm-box">
 				<div class="alarm-head">
-					<label><input type="checkbox" id="en_wind_max"><span data-i18n="lbl_wind_max" data-i18n="alarm_txt_25">Wind zu stark</span></label>
+					<label><input type="checkbox" id="en_wind_max"><span data-i18n="lbl_wind_max">Wind zu stark</span></label>
 				</div>
 				<div class="slider-row">
 					<input type="range" id="alarm_wind_max" min="0" max="60" step="1" value="25" oninput="upd(this,'v_wind_max')">
@@ -148,7 +148,7 @@
 			</div>
 			<div class="alarm-box">
 				<div class="alarm-head">
-					<label><input type="checkbox" id="en_wind_min"><span data-i18n="lbl_wind_min" data-i18n="alarm_txt_26">Wind zu schwach</span></label>
+					<label><input type="checkbox" id="en_wind_min"><span data-i18n="lbl_wind_min">Wind zu schwach</span></label>
 				</div>
 				<div class="slider-row">
 					<input type="range" id="alarm_wind_min" min="0" max="60" step="1" value="5" oninput="upd(this,'v_wind_min')">
@@ -157,7 +157,7 @@
 			</div>
 			<div class="alarm-box">
 				<div class="alarm-head">
-					<label><input type="checkbox" id="en_wind_dir"><span data-i18n="lbl_wind_dir" data-i18n="alarm_txt_27">Windrichtungs-Abweichung</span></label>
+					<label><input type="checkbox" id="en_wind_dir"><span data-i18n="lbl_wind_dir">Windrichtungs-Abweichung</span></label>
 				</div>
 				<div class="slider-row">
 					<input type="range" id="alarm_wind_dir" min="0" max="180" step="1" value="30" oninput="upd(this,'v_wind_dir')">
@@ -166,23 +166,23 @@
 			</div>
 		</div>
 
-		
+		<!-- ================= Anker ================= -->
 		<div class="group">
-			<div class="group-title" data-i18n="group_anchor" data-i18n="alarm_txt_28">Ankerplatz Überwachung</div>
+			<div class="group-title" data-i18n="group_anchor">Ankerplatz Überwachung</div>
 			<div class="alarm-box">
 				<div class="alarm-head">
-					<label><input type="checkbox" id="en_anchor"><span data-i18n="lbl_anchor_leave" data-i18n="alarm_txt_29">Ankerbereich verlassen</span></label>
+					<label><input type="checkbox" id="en_anchor"><span data-i18n="lbl_anchor_leave">Ankerbereich verlassen</span></label>
 				</div>
 				<div class="slider-row">
 					<input type="range" id="alarm_anchor_radius" min="5" max="200" step="1" value="30" oninput="upd(this,'v_anchor')">
-					<div class="value"><span id="v_anchor">30</span data-i18n="alarm_txt_30"> m</div>
+					<div class="value"><span id="v_anchor">30</span> m</div>
 				</div>
 				<div class="alarm-head">
-					<label data-i18n="lbl_chain_len" data-i18n="alarm_txt_31">Ankerkette Länge</label>
+					<label data-i18n="lbl_chain_len">Ankerkette Länge</label>
 				</div>
 				<div class="slider-row">
 					<input type="range" id="alarm_ankerkette" min="10" max="60" step="1" value="20" oninput="upd(this,'v_ankerkette')">
-					<div class="value"><span id="v_ankerkette">20</span data-i18n="alarm_txt_32"> m</div>
+					<div class="value"><span id="v_ankerkette">20</span> m</div>
 				</div>
 			</div>
 		</div>
@@ -191,12 +191,12 @@
 	<div id="alarmStatus" style="min-height:28px;font-weight:bold;color:#ff4444;margin-top:10px;"></div>
 	<div id="saveStatus" style="min-height:24px;font-weight:bold;color:#66ffff;margin-top:6px;"></div>
 
-	<button id="saveBtn" onclick="saveAlarms()" data-i18n="btn_save" data-i18n="alarm_txt_33">Alarme speichern</button>
-	<button class="danger" onclick="resetAlarms()" data-i18n="btn_clear" data-i18n="alarm_txt_34">Alle Alarme löschen</button>
+	<button id="saveBtn" onclick="saveAlarms()" data-i18n="btn_save">Alarme speichern</button>
+	<button class="danger" onclick="resetAlarms()" data-i18n="btn_clear">Alle Alarme löschen</button>
 
 	<footer>
-		<strong data-i18n="alarm_txt_35">Marine Dashboard Alarm v1.1</strong><br data-i18n="alarm_txt_36">
-		Entwickelt von <span style="color:#00ffff;" data-i18n="alarm_txt_37">Eike</span data-i18n="alarm_txt_38"> & <span style="color:#00ffff;" data-i18n="alarm_txt_39">NAVIS</span><br data-i18n="alarm_txt_40">
+		<strong>Marine Dashboard Alarm v1.1</strong><br>
+		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
 		© 2026 – Bootssystem ESP32 • Überwachung & Alarmsystem
 	</footer>
 
