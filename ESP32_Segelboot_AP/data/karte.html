@@ -237,59 +237,55 @@ const trackPoints = [];
 let liveTrackLine = null;
 
 /* ----------------------------------------------------------------------
-   ⛵ NAVIS 72h Offline-Wettersystem - JavaScript-Steuerung (PC & Boot)
-   ---------------------------------------------------------------------- */
+⛵ NAVIS 72h Offline-Wettersystem - JavaScript-Steuerung (PC & Boot)
+---------------------------------------------------------------------- */
 let activeWeatherData = null; // Speichert das geladene 72h-Paket im RAM
-let currentWindLayer = null;   // Referenz auf die aktuell animierten Windfäden
-let currentLayer = null;       // NEU: Referenz auf die aktuell animierten Strömungsfäden
-
+let currentHourIdx = 0;       // Speichert global die aktuell eingestellte Slider-Stunde
+let currentWindLayer = null;  // Referenz auf die aktuell animierten Windfäden
+let currentCurrentLayer = null; // Referenz auf die aktuell animierten Strömungsfäden
 
 /**
  * 1. Initialisierung beim Laden der Seite
- * Erkennt automatisch PC- oder Boot-Betrieb und scannt das Verzeichnis 
+ * Erkennt automatisch PC- oder Boot-Betrieb und scannt das Verzeichnis
  * vollautomatisch nach ALLEN verfügbaren JSON-Wetterdateien.
  */
 function initNavisWeather() {
     const select = document.getElementById('weather-file-select');
     if (!select) return;
-    
+
     // Erkennt, ob die Karte lokal auf dem PC-Server läuft
     const isPCServer = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     if (isPCServer) {
         console.log("⛵ NAVIS: PC-Servermodus aktiv. Scanne Ordner /Wetter/ dynamisch...");
-        
         // Wir rufen direkt den Ordner auf. Der Python-Server antwortet mit einer HTML-Dateiliste
         fetch('Wetter/')
             .then(res => res.text())
             .then(htmlText => {
                 select.innerHTML = '<option value="">-- Revier --</option>';
-                
                 // Wir nutzen ein temporäres DOM-Element, um die Links aus dem HTML des Python-Servers zu extrahieren
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlText, 'text/html');
                 const links = doc.querySelectorAll('a');
-                
                 let dateiGefunden = false;
-                
+
                 links.forEach(link => {
                     const href = link.getAttribute('href');
                     // Filtere nur echte Wetter-JSONs heraus und ignoriere die index.json am PC
                     if (href && href.endsWith('.json') && href !== 'index.json') {
                         dateiGefunden = true;
-                        
                         // Erzeuge ein schönes Label aus dem Dateinamen (z.B. wind_ostsee_kiel.json -> Ostsee Kiel)
                         let label = href.replace('.json', '').replace('wind_', '').replace('_', ' ');
                         // Worte im Label groß schreiben (Capitalize)
                         label = label.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                        
+
                         let opt = document.createElement('option');
                         opt.value = 'Wetter/' + href; // Relativer Pfad für den PC-Server
                         opt.text = label;
                         select.add(opt);
                     }
                 });
-                
+
                 if (!dateiGefunden) {
                     select.innerHTML = '<option value="">Keine JSONs</option>';
                 }
@@ -298,7 +294,6 @@ function initNavisWeather() {
                 console.error("Fehler beim automatischen PC-Ordner-Scan:", err);
                 select.innerHTML = '<option value="">Fehler Scan</option>';
             });
-            
     } else {
         // Normaler Boot-Betrieb über das echte ESP32-LittleFS auf See (Nutzt Ihre index.json)
         fetch('/Wetter/index.json?t=' + Date.now())
@@ -319,7 +314,6 @@ function initNavisWeather() {
     }
 }
 
-
 /**
  * 2. Wetterdaten laden
  */
@@ -331,7 +325,7 @@ function loadNewWeatherData(fileUrl) {
         resetWeatherLayers();
         return;
     }
-    
+
     if (slider) slider.disabled = true;
 
     // Cache-Buster nur im echten Boot-Modus (HTTP/WLAN) nutzen
@@ -345,13 +339,12 @@ function loadNewWeatherData(fileUrl) {
         })
         .then(data => {
             activeWeatherData = data; // Im RAM sichern
-            
             if (slider) {
                 slider.disabled = false;
                 slider.value = 0;
             }
 
-            // Slider-Länge dynamisch an das 50vh Panel anpassen
+            // Slider-Länge dynamisch an das Panel anpassen
             const panel = document.getElementById('navis-weather-panel');
             if (panel && slider) {
                 const containerHeight = panel.clientHeight;
@@ -368,32 +361,22 @@ function loadNewWeatherData(fileUrl) {
             resetWeatherLayers();
         });
 }
-
-let currentHourIdx = 0; // Speichert global die aktuell eingestellte Slider-Stunde
-
-/**
- * 3. Slider-Bewegung verarbeiten & Wetter-Frame rendern
- */
-let currentHourIdx = 0; // Speichert global die aktuell eingestellte Slider-Stunde
-let currentWindLayer = null; // Referenz auf die aktuell animierten Windfäden
-let currentCurrentLayer = null; // NEU: Referenz auf die aktuell animierten Strömungsfäden
-
 /**
  * 3. Slider-Bewegung verarbeiten & Wetter-Frames rendern (Wind & Strömung)
  */
 function updateWeatherFrame(hourIdx) {
     hourIdx = parseInt(hourIdx, 10);
     currentHourIdx = hourIdx; // Stunde global sichern für den Maus-Lauscher
-    
+
     if (!activeWeatherData || !activeWeatherData.frames || !activeWeatherData.frames[hourIdx]) return;
-    
+
     const meta = activeWeatherData.metadata;
     const frame = activeWeatherData.frames[hourIdx];
-    
+
     // Zeitanzeige im Panel aktualisieren (+Xh)
     const timeLabel = document.getElementById('weather-time-label');
     if (timeLabel) timeLabel.innerText = `+${hourIdx} h`;
-    
+
     // Reale Uhrzeit berechnen (Basis 'created' + Slider-Stunden)
     const realTimeLabel = document.getElementById('weather-real-time');
     if (realTimeLabel && frame.time) {
@@ -402,7 +385,7 @@ function updateWeatherFrame(hourIdx) {
         const zeit = forecastDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         realTimeLabel.innerHTML = `${datum}<br>${zeit}`;
     }
-    
+
     // --------------------------------------------------
     // ALTE LAYER ENTFERNEN
     // --------------------------------------------------
@@ -414,11 +397,11 @@ function updateWeatherFrame(hourIdx) {
         map.removeLayer(currentCurrentLayer);
         currentCurrentLayer = null;
     }
-    
+
     // Checkbox-Status auslesen
     const showWind = document.getElementById('show-wind-layer')?.checked;
     const showCurrent = document.getElementById('show-current-layer')?.checked;
-    
+
     // Farbskalen-Generator Hilfsfunktion
     const generateScale = (ankerFarben) => {
         const hochaufloesendeSkala = [];
@@ -435,7 +418,7 @@ function updateWeatherFrame(hourIdx) {
         }
         return hochaufloesendeSkala;
     };
-    
+
     // --------------------------------------------------
     // WIND LAYER RENDERN
     // --------------------------------------------------
@@ -458,13 +441,12 @@ function updateWeatherFrame(hourIdx) {
                 "data": frame.wind_v
             }
         ];
-        
-        // Bewährter fließender Verlauf für Wind (Cyan -> Grün -> Orange -> Rot)
+
         const windAnker = [
-            { r: 0, g: 85, b: 102 }, { r: 0, g: 229, b: 255 }, { r: 0, g: 255, b: 136 }, 
+            { r: 0, g: 85, b: 102 }, { r: 0, g: 229, b: 255 }, { r: 0, g: 255, b: 136 },
             { r: 255, g: 170, b: 0 }, { r: 255, g: 0, b: 85 }
         ];
-        
+
         currentWindLayer = L.velocityLayer({
             displayValues: false,
             data: velocityDataWind,
@@ -474,9 +456,9 @@ function updateWeatherFrame(hourIdx) {
         });
         currentWindLayer.addTo(map);
     }
-    
+
     // --------------------------------------------------
-    // STRÖMUNG LAYER RENDERN (NEU)
+    // STRÖMUNG LAYER RENDERN
     // --------------------------------------------------
     if (showCurrent && frame.current_u && frame.current_v) {
         const velocityDataCurrent = [
@@ -497,29 +479,28 @@ function updateWeatherFrame(hourIdx) {
                 "data": frame.current_v
             }
         ];
-        
-        // Eigene, marineblaue/aquatische Skala für die Strömung zur perfekten Unterscheidung
+
         const currentAnker = [
-            { r: 0, g: 30, b: 60 }, { r: 0, g: 100, b: 180 }, { r: 0, g: 180, b: 220 }, 
+            { r: 0, g: 30, b: 60 }, { r: 0, g: 100, b: 180 }, { r: 0, g: 180, b: 220 },
             { r: 100, g: 230, b: 255 }, { r: 200, g: 255, b: 255 }
         ];
-        
+
         currentCurrentLayer = L.velocityLayer({
             displayValues: false,
             data: velocityDataCurrent,
-            maxVelocity: 4, // Strömung ist langsamer als Wind -> Skalierungs-Maximum angepasst
+            maxVelocity: 4, 
             lineWidth: 2.0, frameRate: 35,
-            velocityScale: 0.03, // Höhere Gewichtung, damit langsame Meeresströmungen sichtbar fließen
+            velocityScale: 0.03, 
             particleAge: 100, particleMultiplier: 0.007,
             colorScale: generateScale(currentAnker)
         });
         currentCurrentLayer.addTo(map);
     }
-    
-    // Trigger ein fiktives Maus-Event auf der aktuellen Kartenmitte,
-    // damit die Info-Bar beim Slider-Schieben sofort die neuen Werte anzeigt
+
+    // Trigger ein fiktives Maus-Event auf der aktuellen Kartenmitte
     updateInfoBarAtLatLng(map.getCenter());
 }
+
 
 
 /**
@@ -706,10 +687,9 @@ document.getElementById('tide-height').innerText =
  * 4. Wettersystem komplett zurücksetzen
  */
 function resetWeatherLayers() {
-    if (currentWindLayer) {
-        map.removeLayer(currentWindLayer);
-        currentWindLayer = null;
-    }
+    if (currentWindLayer) map.removeLayer(currentWindLayer);
+    if (currentCurrentLayer) map.removeLayer(currentCurrentLayer); // Fix: Säubert Strömung mit
+    currentWindLayer = null; currentCurrentLayer = null;
     activeWeatherData = null;
     
     const slider = document.getElementById('weather-slider');
