@@ -104,102 +104,77 @@
     <div id="waypointInfo"></div>
     <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
 	
-	<!-- NAVIS Vertikales Wetter Control Panel (Unten Rechts, 50% Höhe, 180px Breite) -->
-<div id="navis-weather-panel" style="
-    position: absolute; 
-    bottom: 20px; 
-    right: 20px; 
-    z-index: 1000; 
-    height: 50vh; 
-    width: 180px; 
-    background: rgba(0, 43, 58, 0.55); /* Harmonisch abgestimmtes NAVIS-Blau mit Transparenz */
-    backdrop-filter: blur(8px); 
-    -webkit-backdrop-filter: blur(8px);
-    border-radius: 10px; 
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5); 
-    font-family: 'Segoe UI', -apple-system, sans-serif;
-    padding: 12px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid rgba(0, 85, 102, 0.4); /* NAVIS Rahmenfarbe */
-">
-    <!-- Header: Titel und Revierauswahl -->
-    <div style="margin-bottom: 10px; flex-shrink: 0;">
-        <div style="font-weight: bold; color: #00ffff; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
-            <span>💨</span> NAVIS Weather 72h
-        </div>
-        <select id="weather-file-select" onchange="loadNewWeatherData(this.value)" style="
-            width: 100%; 
-            padding: 5px; 
-            border-radius: 4px; 
-            border: 1px solid #007a99; 
-            background: #003d52;
-            font-size: 12px;
-            color: #00ffff;
-            outline: none;
-            font-weight: bold;
-            cursor: pointer;
-        ">
-            <option value="">-- Revier --</option>
-        </select>
-    </div>
-    
-    <!-- Mittlerer Bereich: Rotiert zentrierter Vertikal-Slider + Zeitanzeige -->
-        <!-- Mitte: Vertikal-Slider + Reale Zeitanzeige -->
-    <div style="
-        flex-grow: 1; display: flex; align-items: center; justify-content: space-between;
-        margin: 5px 0; position: relative; overflow: hidden;
-    ">
-        <div style="width: 35px; height: 100%; display: flex; align-items: center; justify-content: center; position: relative;">
-            <input type="range" id="weather-slider" min="0" max="71" value="0" oninput="updateWeatherFrame(this.value)" disabled style="
-                position: absolute; width: 110px; height: 6px; transform: rotate(90deg);
-                cursor: pointer; accent-color: #00ffff; margin: 0; background: rgba(0, 122, 153, 0.3); border-radius: 3px;
-            ">
-        </div>
-        
-        <div style="display: flex; flex-direction: column; justify-content: center; flex-grow: 1; text-align: center; padding-right: 5px;">
-            <div id="weather-time-label" style="font-size: 24px; font-weight: bold; color: #00ffff; line-height: 1; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">+0h</div>
-            <!-- Hier wird das reale Datum/Uhrzeit live eingeblendet -->
-            <div id="weather-real-time" style="font-size: 11px; color: #00ffaa; font-weight: bold; margin-top: 5px; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,0.6);">--.--.<br>--:--</div>
-        </div>
-    </div>
-    
-    <!-- Footer: Integrierte Info-Bar (Wellen & Wind) -->
-    <div id="weather-info-bar" style="
-        margin-top: auto; 
-        font-size: 11px; 
-        color: #ffffff; 
-        border-top: 1px solid rgba(0, 85, 102, 0.4); 
-        padding-top: 8px; 
-        display: none;
-        line-height: 1.4;
-        flex-shrink: 0;
-        background: rgba(0, 61, 82, 0.4);
-        margin-left: -12px;
-        margin-right: -12px;
-        margin-bottom: -12px;
-        padding-left: 12px;
-        padding-right: 12px;
-        padding-bottom: 12px;
-        border-bottom-left-radius: 10px;
-        border-bottom-right-radius: 10px;
-    ">
-		<div style="display: flex; justify-content: space-between;">
-			<span style="color: #00ffaa;">Wind:</span> <span id="info-wind" style="font-weight: bold; color: #00ffff;">-- kn / --°</span>
+<!-- NAVIS Vertikales Wetter Control Panel (Unten Rechts, 50% Höhe, 180px Breite) -->
+<div id="navis-weather-panel" style="position: absolute; bottom: 20px; right: 20px; z-index: 1000; height: 60vh; width: 220px; background: rgba(0, 43, 58, 0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: 'Segoe UI', -apple-system, sans-serif; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; border: 1px solid rgba(0, 85, 102, 0.4);">
+	<!-- Header: Titel und Revierauswahl -->
+	<div style="margin-bottom: 10px; flex-shrink: 0;">
+		<div style="font-weight: bold; color: #00ffff; font-size: 11px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
+			<span>💨</span> NAVIS Weather 72h
 		</div>
-        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-            <span style="color: #00ffaa;">Welle:</span> <span id="info-wave-h" style="font-weight: bold; color: #00ffff;">-- m</span>
-        </div>
-		 <div style="display: flex; justify-content: space-between; margin-top: 2px;">
-            <span style="color: #00ffaa;">Wellenlauf:</span> 
-            <span id="info-wave-d" style="font-weight: bold; color: #00ffff;">--°</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-top: 2px;">
-            <span style="color: #00ffaa;">Periode:</span> 
-            <span id="info-wave-p" style="font-weight: bold; color: #00ffff;">-- s</span>
-        </div>
-    </div>
+		<select id="weather-file-select" onchange="loadNewWeatherData(this.value)" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #007a99; background: #003d52; font-size: 12px; color: #00ffff; outline: none; font-weight: bold; cursor: pointer;">
+			<option value="">-- Revier --</option>
+		</select>
+	</div>
+
+	<!-- NAVIS Weather Datenzentrum -->
+	<div style="flex-grow: 1; display: flex; align-items: center; justify-content: space-between; margin: 3px 0; position: relative; overflow: hidden;">
+		
+		<!-- Slider -->
+		<div style="width: 35px; height: 80%; display: flex; align-items: center; justify-content: center; position: relative;">
+			<input type="range" id="weather-slider" min="0" max="71" value="0" oninput="updateWeatherFrame(this.value)" disabled style="position: absolute; width: 110px; height: 6px; transform: rotate(90deg); cursor: pointer; accent-color: #00ffff; margin: 0; background: rgba(0,122,153,0.3); border-radius: 3px;">
+		</div>
+
+		<!-- Wetterdaten -->
+		<div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; padding-right: 4px;">
+
+			<!-- Forecast Zeit -->
+			<div id="weather-time-label" style="font-size: 24px; font-weight: bold; color: #00ffff; line-height: 1;">+0h</div>
+			<div id="weather-real-time" style="font-size: 11px; color: #00ffaa; font-weight: bold; margin-top: 4px; line-height: 1.2;">--.--.<br>--:--</div>
+
+			<!-- Trennlinie -->
+			<div style="height: 1px; margin: 12px 0; background: rgba(0,255,255,0.2);"></div>
+
+			<!-- Layer Steuerung -->
+			<label style="display: flex; align-items: center; gap: 5px; color: #ffffff; font-size: 11px; cursor: pointer; justify-content: center;">
+				<input type="checkbox" id="show-wind-layer" checked> Wind
+			</label>
+			<label style="display: flex; align-items: center; gap: 5px; color: #ffffff; font-size: 11px; cursor: pointer; justify-content: center; margin-top: 4px;">
+				<input type="checkbox" id="show-current-layer" checked> Strömung
+			</label>
+		</div>
+	</div>
+ 
+	<div id="weather-info-bar" style="margin-top: auto; font-size: 11px; color: #ffffff; border-top: 1px solid rgba(0, 85, 102, 0.4); padding-top: 8px; display: none; line-height: 1.4; flex-shrink: 0; background: rgba(0, 61, 82, 0.4); margin-left: -12px; margin-right: -12px; margin-bottom: -12px; padding-left: 12px; padding-right: 12px; padding-bottom: 12px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">
+
+		<!-- Wind -->
+		<div style="display:flex; justify-content:space-between;">
+			<span style="color:#00ffaa;">Wind:</span>
+			<span id="info-wind" style="font-weight:bold; color:#00ffff;">-- kn / --°</span>
+		</div>
+
+		<!-- Welle (Kompakt in einer Zeile) -->
+		<div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px;">
+			<div><span style="color: #00ffaa;">Welle:</span> <span id="info-wave-h" style="font-weight: bold; color: #00ffff;">-- m</span></div>
+			<div><span style="color: #00ffaa;">Lauf:</span> <span id="info-wave-d" style="font-weight: bold; color: #00ffff;">--°</span></div>
+			<div><span style="color: #00ffaa;">Periode:</span> <span id="info-wave-p" style="font-weight: bold; color: #00ffff;">-- s</span></div>
+		</div>
+
+		<!-- Trennlinie -->
+		<div style="height:1px; margin:8px 0; background:rgba(0,255,255,0.15);"></div>
+
+		<!-- Strömung (Kompakt in einer Zeile) -->
+		<div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px;">
+			<div><span style="color: #00ffaa;">Strömung:</span> <span id="current-speed" style="font-weight: bold; color: #00ffff;">-- kn</span></div>
+			<div><span style="color: #00ffaa;">Richtung:</span> <span id="current-direction" style="font-weight: bold; color: #00ffff;">--°</span></div>
+		</div>
+
+		<!-- Wasserstand -->
+		<div style="height:1px; margin:8px 0; background:rgba(0,255,255,0.15);"></div>
+		<div style="display:flex; justify-content:space-between;">
+			<span style="color:#00ffaa;">Wasserst.:</span>
+			<span id="tide-height" style="font-weight:bold; color:#00ffff;">-- m</span>
+		</div>
+	</div>
 </div>
 
 </div>
@@ -264,7 +239,6 @@ let liveTrackLine = null;
 /* ----------------------------------------------------------------------
    ⛵ NAVIS 72h Offline-Wettersystem - JavaScript-Steuerung (PC & Boot)
    ---------------------------------------------------------------------- */
-
 let activeWeatherData = null; // Speichert das geladene 72h-Paket im RAM
 let currentWindLayer = null;   // Referenz auf die aktuell animierten Windfäden
 
@@ -516,6 +490,10 @@ function updateInfoBarAtLatLng(latlng) {
 		document.getElementById('info-wave-h').innerText = "-- m";
 		document.getElementById('info-wave-d').innerText = "--°";
 		document.getElementById('info-wave-p').innerText = "-- s";
+
+		document.getElementById('current-speed').innerText = "-- kn";
+		document.getElementById('current-direction').innerText = "--°";
+		document.getElementById('tide-height').innerText = "-- m";
 		return;
 	}
     
@@ -577,29 +555,100 @@ function updateInfoBarAtLatLng(latlng) {
 		(1 - yFactor) * ((1 - xFactor) * wp00 + xFactor * wp10) +
 		yFactor * ((1 - xFactor) * wp01 + xFactor * wp11);
 		
-    // 6. Nautische Berechnungen basierend auf den geglätteten Werten
-    const speedMS = Math.sqrt(u_interpolated * u_interpolated + v_interpolated * v_interpolated);
-    const speedKnots = Math.round(speedMS * 1.94384);
-    
-    // Herkunftsrichtung berechnen
-    let angleRad = Math.atan2(v_interpolated, u_interpolated);
-    let angleDeg = angleRad * (180 / Math.PI);
-    let windDirectionDeg = Math.round(270 - angleDeg) % 360;
-    
-    if (windDirectionDeg === 0 && speedKnots > 0) {
-        windDirectionDeg = 360;
-    }
     
     // 7. Ausgabe ins Cockpit-Display
-	console.log("info-wind", document.getElementById('info-wind'));
-	console.log("info-wave-h", document.getElementById('info-wave-h'));
-	console.log("info-wave-d", document.getElementById('info-wave-d'));
-	console.log("info-wave-p", document.getElementById('info-wave-p'));
+// --------------------------------------------------
+// Strömung interpolieren
+// --------------------------------------------------
 
-	document.getElementById('info-wind').innerText = `${speedKnots} kn / ${windDirectionDeg}°`;
-	document.getElementById('info-wave-h').innerText = waveH_interpolated > 0.05 ? `${waveH_interpolated.toFixed(1)} m` : "0.0 m";
-	document.getElementById('info-wave-d').innerText = waveD_interpolated > 0 ? `${Math.round(waveD_interpolated)}°` : "--°";
-	document.getElementById('info-wave-p').innerText = waveP_interpolated > 0 ? `${waveP_interpolated.toFixed(1)} s` : "-- s";
+const cu00 = (frame.current_u ? frame.current_u[getIdx(x0, y0)] : 0) || 0;
+const cu10 = (frame.current_u ? frame.current_u[getIdx(x1, y0)] : 0) || 0;
+const cu01 = (frame.current_u ? frame.current_u[getIdx(x0, y1)] : 0) || 0;
+const cu11 = (frame.current_u ? frame.current_u[getIdx(x1, y1)] : 0) || 0;
+
+const currentU =
+    (1 - yFactor) * ((1 - xFactor) * cu00 + xFactor * cu10) +
+    yFactor * ((1 - xFactor) * cu01 + xFactor * cu11);
+
+const cv00 = (frame.current_v ? frame.current_v[getIdx(x0, y0)] : 0) || 0;
+const cv10 = (frame.current_v ? frame.current_v[getIdx(x1, y0)] : 0) || 0;
+const cv01 = (frame.current_v ? frame.current_v[getIdx(x0, y1)] : 0) || 0;
+const cv11 = (frame.current_v ? frame.current_v[getIdx(x1, y1)] : 0) || 0;
+
+const currentV =
+    (1 - yFactor) * ((1 - xFactor) * cv00 + xFactor * cv10) +
+    yFactor * ((1 - xFactor) * cv01 + xFactor * cv11);
+
+// --------------------------------------------------
+// Wasserstand interpolieren
+// --------------------------------------------------
+
+const th00 = (frame.tide_height ? frame.tide_height[getIdx(x0, y0)] : 0) || 0;
+const th10 = (frame.tide_height ? frame.tide_height[getIdx(x1, y0)] : 0) || 0;
+const th01 = (frame.tide_height ? frame.tide_height[getIdx(x0, y1)] : 0) || 0;
+const th11 = (frame.tide_height ? frame.tide_height[getIdx(x1, y1)] : 0) || 0;
+
+const tideInterpolated =
+    (1 - yFactor) * ((1 - xFactor) * th00 + xFactor * th10) +
+    yFactor * ((1 - xFactor) * th01 + xFactor * th11);
+
+// --------------------------------------------------
+// Wind
+// --------------------------------------------------
+
+const speedMS = Math.sqrt(
+    u_interpolated * u_interpolated +
+    v_interpolated * v_interpolated
+);
+
+const speedKnots = Math.round(speedMS * 1.94384);
+
+let angleRad = Math.atan2(v_interpolated, u_interpolated);
+let angleDeg = angleRad * (180 / Math.PI);
+
+let windDirectionDeg =
+    Math.round(270 - angleDeg) % 360;
+
+if (windDirectionDeg === 0 && speedKnots > 0) {
+    windDirectionDeg = 360;
+}
+
+// --------------------------------------------------
+// Strömung
+// --------------------------------------------------
+
+const currentKnots = Math.sqrt(
+    currentU * currentU +
+    currentV * currentV
+);
+
+let currentAngle =
+    Math.atan2(currentU, currentV) *
+    180 / Math.PI;
+
+currentAngle =
+    (currentAngle + 360) % 360;
+
+// --------------------------------------------------
+// Ausgabe
+// --------------------------------------------------
+
+document.getElementById('info-wind').innerText = `${speedKnots} kn / ${windDirectionDeg}°`;
+
+document.getElementById('info-wave-h').innerText = waveH_interpolated.toFixed(1) + " m";
+
+document.getElementById('info-wave-d').innerText = Math.round(waveD_interpolated) + "°";
+
+document.getElementById('info-wave-p').innerText = waveP_interpolated.toFixed(1) + " s";
+
+document.getElementById('current-speed').innerText =
+    `${currentKnots.toFixed(1)} kn`;
+
+document.getElementById('current-direction').innerText =
+    `${Math.round(currentAngle)}°`;
+
+document.getElementById('tide-height').innerText =
+    `${tideInterpolated.toFixed(2)} m`;
 }
 
 
