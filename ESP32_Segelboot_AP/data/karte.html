@@ -241,6 +241,8 @@ let liveTrackLine = null;
    ---------------------------------------------------------------------- */
 let activeWeatherData = null; // Speichert das geladene 72h-Paket im RAM
 let currentWindLayer = null;   // Referenz auf die aktuell animierten Windfäden
+let currentLayer = null;       // NEU: Referenz auf die aktuell animierten Strömungsfäden
+
 
 /**
  * 1. Initialisierung beim Laden der Seite
@@ -372,106 +374,153 @@ let currentHourIdx = 0; // Speichert global die aktuell eingestellte Slider-Stun
 /**
  * 3. Slider-Bewegung verarbeiten & Wetter-Frame rendern
  */
+let currentHourIdx = 0; // Speichert global die aktuell eingestellte Slider-Stunde
+let currentWindLayer = null; // Referenz auf die aktuell animierten Windfäden
+let currentCurrentLayer = null; // NEU: Referenz auf die aktuell animierten Strömungsfäden
+
+/**
+ * 3. Slider-Bewegung verarbeiten & Wetter-Frames rendern (Wind & Strömung)
+ */
 function updateWeatherFrame(hourIdx) {
     hourIdx = parseInt(hourIdx, 10);
     currentHourIdx = hourIdx; // Stunde global sichern für den Maus-Lauscher
     
     if (!activeWeatherData || !activeWeatherData.frames || !activeWeatherData.frames[hourIdx]) return;
-
+    
     const meta = activeWeatherData.metadata;
     const frame = activeWeatherData.frames[hourIdx];
-
+    
     // Zeitanzeige im Panel aktualisieren (+Xh)
     const timeLabel = document.getElementById('weather-time-label');
-    if (timeLabel) timeLabel.innerText = `+${hourIdx}h`;
-	
+    if (timeLabel) timeLabel.innerText = `+${hourIdx} h`;
+    
     // Reale Uhrzeit berechnen (Basis 'created' + Slider-Stunden)
-const realTimeLabel = document.getElementById('weather-real-time');
-if (realTimeLabel && frame.time) {
-    const forecastDate = new Date(frame.time);
-    const datum = forecastDate.toLocaleDateString(
-        'de-DE',
-        {
-            weekday: 'short',
-            day: '2-digit',
-            month: '2-digit'
-        }
-    );
-    const zeit = forecastDate.toLocaleTimeString(
-        'de-DE',
-        {
-            hour: '2-digit',
-            minute: '2-digit'
-        }
-    );
-    realTimeLabel.innerHTML = `${datum}<br>${zeit}`;
-}
-	
-    // Alten Wind-Layer entfernen
+    const realTimeLabel = document.getElementById('weather-real-time');
+    if (realTimeLabel && frame.time) {
+        const forecastDate = new Date(frame.time);
+        const datum = forecastDate.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+        const zeit = forecastDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        realTimeLabel.innerHTML = `${datum}<br>${zeit}`;
+    }
+    
+    // --------------------------------------------------
+    // ALTE LAYER ENTFERNEN
+    // --------------------------------------------------
     if (currentWindLayer) {
         map.removeLayer(currentWindLayer);
+        currentWindLayer = null;
     }
-
-    // GRIB-U/V-Struktur für leaflet-velocity konvertieren
-    const velocityData = [
-        {
-            "header": {
-                "refTime": meta.created,
-                "la1": meta.la1, "lo1": meta.lo1,
-                "la2": meta.la2, "lo2": meta.lo2,
-                "dx": meta.dx, "dy": meta.dy,
-                "nx": meta.nx, "ny": meta.ny,
-                "parameterCategory": 2, "parameterNumber": 2,
-                "parameterNumberName": "U-component_of_wind"
-            },
-            "data": frame.wind_u
-        },
-        {
-            "header": {
-                "refTime": meta.created,
-                "la1": meta.la1, "lo1": meta.lo1,
-                "la2": meta.la2, "lo2": meta.lo2,
-                "dx": meta.dx, "dy": meta.dy,
-                "nx": meta.nx, "ny": meta.ny,
-                "parameterCategory": 2, "parameterNumber": 3,
-                "parameterNumberName": "V-component_of_wind"
-            },
-            "data": frame.wind_v
-        }
-    ];
-
-    // 60 Micro-Farbstufen generieren (Ihr bewährter fließender Verlauf)
-    const ankerFarben = [
-        { r: 0,   g: 85,  b: 102 }, { r: 0,   g: 229, b: 255 }, 
-        { r: 0,   g: 255, b: 136 }, { r: 255, g: 170, b: 0   }, { r: 255, g: 0,   b: 85  }
-    ];
-    const hochaufloesendeSkala = [];
-    for (let i = 0; i < 60; i++) {
-        const pos = (i / 59) * (ankerFarben.length - 1);
-        const idx = Math.floor(pos);
-        const rst = pos - idx;
-        const fA = ankerFarben[idx];
-        const fB = ankerFarben[idx + 1] || fA;
-        const r = Math.round(fA.r + (fB.r - fA.r) * rst);
-        const g = Math.round(fA.g + (fB.g - fA.g) * rst);
-        const b = Math.round(fA.b + (fB.b - fA.b) * rst);
-        hochaufloesendeSkala.push("#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1));
+    if (currentCurrentLayer) {
+        map.removeLayer(currentCurrentLayer);
+        currentCurrentLayer = null;
     }
-
-    currentWindLayer = L.velocityLayer({
-        displayValues: false, 
-        data: velocityData,
-        maxVelocity: 18, lineWidth: 2.5, frameRate: 35,
-        velocityScale: 0.006, particleAge: 80, particleMultiplier: 0.005,
-        colorScale: hochaufloesendeSkala
-    });
-
-    currentWindLayer.addTo(map);
     
-    // Trigger ein fiktives Maus-Event auf der aktuellen Kartenmitte, 
+    // Checkbox-Status auslesen
+    const showWind = document.getElementById('show-wind-layer')?.checked;
+    const showCurrent = document.getElementById('show-current-layer')?.checked;
+    
+    // Farbskalen-Generator Hilfsfunktion
+    const generateScale = (ankerFarben) => {
+        const hochaufloesendeSkala = [];
+        for (let i = 0; i < 60; i++) {
+            const pos = (i / 59) * (ankerFarben.length - 1);
+            const idx = Math.floor(pos);
+            const rst = pos - idx;
+            const fA = ankerFarben[idx];
+            const fB = ankerFarben[idx + 1] || fA;
+            const r = Math.round(fA.r + (fB.r - fA.r) * rst);
+            const g = Math.round(fA.g + (fB.g - fA.g) * rst);
+            const b = Math.round(fA.b + (fB.b - fA.b) * rst);
+            hochaufloesendeSkala.push("#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1));
+        }
+        return hochaufloesendeSkala;
+    };
+    
+    // --------------------------------------------------
+    // WIND LAYER RENDERN
+    // --------------------------------------------------
+    if (showWind && frame.wind_u && frame.wind_v) {
+        const velocityDataWind = [
+            {
+                "header": {
+                    "refTime": meta.created, "la1": meta.la1, "lo1": meta.lo1, "la2": meta.la2, "lo2": meta.lo2,
+                    "dx": meta.dx, "dy": meta.dy, "nx": meta.nx, "ny": meta.ny,
+                    "parameterCategory": 2, "parameterNumber": 2, "parameterNumberName": "U-component_of_wind"
+                },
+                "data": frame.wind_u
+            },
+            {
+                "header": {
+                    "refTime": meta.created, "la1": meta.la1, "lo1": meta.lo1, "la2": meta.la2, "lo2": meta.lo2,
+                    "dx": meta.dx, "dy": meta.dy, "nx": meta.nx, "ny": meta.ny,
+                    "parameterCategory": 2, "parameterNumber": 3, "parameterNumberName": "V-component_of_wind"
+                },
+                "data": frame.wind_v
+            }
+        ];
+        
+        // Bewährter fließender Verlauf für Wind (Cyan -> Grün -> Orange -> Rot)
+        const windAnker = [
+            { r: 0, g: 85, b: 102 }, { r: 0, g: 229, b: 255 }, { r: 0, g: 255, b: 136 }, 
+            { r: 255, g: 170, b: 0 }, { r: 255, g: 0, b: 85 }
+        ];
+        
+        currentWindLayer = L.velocityLayer({
+            displayValues: false,
+            data: velocityDataWind,
+            maxVelocity: 18, lineWidth: 2.5, frameRate: 35,
+            velocityScale: 0.006, particleAge: 80, particleMultiplier: 0.005,
+            colorScale: generateScale(windAnker)
+        });
+        currentWindLayer.addTo(map);
+    }
+    
+    // --------------------------------------------------
+    // STRÖMUNG LAYER RENDERN (NEU)
+    // --------------------------------------------------
+    if (showCurrent && frame.current_u && frame.current_v) {
+        const velocityDataCurrent = [
+            {
+                "header": {
+                    "refTime": meta.created, "la1": meta.la1, "lo1": meta.lo1, "la2": meta.la2, "lo2": meta.lo2,
+                    "dx": meta.dx, "dy": meta.dy, "nx": meta.nx, "ny": meta.ny,
+                    "parameterCategory": 2, "parameterNumber": 2, "parameterNumberName": "U-component_of_current"
+                },
+                "data": frame.current_u
+            },
+            {
+                "header": {
+                    "refTime": meta.created, "la1": meta.la1, "lo1": meta.lo1, "la2": meta.la2, "lo2": meta.lo2,
+                    "dx": meta.dx, "dy": meta.dy, "nx": meta.nx, "ny": meta.ny,
+                    "parameterCategory": 2, "parameterNumber": 3, "parameterNumberName": "V-component_of_current"
+                },
+                "data": frame.current_v
+            }
+        ];
+        
+        // Eigene, marineblaue/aquatische Skala für die Strömung zur perfekten Unterscheidung
+        const currentAnker = [
+            { r: 0, g: 30, b: 60 }, { r: 0, g: 100, b: 180 }, { r: 0, g: 180, b: 220 }, 
+            { r: 100, g: 230, b: 255 }, { r: 200, g: 255, b: 255 }
+        ];
+        
+        currentCurrentLayer = L.velocityLayer({
+            displayValues: false,
+            data: velocityDataCurrent,
+            maxVelocity: 4, // Strömung ist langsamer als Wind -> Skalierungs-Maximum angepasst
+            lineWidth: 2.0, frameRate: 35,
+            velocityScale: 0.03, // Höhere Gewichtung, damit langsame Meeresströmungen sichtbar fließen
+            particleAge: 100, particleMultiplier: 0.007,
+            colorScale: generateScale(currentAnker)
+        });
+        currentCurrentLayer.addTo(map);
+    }
+    
+    // Trigger ein fiktives Maus-Event auf der aktuellen Kartenmitte,
     // damit die Info-Bar beim Slider-Schieben sofort die neuen Werte anzeigt
     updateInfoBarAtLatLng(map.getCenter());
 }
+
 
 /**
  * Kernfunktion: Berechnet aus einer Maus-Koordinate (Lat/Lng) den nächstgelegenen 
@@ -690,6 +739,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 500);
 });
 
+// Registriere das Live-Umschalten beim Anklicken der Checkboxen
+document.addEventListener("DOMContentLoaded", () => {
+    const cbWind = document.getElementById('show-wind-layer');
+    const cbCurrent = document.getElementById('show-current-layer');
+    
+    if (cbWind) cbWind.addEventListener('change', () => updateWeatherFrame(currentHourIdx));
+    if (cbCurrent) cbCurrent.addEventListener('change', () => updateWeatherFrame(currentHourIdx));
+});
 
 // Handler im DOMContentLoaded registrieren
 document.addEventListener("DOMContentLoaded", () => {
