@@ -6,7 +6,9 @@ This project features a highly optimized, marine-grade system architecture power
 Built **by sailors, for sailors**, the entire infrastructure is fully modular, hardened against the rigorous environmental demands of blue-water routing, and operates completely platform-independent through any modern web browser.
 
 ![Nautical Chart Plotter Interface](Karte.png)
+Karte
 ![Nautical Chart Plotter Interface](Wind.png)
+Wettersystem
 ![Nautical Chart Plotter Interface](Wellen.png)
 
 ---
