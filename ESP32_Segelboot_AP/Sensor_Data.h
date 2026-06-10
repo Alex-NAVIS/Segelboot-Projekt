@@ -51,6 +51,8 @@ struct SensorData {
   // GPS-Daten (TinyGPS++)
   double gps_lat;    // Geografische Breite (WGS84)
   double gps_lon;    // Geografische Länge (WGS84)
+  double gps_predict_lat; // AHRS-Prädiktion Latitude (Koppelnavigation)
+  double gps_predict_lon; // AHRS-Prädiktion Longitude (Koppelnavigation)
   double gps_speed;  // SOG (Speed Over Ground) in kn/h
   double gps_kurs;   // COG (Course Over Ground) (°)
   int gps_sats;      // Anzahl empfangener Satelliten
@@ -117,6 +119,7 @@ struct extern_SensorData {
   int gps_stunde;   // UTC Stunde (0–23)
   int gps_minute;   // UTC Minute (0–59)
   int gps_sekunde;  // UTC Sekunde (0–59)
+
     // Windsensoren (AS5600 & Encoder)
   double winddir_gemessen;     // Scheinbarer Windwinkel (relativ zum Bug) (°)
   double windspeed_gemessen;   // Scheinbare Windgeschwindigkeit (kn/h)

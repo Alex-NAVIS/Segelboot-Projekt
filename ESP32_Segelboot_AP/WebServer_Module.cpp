@@ -720,6 +720,26 @@ void handleTrack(AsyncWebServerRequest *request) {
   request->send(200, "application/json", out);
 }
 
+void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  String json;
+  for (size_t i = 0; i < len; i++) {
+    json += (char)data[i];
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, json)) {
+    request->send(400, "text/plain", "JSON Fehler");
+    return;
+  }
+  String filename = doc["name"].as<String>();
+  filename.replace(" ", "_");
+  filename.toLowerCase();
+  String path = "/polar/" + filename + ".json";
+  File file = LittleFS.open(path, "w");
+  serializeJsonPretty(doc, file);
+  file.close();
+  request->send(200, "text/plain", "OK");
+}
+
 // ======================================================================
 // Bezeichnung: setupWebServer
 // Erklärung:   Zentrale Konfigurationsinstanz des asynchronen Webservers.
@@ -753,7 +773,43 @@ void setupWebServer() {
   server.on("/autopilot", HTTP_GET, handleAutopilotTarget);
   server.on("/track", HTTP_GET, handleTrack);
 
-  // 3. Alarm Systeme
+  // 3. NAVIS-Bootsprofilmanager
+  server.on("/api/polar/list", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    JsonArray arr = doc.to<JsonArray>();
+    File root = LittleFS.open("/polar");
+    File file = root.openNextFile();
+    while (file) {
+      String name = file.name();
+      if (name.endsWith(".json")) {
+        name.replace("/polar/", "");
+        arr.add(name);
+      }
+      file = root.openNextFile();
+    }
+    String output;
+    serializeJson(doc, output);
+    request->send(200, "application/json", output);
+  });
+
+  server.on("/api/polar/load", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (!request->hasParam("file")) {
+      request->send(400, "text/plain", "missing file");
+      return;
+    }
+    String fileName = request->getParam("file")->value();
+    String path = "/polar/" + fileName;
+    if (!LittleFS.exists(path)) {
+      request->send(404, "text/plain", "not found");
+      return;
+    }
+    request->send(LittleFS, path, "application/json");
+  });
+
+  server.on("/api/polar/save", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL, handlePolarSave);
+
+
+  // 4. Alarm Systeme
   server.on(
     "/saveAlarms", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL, handleAlarm);
   server.on("/getAlarms", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -785,11 +841,9 @@ void setupWebServer() {
     request->send(200, "application/json", json);
   });
 
-
   // 4. Wetter Wellen
   server.on("/Wetter/index.json", HTTP_GET, handleWetterIndex);
   server.on("/Wetter/*", HTTP_GET, handleWetterRequest);
-
 
   // 5. Logbuch Einträge
   server.on("/logbook", HTTP_GET, [](AsyncWebServerRequest *request) {

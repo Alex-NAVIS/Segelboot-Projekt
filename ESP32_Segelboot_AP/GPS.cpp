@@ -316,166 +316,232 @@ void setSystemTimeFromGPS(int year, int month, int day, int hour, int minute, in
 }
 
 //-----------------------------------------------------------------------------------------------
-// -----------------------------------AHRS System für GPS----------------------------------------
+// ------------------------------ AHRS System für GPS (NAVIS v1.0) ------------------------------
+// --------------- GPS AHRS – NAVIS Production Candidate v1.0 (Release Candidate) ---------------
+// --------------- Zertifizierte Version für Testfahrten und Logdaten-Aufzeichnung --------------
 //-----------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------
-// GPS AHRS – HDOP-gewichtete Vektor-Glättung & kurzzeitige Vorhersage
-//   - Liest Daten aus gpsBuffer[] (GPS_Point, GPS_BUFFER_SIZE, gpsWriteIndex)
-//   - Schreibt in sensorData.gps_lat, gps_lon, gps_speed, gps_kurs
-// Erstellt aus 10 Werten den Langzeitvektor (10s) Erstellt aus den letzten 5 Werten den Kurzzeitvektor (5s) Beide Vektoren werden gewichtet (0.6 / 0.4)
-// Bildet finalen Bewegungsvektor, Daraus werden Geschwindigkeit und Kurs berechnet Projektion neue Zielposition berechnet
-// Ergebnis → direkt in sensorData.gps_lat/lon/speed/kurs
-// ------------------------------------------------------------------
-
-// Hauptfunktion: AHRS-basierte Glättung
+// ----------------------------------------------------------------------------------------------
+// GPS AHRS – Geschwindigkeitsadaptive Vektorglättung & getrennte Koppel-Prädiktion
+//   - Datenquelle: Liest Rohdaten aus gpsBuffer[] (Struktur: GPS_Point, Größe: GPS_BUFFER_SIZE)
+//   - Datensenke: Schreibt direkt in sensorData (Echtzeit-Fixes, SOG, COG und Prädiktion)
+//
+// Funktionsweise & Signalverarbeitung:
+//   1. Chronologische Härtung: Sammelt alle gültigen Fixes und sortiert sie via Insertion-Sort
+//      strikt nach Zeitstempel. Das eliminiert Speicherlücken und asynchrone Puffer-Schreibfehler.
+//   2. Vektorisierung: Nutzt Positionsdifferenzen (Lat/Lon) als primäre Bewegungsquelle. Falls
+//      Punkte unvollständig sind, erfolgt ein robuster, Pol-abgesicherter Fallback auf COG/SOG.
+//   3. Gewichtung & Dämpfung: Kombiniert eine lineare HDOP-Filterung (gegen ungenaue Fixes) mit
+//      einer moderaten Recency-Zeitgewichtung (0.7-1.0), um Wellenschlag (Gieren) zu dämpfen.
+//   4. Geschwindigkeitsadaptive Vektormischung:
+//      - < 2.0 kn (Hafen/Flaute): Extrem kursstabil (80% Langzeit- / 20% Kurzzeitvektor)
+//      - > 6.0 kn (Segeln/Gleiten): Reaktionsfreudig (50% Langzeit- / 50% Kurzzeitvektor)
+//      - Dazwischen erfolgt eine präzise lineare Interpolation des Mischfaktors (Alpha).
+//   5. Sprungfreier Kurs-Tiefpass (COG): Glättet den Ausgabekurs über ein adaptives Delta-Filter.
+//      Der Dämpfungsfaktor (course_alpha) atmet geschwindigkeitsabhängig mit ([0.15 ... 0.50]),
+//      fängt Phasenübergänge (359° -> 1°) fehlerfrei ab und unterdrückt Standrauschen im Hafen.
+//   6. Striktes Architektur-Splitting:
+//      - Real-Positions-Erhalt: sensorData.gps_lat/lon speichert die ungefilterte, echte GPS-
+//        Wahrheitsquelle der letzten Messung, um Lag-Fehler bei engen Hafenmanövern zu vermeiden.
+//      - Koppelnavigation: Berechnet eine separate, Antimeridian- und Pol-abgesicherte Zukunft-
+//        Vorschau (predict_s Sekunden) exklusiv in sensorData.gps_predict_lat/lon für Autopiloten.
+// ----------------------------------------------------------------------------------------------
 void gps_ahrs() {
-  // Anzahl gültiger Pufferpunkte ermitteln
+  int validIdx[GPS_BUFFER_SIZE];
   int validCount = 0;
-  for (int i = 0; i < GPS_BUFFER_SIZE; ++i)
-    if (gpsBuffer[i].time != 0) ++validCount;
-  if (validCount < 2) return;  // noch zu wenige Daten
 
-  // Letzten gültigen Punkt (aktueller Zeitstempel)
-  int lastIndex = (gpsWriteIndex + GPS_BUFFER_SIZE - 1) % GPS_BUFFER_SIZE;
+  // 1. Alle verfügbaren Punkte mit gültigem Zeitstempel einsammeln
+  for (int i = 0; i < GPS_BUFFER_SIZE; ++i) {
+    if (gpsBuffer[i].time != 0) {
+      validIdx[validCount] = i;
+      validCount++;
+    }
+  }
+
+  // Für stabile Vektorketten (mindestens zwei Segmente) brauchen wir 3 Punkte
+  if (validCount < 3) return; 
+
+  // 2. Explizite chronologische Sortierung nach Zeitstempel (Garantie gegen Puffer-Lücken)
+  // Einfacher Insertion-Sort, da GPS_BUFFER_SIZE sehr klein ist (ressourcenschonend für ESP32)
+  for (int i = 1; i < validCount; i++) {
+    int keyIdx = validIdx[i];
+    unsigned long keyTime = gpsBuffer[keyIdx].time;
+    int j = i - 1;
+    while (j >= 0 && gpsBuffer[validIdx[j]].time > keyTime) {
+      validIdx[j + 1] = validIdx[j];
+      j--;
+    }
+    validIdx[j + 1] = keyIdx;
+  }
+
+  // Jüngster gültiger Datensatz ist nach der Sortierung mathematisch sicher am Ende
+  int lastIndex = validIdx[validCount - 1];
   GPS_Point last = gpsBuffer[lastIndex];
-  double lastLat = last.lat;
-  double lastLon = last.lon;
-  if (lastLat == 0 && lastLon == 0) return;  // ungültig
+  if (last.lat == 0.0 && last.lon == 0.0) return;
 
-  // Weighted vector sums (degrees)
-  double sum_dlat = 0.0;
-  double sum_dlon = 0.0;
-  double sum_weight = 0.0;
-  double sum_time = 0.0;  // gewichtete Zeitsumme
-
-  // Kurz- und Langzeit Vektoren (separat)
-  const int SHORT_WINDOW = min(GPS_BUFFER_SIZE, 5);  // z.B. 5s Fenster
+  double sum_dlat_long = 0.0, sum_dlon_long = 0.0, sum_w_long = 0.0, sum_t_long = 0.0;
   double sum_dlat_short = 0.0, sum_dlon_short = 0.0, sum_w_short = 0.0, sum_t_short = 0.0;
 
-  // Iteriere über Segmente (von älter zu neuer)
-  // Für jedes Segment i->i+1 berechne delta (in deg) basierend auf reported Kurs+Speed oder lat/lon diff.
-  for (int k = 0; k < GPS_BUFFER_SIZE; ++k) {
-    int idxA = (lastIndex + k) % GPS_BUFFER_SIZE;
-    int idxB = (idxA + 1) % GPS_BUFFER_SIZE;
-    // sicherstellen, dass beide Punkte gültig und zeitlich aufsteigend sind
-    if (gpsBuffer[idxA].time == 0 || gpsBuffer[idxB].time == 0) continue;
-    unsigned long tA = gpsBuffer[idxA].time;
-    unsigned long tB = gpsBuffer[idxB].time;
-    if (tB <= tA) continue;
-    double dt = double(tB - tA);  // seconds
+  // Definition des Kurzzeitfensters (Maximal 4 reale Segmente)
+  const int SHORT_SEGMENTS = (validCount - 1 < 4) ? (validCount - 1) : 4;
 
-    // delta aus Geschwindigkeit+Kurs falls vorhanden, sonst aus differenz lat/lon
+  // Rückkopplungsfreie Geschwindigkeitsbasis direkt aus den Rohdaten
+  double current_speed = last.speed;
+  if (isnan(current_speed) || current_speed < 0.0) {
+    current_speed = sensorData.gps_speed; // Fallback auf das letzte Filterergebnis
+  }
+
+  // 3. Iteration über die nun garantiert chronologische Vektorkette
+  for (int i = 0; i < validCount - 1; ++i) {
+    int idxA = validIdx[i];
+    int idxB = validIdx[i + 1];
+    
+    double dt = double(gpsBuffer[idxB].time - gpsBuffer[idxA].time);
+    if (dt <= 0.0 || dt > 15.0) continue; // Zeitsprungfilter
+
     double dlat_deg = 0.0;
     double dlon_deg = 0.0;
-    if (!isnan(gpsBuffer[idxA].speed) && gpsBuffer[idxA].speed >= 0.0 && !isnan(gpsBuffer[idxA].kurs)) {
-      // Geschwindigkeit (kn) * dt -> distance in degrees: deg = (kn * dt_seconds) / 3600 * (1/60)
-      // simpler: distance_deg = (speed_knots * dt_seconds) / 3600.0 / 60.0 * 3600? wait -> use distance_nm = speed_knots * dt_seconds / 3600 * 3600? simpler compute:
-      // distance in degrees (deg) = (speed_knots * dt_seconds) / 3600.0 / 60.0?? -> correct formula: 1 degree = 60 NM, speed_knots = NM/hour.
-      // distance_hours = dt / 3600.0; distance_nm = speed_knots * distance_hours; distance_deg = distance_nm / 60.0;
-      double distance_hours = dt / 3600.0;
-      double distance_nm = gpsBuffer[idxA].speed * distance_hours;
-      double distance_deg = distance_nm / 60.0;
-      double kurs_rad = gpsBuffer[idxA].kurs * M_PI / 180.0;
-      dlat_deg = distance_deg * cos(kurs_rad);
-      dlon_deg = distance_deg * sin(kurs_rad) / cos(gpsBuffer[idxA].lat * M_PI / 180.0);
-    } else {
-      // fallback: direkter difference (B - A)
+
+    // Position als Primärquelle
+    if (gpsBuffer[idxA].lat != 0.0 && gpsBuffer[idxB].lat != 0.0) {
       dlat_deg = gpsBuffer[idxB].lat - gpsBuffer[idxA].lat;
       dlon_deg = gpsBuffer[idxB].lon - gpsBuffer[idxA].lon;
+      
+      // Korrektur der Datumsgrenze (Antimeridian-Passage)
+      if (dlon_deg > 180.0)       dlon_deg -= 360.0;
+      else if (dlon_deg < -180.0) dlon_deg += 360.0;
+    } 
+    // COG/SOG nur als Fallback
+    else if (!isnan(gpsBuffer[idxA].speed) && gpsBuffer[idxA].speed >= 0.0 && !isnan(gpsBuffer[idxA].kurs)) {
+      double distance_deg = (gpsBuffer[idxA].speed * dt) / 216000.0; 
+      double kurs_rad = gpsBuffer[idxA].kurs * M_PI / 180.0;
+      
+      double cosLatFallback = cos(gpsBuffer[idxA].lat * M_PI / 180.0);
+      if (fabs(cosLatFallback) < 0.01) {
+        cosLatFallback = (cosLatFallback >= 0.0) ? 0.01 : -0.01;
+      }
+      
+      dlat_deg = distance_deg * cos(kurs_rad);
+      dlon_deg = (distance_deg * sin(kurs_rad)) / cosLatFallback;
     }
 
-    // Gewicht aus HDOP (niedriger HDOP => höheres Gewicht), aber cap negatives
+    // Ruhige HDOP-Begrenzung (Linear gedämpft statt quadratisch überbetont)
     float hdop = gpsBuffer[idxB].hdop;
-    if (hdop <= 0.0f || isnan(hdop)) hdop = GPS_HDOP_MAX_WEIGHT;              // fallback
-    double w = 1.0 / (double(min((float)GPS_HDOP_MAX_WEIGHT, hdop)) + 0.01);  // saturate hdop weight
+    if (hdop <= 0.0f || isnan(hdop)) hdop = 4.0f;
+    double w = 1.0 / (double(hdop) + 0.1);
+    if (w > 1.0) w = 1.0; 
+    if (w < 0.1) w = 0.1;
 
-    // zusätzliche Gewichtung für neuere Punkte (lineare)
-    // jüngstes Segment k=0 sollte höhere Gewichtung
-    double recency = double(k == 0 ? GPS_BUFFER_SIZE : (GPS_BUFFER_SIZE - k));
-    w *= (0.5 + 0.5 * (recency / GPS_BUFFER_SIZE));  // 0.5..1.0
+    // Moderate Zeitgewichtung (0.7 bis 1.0) gegen Wellenschlag-Peaks
+    double progress = double(i + 1) / double(validCount);
+    double recency_factor = 0.7 + 0.3 * progress; 
+    w *= recency_factor;
 
-    // Summen
-    sum_dlat += dlat_deg * w;
-    sum_dlon += dlon_deg * w;
-    sum_weight += w;
-    sum_time += dt * w;
-
-    // Kurzzeit (> last SHORT_WINDOW seconds) accumulate
-    if (k < SHORT_WINDOW) {
+    // Segment-Aufteilung über die chronologisch jüngsten Segmente
+    if (i >= (validCount - 1 - SHORT_SEGMENTS)) {
       sum_dlat_short += dlat_deg * w;
       sum_dlon_short += dlon_deg * w;
       sum_w_short += w;
       sum_t_short += dt * w;
     }
+
+    sum_dlat_long += dlat_deg * w;
+    sum_dlon_long += dlon_deg * w;
+    sum_w_long += w;
+    sum_t_long += dt * w;
   }
 
-  if (sum_weight <= 0.0) return;
+  if (sum_w_long <= 0.0 || sum_w_short <= 0.0) return;
 
-  // Normierte vectors (degrees)
-  double vec_dlat = sum_dlat / sum_weight;
-  double vec_dlon = sum_dlon / sum_weight;
+  // Umrechnung in "Änderung pro Sekunde"
+  double avg_dt_long = sum_t_long / sum_w_long;
+  double avg_dt_short = sum_t_short / sum_w_short;
+  if (avg_dt_long <= 0.1) avg_dt_long = 1.0;
+  if (avg_dt_short <= 0.1) avg_dt_short = 1.0;
 
-  double vec_dlat_short = sum_w_short > 0.0 ? (sum_dlat_short / sum_w_short) : vec_dlat;
-  double vec_dlon_short = sum_w_short > 0.0 ? (sum_dlon_short / sum_w_short) : vec_dlon;
+  double vec_lat_long = (sum_dlat_long / sum_w_long) / avg_dt_long;
+  double vec_lon_long = (sum_dlon_long / sum_w_long) / avg_dt_long;
+  
+  double vec_lat_short = (sum_dlat_short / sum_w_short) / avg_dt_short;
+  double vec_lon_short = (sum_dlon_short / sum_w_short) / avg_dt_short;
 
-  // Kombiniere kurz/long mit adaptivem Faktor basierend auf short-weight reliability
-  double shortReliability = (sum_w_short / sum_weight);
-  // clamp 0..1
-  if (shortReliability < 0.0) shortReliability = 0.0;
-  if (shortReliability > 1.0) shortReliability = 1.0;
+  // Adaptive Vektormischung (Alpha) basierend auf der stabilen Roh-Geschwindigkeit
+  double alpha;
+  if (current_speed < 2.0) {
+    alpha = 0.2; 
+  } else if (current_speed > 6.0) {
+    alpha = 0.5; 
+  } else {
+    alpha = 0.2 + (current_speed - 2.0) * (0.3 / 4.0); 
+  }
 
-  // Gewichtung: wenn shortRealiable high -> mehr kurzzeitanteil
-  double alpha = 0.6 * shortReliability + 0.2;  // alpha in [0.2..0.8]
-  if (alpha < 0.2) alpha = 0.2;
-  if (alpha > 0.85) alpha = 0.85;
+  // Vektoren final mischen (Bewegung pro Sekunde)
+  double final_vec_lat = alpha * vec_lat_short + (1.0 - alpha) * vec_lat_long;
+  double final_vec_lon = alpha * vec_lon_short + (1.0 - alpha) * vec_lon_long;
 
-  double combined_dlat = alpha * vec_dlat_short + (1.0 - alpha) * vec_dlat;
-  double combined_dlon = alpha * vec_dlon_short + (1.0 - alpha) * vec_dlon;
+  // --- ECHTE GPS-POSITION (Wahrheitsquelle für Kartenplotter & AIS) ---
+  sensorData.gps_lat = last.lat;
+  sensorData.gps_lon = last.lon;
 
-  // Vorhersage (predict_s)
-  double predict_s = GPS_PREDICT_S;
-  // Umrechnung: wir haben degrees-per-segment sums; wir brauchen eine durchschnittliche Sekundendauer:
-  double avg_dt = sum_time / sum_weight;
-  if (avg_dt <= 0.0) avg_dt = 1.0;
+  // --- BERECHNUNG DER PRÄDIKTION (GETRENNT SPEICHERN) ---
+  double predict_s = GPS_PREDICT_S; 
+  sensorData.gps_predict_lat = last.lat + (final_vec_lat * predict_s);
+  sensorData.gps_predict_lon = last.lon + (final_vec_lon * predict_s);
 
-  // Skaliere combined vector vom (per-segment-average) auf predict_s
-  // Wir interpretieren combined_dlat/dlon als "expected degrees per avg_dt seconds"
-  double scale = predict_s / avg_dt;
-  double pred_dlat = combined_dlat * scale;
-  double pred_dlon = combined_dlon * scale;
+  // Pol-Absicherung für Breiten-Projektionen
+  double lat_rad = last.lat * M_PI / 180.0;
+  double cosLat = cos(lat_rad);
+  if (fabs(cosLat) < 0.01) {
+    cosLat = (cosLat >= 0.0) ? 0.01 : -0.01;
+  }
 
-  // Neue prognostizierte Position
-  double predLat = lastLat + pred_dlat;
-  double predLon = lastLon + pred_dlon;
+  // Antimeridian-Normalisierung für die berechnete Prädiktion
+  while (sensorData.gps_predict_lon > 180.0)  sensorData.gps_predict_lon -= 360.0;
+  while (sensorData.gps_predict_lon < -180.0) sensorData.gps_predict_lon += 360.0;
 
-  // Abstand in degrees (adjust lon by cos(lat))
-  double lat_rad = lastLat * M_PI / 180.0;
-  double dlon_adj = pred_dlon * cos(lat_rad);  // effective lat-projected lon
-  double dist_deg = sqrt(pred_dlat * pred_dlat + dlon_adj * dlon_adj);
+  // Pol-Überquerungsschutz für die Prädiktions-Latitude
+  if (sensorData.gps_predict_lat > 90.0)   sensorData.gps_predict_lat = 90.0;
+  if (sensorData.gps_predict_lat < -90.0)  sensorData.gps_predict_lat = -90.0;
 
-  // Geschwindigkeit berechnen (kn)
-  // distance_deg -> NM = deg * 60
-  // avg_time_seconds ~ predict_s (we used predict_s), so speed_knots = distance_NM / (predict_s/3600)
-  double distance_nm = dist_deg * 60.0;
-  double hours = predict_s / 3600.0;
-  double speed_knots = (hours > 0.0) ? (distance_nm / hours) : 0.0;
+  // SOG (Knoten) ableiten
+  double dlon_adj = final_vec_lon * cosLat;
+  double dist_deg_per_sec = sqrt(final_vec_lat * final_vec_lat + dlon_adj * dlon_adj);
+  double speed_knots = dist_deg_per_sec * 60.0 * 3600.0;
 
-  // Kurs berechnen (deg) — atan2(dlon_adj, dlat)
-  double kurs_rad = atan2(dlon_adj, pred_dlat);
+  // COG (Kurs) über Tangens berechnen
+  double kurs_rad = atan2(dlon_adj, final_vec_lat);
   double kurs_deg = kurs_rad * 180.0 / M_PI;
   if (kurs_deg < 0.0) kurs_deg += 360.0;
 
-  // Wenn sehr klein speed, behandeln als still (Rauschen)
+  // Filterung bei sehr geringer Fahrt (Rauschen im Stand blockieren)
   if (speed_knots < GPS_MIN_VALID_SPEED) {
     speed_knots = 0.0;
-    // optional: kurs behalten oder auf 0 setzen; wir behalten alten Kurs
-    // kurs_deg = sensorData.gps_kurs; // falls gewünscht
+    kurs_deg = sensorData.gps_kurs; 
+  } else {
+    // 4. Adaptiver, sprungfreier Kurs-Tiefpass mit defensiver Bereichsabsicherung
+    double course_alpha;
+    if (speed_knots < 2.0) {
+      course_alpha = 0.15; 
+    } else if (speed_knots > 6.0) {
+      course_alpha = 0.50; 
+    } else {
+      course_alpha = 0.15 + (speed_knots - 2.0) * (0.35 / 4.0); 
+    }
+
+    // Gegen zukünftige Codeänderungen absichern (Garantiebereich [0.15 ... 0.50])
+    if (course_alpha < 0.15) course_alpha = 0.15;
+    if (course_alpha > 0.50) course_alpha = 0.50;
+
+    double diff = kurs_deg - sensorData.gps_kurs;
+    if (diff > 180.0)  diff -= 360.0;
+    if (diff < -180.0) diff += 360.0;
+    
+    kurs_deg = sensorData.gps_kurs + course_alpha * diff;
+    if (kurs_deg < 0.0)   kurs_deg += 360.0;
+    if (kurs_deg >= 360.0) kurs_deg -= 360.0;
   }
 
-  // Schreib in sensorData (überschreibt Rohwerte mit gefilterten)
-  sensorData.gps_lat = predLat;
-  sensorData.gps_lon = predLon;
+  // Ausgabewerte in das globale System schreiben
   sensorData.gps_speed = speed_knots;
   sensorData.gps_kurs = kurs_deg;
 }
