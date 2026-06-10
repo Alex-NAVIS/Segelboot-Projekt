@@ -86,10 +86,10 @@ git clone https://github.com
 
 * **Magnetic Deviation Mitigation:** Sailing vessels exhibit significant local magnetic signatures caused by inboard engines, steel keel bolts, battery banks, and standing rigging. If the IMU is installed near ferrous materials, it will inject massive errors into the heading calculation. It is mandatory to execute a calibration routine (steering steady, continuous circles in open water) post-installation to compute and persistently commit deviation offset tables directly via the Web UI.
 * **Aggressive Offline Chart Caching:** Because reliable cellular or network connectivity is non-existent offshore, the web client utilizes advanced browser storage mechanisms, specifically localized Service Workers and indexed database caches. This ensures that previously loaded OpenSeaMap or hydrographic chart tiles remain fully accessible at the helm station when air-gapped from the internet.
-
-
 ---
-
+---
+---
+---
 ⛵ NAVIS — Das modulare ESP32 Segelboot-Projektsystem
 Gemeinsam entwickelt. Direkt auf dem Boot. Echt._ [1]
 Dieses Projekt ist eine hochgradig optimierte, maritime Systemzentrale auf Basis des ESP32. Es vereint die Funktionen von Kartenplotter-Schnittstellen, GPS, AIS-Empfang, digitalem Kompass, künstlichem Horizont und Windsensorik in einer zentralen, stromspander Hardwarekomponente. [1, 2]
