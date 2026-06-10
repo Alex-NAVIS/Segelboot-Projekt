@@ -7,9 +7,11 @@ Built **by sailors, for sailors**, the entire infrastructure is fully modular, h
 
 ![Nautical Chart Plotter Interface](Karte.png)
 Karte
+---
 ![Nautical Chart Plotter Interface](Wind.png)
 Wettersystem
 ![Nautical Chart Plotter Interface](Wasser.png)
+<img src="Generator" alt="Artificial Horizon AHRS UI" width="400">
 
 ---
 
@@ -103,6 +105,7 @@ Kartenansicht
 ![Nautical Chart Plotter Interface](Wind.png)
 Wettersystem mit offline Wind und Wellen und Wasserströmungen.
 ![Nautical Chart Plotter Interface](Wasser.png)
+<img src="Generator" alt="Artificial Horizon AHRS UI" width="400">
 ________________________________________
 ⚓ Die entscheidenden Vorteile an Bord
 •	Kompakt & Stromsparend: Ersetzt mehrere teure Einzelinstrumente durch einen einzigen Mikrocontroller mit minimalem Stromverbrauch (ideal für Langfahrt unter Segel).
