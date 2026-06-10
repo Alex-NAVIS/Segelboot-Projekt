@@ -1,3 +1,93 @@
+⛵ NAVIS — The Modular ESP32 Maritime Core & Autopilot Infrastructure
+**Collaborative Development. Deployed Onboard. Real-Time Processing.**
+
+This project features a highly optimized, marine-grade system architecture powered by the ESP32 microcontroller. Designed to serve as a low-power central navigation hub, NAVIS consolidates multiple decoupled marine electronics into a single hardware unit. It seamlessly aggregates electronic chartplotter interfaces, GNSS/GPS tracking, AIS reception, digital compass dynamics, an artificial horizon (AHRS), and comprehensive wind telemetry.
+
+Built **by sailors, for sailors**, the entire infrastructure is fully modular, hardened against the rigorous environmental demands of blue-water routing, and operates completely platform-independent through any modern web browser.
+
+![Nautical Chart Plotter Interface](Karte.png)
+
+---
+
+⚓ Key Mission-Critical Advantages Onboard
+
+* **Ultra-Low Power & Resource Optimization:** Replaces a multi-device instrument stack with a single, highly efficient microcontroller. Minimizes current draw, which is vital for extended blue-water passages under sail where energy budgets are strictly limited.
+* **Platform-Agnostic Responsive Web-UI:** Eliminates the dependency on proprietary or expensive marine displays. Deliver fluid data visualization to smartphones, ruggedized cockpit tablets at the helm, or navigation laptops at the chart table.
+* **Air-Gapped Data Security & Zero-Connectivity Design:** Operates as a completely autonomous Wi-Fi Access Point. The system requires no cellular network or satellite internet connectivity to function flawlessly at sea.
+* **Algorithmic Real-Time Optimization:** Employs advanced heading mechanics to handle the continuous $0^\circ \leftrightarrow 360^\circ$ quadrant transitions (wraparound), ensuring perfectly smoothed data visualization and preventing dangerous erratic inputs to connected steering systems.
+
+---
+
+🧠 Sensor Fusion & Signal Processing Deep-Dive
+
+The primary challenge in marine telemetry is mitigating signal degradation caused by heavy seas, severe vessel heeling, pounding, and structural engine vibrations. To isolate the true motion of the vessel, the firmware processes raw sensor streams through multi-stage conditioning pipelines primarily located within `Sensor_Data.cpp/.h` and `IMU.cpp/.h`.
+
+9-Axis Sensor Fusion & Attitude Heading Reference System (AHRS)
+* **Vessel Motion Damping & Noise Filtering:** Dynamic wave impact introduces high-frequency mechanical noise into the raw roll and pitch telemetry (heel and trim). The system utilizes optimized complementary filters or Kalman filter states to isolate and suppress these transient impacts, delivering a clean, true attitude vector of the hull.
+* **Tilt-Compensated Digital Compass:** Standard three-axis magnetometers quickly degrade in accuracy as the vessel heels over under sail. Our engine calculates a mathematical horizon by cross-referencing instantaneous accelerometer and gyroscope vectors from the IMU. This ensures the digital compass heading remains precise, even during sustained $30^\circ$ angles of heel.
+* **Mathematical Quadrant Wraparound Handling:** When crossing the true North threshold (surpassing $359^\circ$ toward $0^\circ$), traditional averaging filters generate massive mathematical spikes or inverse calculation errors. The NAVIS mathematical engine intercepts these discontinuities natively, ensuring uninterrupted safety for downstream navigation loops and hardware autopilots.
+
+GNSS Geodesy & Navigation Vectors
+* **`GPS.cpp/.h`:** Beyond standard parsing of latitude and longitude coordinates, this module extracts and processes specific asynchronous NMEA sentences to calculate the true dynamic vector over ground, isolating Course Over Ground (COG) and Speed Over Ground (SOG).
+* **Dynamic Magnetic Declination (`Mag_Dec.cpp/.h`):** To bridge the gap between geographic (True) North and Magnetic North, this component converts the raw measured magnetic heading into a valid True Heading (TH) using integrated look-up tables or mathematical spatial world magnetic models.
+
+<img src="Kompass.png" alt="Digital Compass Rose UI" width="400">
+<img src="Horizont.png" alt="Artificial Horizon AHRS UI" width="400">
+
+---
+
+🖥️ User Interfaces & Hydrographic Chart Integration
+
+The architecture strictly decouples the high-frequency instrument display layer from tactical map navigation rendering. The web frontend communicates asynchronously with the ESP32 core via lightweight network protocols.
+
+Asynchronous Live Cockpit (Real-Time Telemetry)
+* **Zero-Latency WebSockets:** Rather than relying on heavy, synchronous HTTP polling, the ESP32 pushes real-time sensor states (wind vectors, depth soundings, compass headings, heel angles) multiple times per second using minimized JSON payloads over a persistent WebSocket connection.
+* **Hardware-Accelerated Visualization:** Utilizing HTML5 Canvas abstractions and native CSS3 transformations, the interface animates complex visual components like the compass rose or the pitch/roll gauges at native framerates without micro-stuttering, even on legacy, low-spec tablets mounted in the cockpit.
+
+Chartplotter Subsystem & Layer Composition
+The UI frontend includes an interactive geospatial map canvas powered by modern web mapping frameworks (e.g., OpenLayers or Leaflet), successfully compositing open-source layers with official hydrographic data:
+* **OpenSeaMap Layer Integration:** Integrates the global, open-source marine mapping layer as a standardized tile layer. This brings crucial nautical data—including sector lights, buoyage, harbor layouts, and shallow water markers—which are cached systematically for offline routing.
+* **Official BSH Cartography Support:** For critical navigation zones within the North and Baltic Seas, the interface supports official Web Map Services (WMS/WMTS) or locally rendered, pre-converted tile sets conforming to the Federal Maritime and Hydrographic Agency of Germany (BSH) standards. This guarantees strict compliance with official shipping channels and precise depth contours.
+* **Mathematical AIS Target Overlay:** Target tracking data acquired from external Automatic Identification System (AIS) hardware modules is parsed, mathematically projected, and synchronized onto the active map coordinates. Each target vessel is rendered as a dynamic vector icon displaying its instantaneous course, heading, speed, and potential Closest Point of Approach (CPA).
+
+---
+
+📁 Repository & Project Architecture
+
+* **`ESP32_Segelboot_AP/`** — Core workspace containing the root firmware files.
+* **`ESP32_Segelboot_AP/src/`** — Hardware abstraction layers and modular C++ logic implementations (`GPS`, `IMU`, `AIS`, `Sensor_Data`).
+* **`ESP32_Segelboot_AP/data/`** — Single Page Application (SPA) asset compilation (HTML5, production CSS, modular JavaScript) deployed directly to the microcontroller's flash allocation via a file system image.
+* **`README.md`** — Comprehensive system documentation and operational manual.
+
+---
+
+🔧 Installation, Compilation & Hardware Provisioning
+
+1. Source Acquisition
+Clone the master repository and initialize all submodule dependencies into your local environment:
+```bash
+git clone https://github.com
+```
+
+2. Hardware Bill of Materials (BOM)
+* **Microcontroller Unit:** ESP32 Development Board featuring enhanced flash storage (e.g., ESP32-WROOM-32E or ESP32-S3).
+* **GNSS Receiver:** High-precision, NMEA-compliant GPS/GLONASS module (e.g., u-blox NEO-M8N) routed via a hardware serial interface (UART).
+* **Inertial Measurement Unit (IMU):** 9-axis digital sensor with onboard fusion processing (e.g., Bosch BNO055 or MPU9250) communicating via the I2C bus.
+* **Storage Peripherals:** SPI-attached SD card interface dedicated to high-frequency voyage data logging and local NMEA telemetry recording.
+
+3. Firmware Deployment & Filesystem Flashing
+* Launch the project within your integrated development environment (PlatformIO highly recommended).
+* Execute the target environment's filesystem image build tool to compile and flash the `data/` directory content to the ESP32 using **LittleFS**. This provision step transfers the client-side UI application and default localized chart configurations.
+* Compile and flash the primary application binaries to the microcontroller execution memory.
+
+---
+
+💡 Crucial Operational Notes for Marine Environments
+
+* **Magnetic Deviation Mitigation:** Sailing vessels exhibit significant local magnetic signatures caused by inboard engines, steel keel bolts, battery banks, and standing rigging. If the IMU is installed near ferrous materials, it will inject massive errors into the heading calculation. It is mandatory to execute a calibration routine (steering steady, continuous circles in open water) post-installation to compute and persistently commit deviation offset tables directly via the Web UI.
+* **Aggressive Offline Chart Caching:** Because reliable cellular or network connectivity is non-existent offshore, the web client utilizes advanced browser storage mechanisms, specifically localized Service Workers and indexed database caches. This ensures that previously loaded OpenSeaMap or hydrographic chart tiles remain fully accessible at the helm station when air-gapped from the internet.
+
+
 ⛵ NAVIS — Das modulare ESP32 Segelboot-Projektsystem
 Gemeinsam entwickelt. Direkt auf dem Boot. Echt._ [1]
 Dieses Projekt ist eine hochgradig optimierte, maritime Systemzentrale auf Basis des ESP32. Es vereint die Funktionen von Kartenplotter-Schnittstellen, GPS, AIS-Empfang, digitalem Kompass, künstlichem Horizont und Windsensorik in einer zentralen, stromspander Hardwarekomponente. [1, 2]
