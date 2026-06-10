@@ -105,7 +105,7 @@
     <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
 	
 <!-- NAVIS Vertikales Wetter Control Panel (Unten Rechts, 50% Höhe, 180px Breite) -->
-<div id="navis-weather-panel" style="position: absolute; bottom: 20px; right: 20px; z-index: 1000; height: 60vh; width: 220px; background: rgba(0, 43, 58, 0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: 'Segoe UI', -apple-system, sans-serif; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; border: 1px solid rgba(0, 85, 102, 0.4);">
+<div id="navis-weather-panel" style="position: absolute; bottom: 20px; right: 20px; z-index: 1000; height: 50vh; width: 220px; background: rgba(0, 43, 58, 0.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: 'Segoe UI', -apple-system, sans-serif; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; border: 1px solid rgba(0, 85, 102, 0.4);">
 	<!-- Header: Titel und Revierauswahl -->
 	<div style="margin-bottom: 10px; flex-shrink: 0;">
 		<div style="font-weight: bold; color: #00ffff; font-size: 11px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
@@ -133,14 +133,6 @@
 
 			<!-- Trennlinie -->
 			<div style="height: 1px; margin: 12px 0; background: rgba(0,255,255,0.2);"></div>
-
-			<!-- Layer Steuerung -->
-			<label style="display: flex; align-items: center; gap: 5px; color: #ffffff; font-size: 11px; cursor: pointer; justify-content: center;">
-				<input type="checkbox" id="show-wind-layer" checked> Wind
-			</label>
-			<label style="display: flex; align-items: center; gap: 5px; color: #ffffff; font-size: 11px; cursor: pointer; justify-content: center; margin-top: 4px;">
-				<input type="checkbox" id="show-current-layer" checked> Strömung
-			</label>
 		</div>
 	</div>
  
@@ -159,9 +151,6 @@
 			<div><span style="color: #00ffaa;">Periode:</span> <span id="info-wave-p" style="font-weight: bold; color: #00ffff;">-- s</span></div>
 		</div>
 
-		<!-- Trennlinie -->
-		<div style="height:1px; margin:8px 0; background:rgba(0,255,255,0.15);"></div>
-
 		<!-- Strömung (Kompakt in einer Zeile) -->
 		<div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px;">
 			<div><span style="color: #00ffaa;">Strömung:</span> <span id="current-speed" style="font-weight: bold; color: #00ffff;">-- kn</span></div>
@@ -169,10 +158,22 @@
 		</div>
 
 		<!-- Wasserstand -->
-		<div style="height:1px; margin:8px 0; background:rgba(0,255,255,0.15);"></div>
 		<div style="display:flex; justify-content:space-between;">
 			<span style="color:#00ffaa;">Wasserst.:</span>
 			<span id="tide-height" style="font-weight:bold; color:#00ffff;">-- m</span>
+		</div>
+		
+		<!-- Trennlinie -->
+		<div style="height:1px; margin:8px 0; background:rgba(0,255,255,0.15);"></div>
+
+		<!-- Layer Steuerung -->
+		<div style="display: flex; justify-content: center; gap: 15px;">
+			<label style="display: flex; align-items: center; gap: 5px; color: #ffffff; font-size: 11px; cursor: pointer;">
+				<input type="checkbox" id="show-wind-layer" checked> Wind
+			</label>
+			<label style="display: flex; align-items: center; gap: 5px; color: #ffffff; font-size: 11px; cursor: pointer;">
+				<input type="checkbox" id="show-current-layer" checked> Strömung
+			</label>
 		</div>
 	</div>
 </div>
@@ -480,18 +481,22 @@ function updateWeatherFrame(hourIdx) {
             }
         ];
 
-        const currentAnker = [
-            { r: 0, g: 30, b: 60 }, { r: 0, g: 100, b: 180 }, { r: 0, g: 180, b: 220 },
-            { r: 100, g: 230, b: 255 }, { r: 200, g: 255, b: 255 }
-        ];
+		const currentAnker = [
+			{ r: 0,   g: 30,  b: 50  }, // 0 kn: Sehr dunkles Tiefblau (schmilzt mit der Karte)
+			{ r: 0,   g: 65,  b: 110 }, // Schwache Strömung: Ruhiges Dunkelblau
+			{ r: 0,   g: 130, b: 180 }, // Mittlere Strömung: Angenehmes Ocean-Blau
+			{ r: 0,   g: 195, b: 215 }, // Starke Strömung: Klares Türkis
+			{ r: 0,   g: 255, b: 255 }  // Maximum: Stechendes Cyan/Weißblau
+		];
+
 
         currentCurrentLayer = L.velocityLayer({
             displayValues: false,
             data: velocityDataCurrent,
-            maxVelocity: 4, 
-            lineWidth: 2.0, frameRate: 35,
-            velocityScale: 0.03, 
-            particleAge: 100, particleMultiplier: 0.007,
+            maxVelocity: 6, 
+            lineWidth: 3.0, frameRate: 20,
+            velocityScale: 0.01, 
+            particleAge: 300, particleMultiplier: 0.003,
             colorScale: generateScale(currentAnker)
         });
         currentCurrentLayer.addTo(map);
