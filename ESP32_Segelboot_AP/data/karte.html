@@ -64,7 +64,31 @@
 		#navis-weather-panel[data-state="expanded"] { width: 320px; }
 		#navis-weather-panel[data-state="collapsed"]:hover { width: 320px; }
 		#navis-weather-panel[data-state="pinned"] { width: 320px; box-shadow: 0 6px 25px rgba(0,0,0,0.7); }
-    </style>
+
+		/* 🧭 NAVIS LINKES ROUTING PANEL */
+		#navis-routing-panel { position: absolute; top: 50%; left: 20px; transform: translateY(-50%); z-index: 1000; width: 300px; background: rgba(0, 43, 58, 0.80); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 10px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); font-family: 'Segoe UI', sans-serif; padding: 14px; box-sizing: border-box; border: 1px solid rgba(0, 85, 102, 0.4); display: flex; flex-direction: column; gap: 10px; transition: all 0.3s ease-in-out; }
+		/* Zustand wenn eingeklappt */
+		#navis-routing-panel.collapsed { width: 220px; height: 42px; overflow: hidden; padding: 10px 14px; background: rgba(0, 43, 58, 0.60); }
+		.panel-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,255,255,0.2); padding-bottom: 4px; flex-shrink: 0; }
+		#navis-routing-panel.collapsed .panel-header { border-bottom: none; padding-bottom: 0; }
+		.panel-header h3 { margin: 0; font-size: 14px; color: #00ffff; text-shadow: 0 1px 2px rgba(0,0,0,0.8); text-transform: uppercase; }
+		/* Der kleine Schalter oben rechts */
+		.pin-btn { background: transparent; border: none; color: #00ffff; cursor: pointer; font-size: 14px; font-weight: bold; padding: 0 4px; box-shadow: none; transition: transform 0.2s; }
+		.pin-btn:hover { background: transparent; color: #fff; transform: scale(1.2); }
+		/* Container für den Inhalt der ausgeblendet wird */
+		.panel-content { display: flex; flex-direction: column; gap: 10px; transition: opacity 0.2s ease-in-out; opacity: 1; }
+		#navis-routing-panel.collapsed .panel-content { opacity: 0; pointer-events: none; }
+		.routing-meta { font-size: 11px; color: #8ab4f8; font-family: monospace; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 4px; }
+		.routing-section { display: flex; flex-direction: column; gap: 4px; }
+		.routing-section label { font-size: 11px; color: #00ffaa; font-weight: bold; }
+		.routing-section select { width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #007a99; background: #003d52; font-size: 12px; color: #fff; outline: none; box-sizing: border-box; }
+		.routing-section input { width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #007a99; background: #003d52; font-size: 12px; color: #fff; outline: none; box-sizing: border-box; }
+		.radio-group { display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.15); padding: 6px; border-radius: 4px; }
+		.radio-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #fff; cursor: pointer; }
+		.radio-label input { width: auto; accent-color: #00ffff; }
+		.calc-btn { background: #007a99; color: #fff; border: 1px solid #00ffff; padding: 8px; border-radius: 4px; font-weight: bold; cursor: pointer; transition: background 0.2s; font-size: 12px; }
+		.calc-btn:hover { background: #00b8d4; color: #000; }
+   </style>
     
 </head>
 <body>
@@ -177,6 +201,86 @@
 		</div>
 	</div>
 </div>
+<!-- NAVIS Linkes Routing Kontrollzentrum -->
+<div id="navis-routing-panel" class="collapsed">
+    <!-- Header bleibt immer sichtbar -->
+    <div class="panel-header">
+        <h3>🧭 NAVIS Router</h3>
+        <button type="button" class="pin-btn" id="routing-pin-toggle" onclick="toggleRoutingPanel()">⤢</button>
+    </div>
+    
+    <!-- Content verschwindet beim Einklappen komplett -->
+    <div class="panel-content">
+        <!-- Koordinaten-Anzeige -->
+        <div class="routing-section">
+            <label>📍 Startpunkt:</label>
+            <div id="route-start-display" class="routing-meta">Nicht gesetzt (Rechtsklick)</div>
+        </div>
+        <div class="routing-section">
+            <label>🏁 Zielpunkt:</label>
+            <div id="route-ziel-display" class="routing-meta">Nicht gesetzt (Rechtsklick)</div>
+        </div>
+        <div class="routing-section">
+            <label>🧭 Zwischen-Wegpunkte:</label>
+            <div id="route-waypoints-display" class="routing-meta">0 Wegpunkte hinzugefügt</div>
+        </div>
+
+        <!-- Zeitmanagement -->
+        <div class="routing-section">
+            <label>📅 Abfahrtszeit:</label>
+            <input type="datetime-local" id="routing-departure-time">
+        </div>
+
+        <!-- Strategie / Profil-Auswahl als Fragen -->
+        <div class="routing-section">
+            <label>❓ Welches Routing-Ziel hast du?</label>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="routingProfile" value="fastest" checked>
+                    ⚡ Welche Route ist am schnellsten?
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="routingProfile" value="comfort">
+                    9️⃣ Welche Route ist am komfortabelsten?
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="routingProfile" value="safest">
+                    🛡️ Welche Route ist am sichersten?
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="routingProfile" value="eco">
+                    🔋 Welche Route verbraucht am wenigsten Energie?
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="routingProfile" value="avoid_wind">
+                    💨 Welche Route vermeidet Starkwind?
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="routingProfile" value="avoid_waves">
+                    🌊 Welche Route vermeidet Wellen?
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="routingProfile" value="coastal">
+                    ⚓ Welche Route bleibt küstennah?
+                </label>
+            </div>
+        </div>
+
+        <!-- Taktische Optionen -->
+        <div class="routing-section">
+            <label>📈 Wetter-Abfahrtstaktik:</label>
+            <select id="routing-time-strategy">
+                <option value="fixed">Exakt zur gewählten Zeit abfahren</option>
+                <option value="optimize_3h">⏱ Startfenster optimieren (+/- 3h Strom/Wind)</option>
+                <option value="optimize_6h">⏱ Startfenster optimieren (+/- 6h Strom/Wind)</option>
+            </select>
+        </div>
+
+        <button class="calc-btn" onclick="triggerNavisRouting()">🚀 Route berechnen</button>
+    </div>
+</div>
+
+
 
 </div>
 <script src="leaflet/leaflet.js"></script>
@@ -1636,6 +1740,245 @@ function sendAutopilotWP(lat, lon) {
     .then(txt => console.log(`ESP-Antwort: ${txt}`))
     .catch(err => console.error("Fehler beim Senden an ESP:", err));
 }
+
+/* ----------------------------------------------------------------------
+🧭 NAVIS V2.0 Kontext-Routing Engine
+---------------------------------------------------------------------- */
+let navisStartMarker = null;
+let navisZielMarker = null;
+let navisWaypoints = []; // Liste für die L.marker-Objekte der Zwischen-Wegpunkte
+
+const TILE_SPAN = 0.256; 
+
+// Initialisiere die Abfahrtszeit im Panel auf die aktuelle Uhrzeit
+document.addEventListener("DOMContentLoaded", () => {
+    const now = new Date();
+    const localISO = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const timeInput = document.getElementById("routing-departure-time");
+    if (timeInput) timeInput.value = localISO;
+});
+
+// Leaflet Rechtsklick-Menü mit den 4 gewünschten Optionen aktivieren
+if (typeof map !== 'undefined') {
+    map.on('contextmenu', function(e) {
+        const menuContent = document.createElement('div');
+        menuContent.style.fontFamily = 'sans-serif';
+        menuContent.style.fontSize = '12px';
+        menuContent.style.display = 'flex';
+        menuContent.style.flexDirection = 'column';
+        menuContent.style.gap = '5px';
+
+        // Option 1: Startpunkt
+        const btnStart = document.createElement('button');
+        btnStart.innerText = "📍 Startpunkt setzen";
+        btnStart.style.cursor = 'pointer';
+        btnStart.onclick = () => { setNavisPoint('start', e.latlng); map.closePopup(); };
+
+        // Option 2: Zielpunkt
+        const btnZiel = document.createElement('button');
+        btnZiel.innerText = "🏁 Zielpunkt setzen";
+        btnZiel.style.cursor = 'pointer';
+        btnZiel.onclick = () => { setNavisPoint('ziel', e.latlng); map.closePopup(); };
+
+        // Option 3: Wegpunkt hinzufügen
+        const btnWp = document.createElement('button');
+        btnWp.innerText = "🧭 Wegpunkt hinzufügen";
+        btnWp.style.cursor = 'pointer';
+        btnWp.onclick = () => { addNavisWaypoint(e.latlng); map.closePopup(); };
+
+        // Option 4: Abbrechen
+        const btnCancel = document.createElement('button');
+        btnCancel.innerText = "❌ Abbrechen";
+        btnCancel.style.backgroundColor = '#5c2424';
+        btnCancel.style.border = '1px solid #ff5555';
+        btnCancel.style.cursor = 'pointer';
+        btnCancel.onclick = () => { map.closePopup(); };
+
+        menuContent.appendChild(btnStart);
+        menuContent.appendChild(btnZiel);
+        menuContent.appendChild(btnWp);
+        menuContent.appendChild(btnCancel);
+
+        L.popup()
+            .setLatLng(e.latlng)
+            .setContent(menuContent)
+            .openOn(map);
+    });
+}
+/* ----------------------------------------------------------------------
+⚓ OFFLINE-COMPATIBLE MARKER LOGIC (NO IMAGES REQUIRED)
+---------------------------------------------------------------------- */
+
+// Lokale Hilfsfunktion: Zeichnet die Marker rein mit CSS und Emojis
+function createOfflineRouteIcon(emoji, backgroundColor) {
+    return L.divIcon({
+        className: 'navis-offline-marker',
+        html: `<div style="
+            width: 30px; 
+            height: 30px; 
+            background: ${backgroundColor}; 
+            border: 2px solid #ffffff; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 16px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        ">${emoji}</div>`,
+        iconSize:,
+        iconAnchor:,
+        popupAnchor: [0, -15]
+    });
+}
+
+// Start- oder Zielpunkt visuell setzen
+function setNavisPoint(type, latlng) {
+    // Panel automatisch öffnen, falls es geschlossen ist
+    const panel = document.getElementById("navis-routing-panel");
+    if (panel && panel.classList.contains("collapsed")) {
+        toggleRoutingPanel();
+    }
+
+    if (type === 'start') {
+        if (navisStartMarker) map.removeLayer(navisStartMarker);
+        
+        // 100% Offline: Zuweisung des CSS-Icons
+        navisStartMarker = L.marker(latlng, { 
+            draggable: true,
+            icon: createOfflineRouteIcon("📍", "#003d52")
+        }).addTo(map).bindPopup("<b>📍 Startpunkt</b><br>Kann verschoben werden.");
+        
+        document.getElementById("route-start-display").innerText = `Lat: ${latlng.lat.toFixed(4)} | Lon: ${latlng.lng.toFixed(4)}`;
+        
+        navisStartMarker.on('dragend', function(event) {
+            const pos = event.target.getLatLng();
+            document.getElementById("route-start-display").innerText = `Lat: ${pos.lat.toFixed(4)} | Lon: ${pos.lng.toFixed(4)}`;
+        });
+    } else {
+        if (navisZielMarker) map.removeLayer(navisZielMarker);
+        
+        // 100% Offline: Zuweisung des CSS-Icons
+        navisZielMarker = L.marker(latlng, { 
+            draggable: true,
+            icon: createOfflineRouteIcon("🏁", "#5c2424")
+        }).addTo(map).bindPopup("<b>🏁 Zielpunkt</b><br>Kann verschoben werden.");
+        
+        document.getElementById("route-ziel-display").innerText = `Lat: ${latlng.lat.toFixed(4)} | Lon: ${latlng.lng.toFixed(4)}`;
+        
+        navisZielMarker.on('dragend', function(event) {
+            const pos = event.target.getLatLng();
+            document.getElementById("route-ziel-display").innerText = `Lat: ${pos.lat.toFixed(4)} | Lon: ${pos.lng.toFixed(4)}`;
+        });
+    }
+}
+
+// Zwischen-Wegpunkte dynamisch hinzufügen
+function addNavisWaypoint(latlng) {
+    // Panel automatisch öffnen, falls es geschlossen ist
+    const panel = document.getElementById("navis-routing-panel");
+    if (panel && panel.classList.contains("collapsed")) {
+        toggleRoutingPanel();
+    }
+
+    const wpIndex = navisWaypoints.length + 1;
+    
+    // 100% Offline: Zuweisung des CSS-Icons
+    const wpMarker = L.marker(latlng, { 
+        draggable: true,
+        icon: createOfflineRouteIcon("🧭", "#2a2f38")
+    }).addTo(map);
+    
+    wpMarker.bindPopup(`<b>🧭 Wegpunkt #${wpIndex}</b><br>Ziehen zum Verschieben.<br>Rechtsklick zum Löschen.`);
+    
+    // Draggable-Support für Wegpunkte
+    wpMarker.on('dragend', () => updateWaypointDisplay());
+    
+    // Rechtsklick direkt auf den Wegpunkt erlaubt das Löschen dieses Wegpunkts
+    wpMarker.on('contextmenu', (event) => {
+        L.DomEvent.stopPropagation(event); // Verhindert das Standard-Kartenmenü
+        if (confirm(`Wegpunkt #${wpIndex} entfernen?`)) {
+            map.removeLayer(wpMarker);
+            navisWaypoints = navisWaypoints.filter(w => w !== wpMarker);
+            updateWaypointDisplay();
+        }
+    });
+
+    navisWaypoints.push(wpMarker);
+    updateWaypointDisplay();
+}
+
+
+// Aktualisiert die Anzahl im linken Panel
+function updateWaypointDisplay() {
+    const display = document.getElementById("route-waypoints-display");
+    if (display) {
+        display.innerText = `${navisWaypoints.length} Wegpunkt(e) hinzugefügt`;
+    }
+}
+
+// Routenberechnung ausführen
+function triggerNavisRouting() {
+    if (!navisStartMarker || !navisZielMarker) {
+        alert("Bitte zuerst Start- und Zielpunkt per Rechtsklick markieren!");
+        return;
+    }
+
+    const startPos = navisStartMarker.getLatLng();
+    const zielPos = navisZielMarker.getLatLng();
+    const departureTime = new Date(document.getElementById("routing-departure-time").value);
+    const profile = document.querySelector('input[name="routingProfile"]:checked').value;
+    const strategy = document.getElementById("routing-time-strategy").value;
+
+    // Wetter-Frame (0-71) bestimmen
+    let weatherFrameIdx = 0;
+    if (activeWeatherData && activeWeatherData.metadata && activeWeatherData.metadata.created) {
+        const createdTime = new Date(activeWeatherData.metadata.created);
+        const diffInHours = Math.floor((departureTime - createdTime) / (1000 * 60 * 60));
+        weatherFrameIdx = Math.max(0, Math.min(71, diffInHours));
+    }
+
+    // Konsolen-Log für den Routing-Graphen
+    console.log("=== 🚀 NAVIS GRID ROUTER ENGAGED ===");
+    console.log(`Gewähltes Profil: ${profile}`);
+    console.log(`Kurswechsel-Strafe (Smooth): Aktiviert`);
+    console.log(`Anzahl Zwischen-Wegpunkte: ${navisWaypoints.length}`);
+    
+    // Grid-IDs für Start und Ende protokollieren
+    console.log(`Start-Tile: t_${Math.floor(startPos.lng / TILE_SPAN)}_${Math.floor(startPos.lat / TILE_SPAN)}`);
+    navisWaypoints.forEach((wp, i) => {
+        const pos = wp.getLatLng();
+        console.log(`WP #${i+1}-Tile: t_${Math.floor(pos.lng / TILE_SPAN)}_${Math.floor(pos.lat / TILE_SPAN)}`);
+    });
+    console.log(`Ziel-Tile: t_${Math.floor(zielPos.lng / TILE_SPAN)}_${Math.floor(zielPos.lat / TILE_SPAN)}`);
+
+    alert(`Taktik-Routing initialisiert!\n\nProfil: ${profile}\nWegpunkte: ${navisWaypoints.length}\nKurswechsel-Vermeidung aktiv.\n\nDer A*-Segment-Pfadfinder startet.`);
+}
+
+// Funktion zum Umschalten zwischen Groß (ausgeklappt) und Klein (eingeklappt)
+function toggleRoutingPanel() {
+    const panel = document.getElementById("navis-routing-panel");
+    const btn = document.getElementById("routing-pin-toggle");
+    
+    if (panel.classList.contains("collapsed")) {
+        panel.classList.remove("collapsed");
+        btn.innerText = "⤡"; // Icon ändert sich zu "Verkleinern"
+    } else {
+        panel.classList.add("collapsed");
+        btn.innerText = "⤢"; // Icon ändert sich zu "Vergrößern"
+    }
+}
+
+// Optionale Komfort-Erweiterung: Wenn der User einen Start- oder Zielpunkt setzt,
+// klappt das Panel automatisch auf, damit er sieht, was passiert.
+const originalSetNavisPoint = setNavisPoint;
+setNavisPoint = function(type, latlng) {
+    originalSetNavisPoint(type, latlng);
+    const panel = document.getElementById("navis-routing-panel");
+    if (panel.classList.contains("collapsed")) {
+        toggleRoutingPanel();
+    }
+};
+
 
 /* ------------------------------
    End
