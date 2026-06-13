@@ -14,56 +14,47 @@ const NAVIS_ROUTE = {
 // --------------------------------------------------
 // NAVIS Darstellung (Leaflet)
 // --------------------------------------------------
+// --- NEUER, KORRIGIERTER CODE ---
 const NAVIS_VISUAL = {
     startMarker: null,
     zielMarker: null,
-    waypointMarkers: []
-    routeLine: null // Hält die Referenz auf die gezeichnete Polyline
+    waypointMarkers: [],
+    routeLine: null 
 };
 
 function updateNavisPolyline() {
-    // Regel 1: Linie wird nur erzeugt, wenn Start UND Ziel gesetzt sind
+    console.log("=== 🌐 updateNavisPolyline gestartet ===");
+    // Bestehende Linie entfernen, falls vorhanden, um Neuzeichnung vorzubereiten
+    if (NAVIS_VISUAL.routeLine) {
+        map.removeLayer(NAVIS_VISUAL.routeLine);
+        NAVIS_VISUAL.routeLine = null;
+    }
+
+    // Abbrechen, wenn kein Start ODER Ziel gesetzt ist
     if (!NAVIS_ROUTE.start || !NAVIS_ROUTE.ziel) {
-        if (NAVIS_VISUAL.routeLine) {
-            map.removeLayer(NAVIS_VISUAL.routeLine);
-            NAVIS_VISUAL.routeLine = null;
-        }
+        console.log("ℹ️ Keine Linie: Start oder Ziel unvollständig.");
         return;
     }
 
-    // Array für alle Koordinaten-Paare erstellen
-    const pathCoordinates = [];
+    // Koordinaten-Array aufbauen (Start -> Wegpunkte -> Ziel)
+    const pathCoordinates = [
+        [NAVIS_ROUTE.start.lat, NAVIS_ROUTE.start.lon],
+        ...(NAVIS_ROUTE.waypoints || []).map(wp => [wp.lat, wp.lon]),
+        [NAVIS_ROUTE.ziel.lat, NAVIS_ROUTE.ziel.lon]
+    ];
+    
+    console.log("📐 Zeichne Linie mit Koordinaten:", pathCoordinates);
 
-    // 1. Startpunkt hinzufügen (Nutze explizit .lon aus deinem Node-Objekt)
-    pathCoordinates.push([NAVIS_ROUTE.start.lat, NAVIS_ROUTE.start.lon]);
-
-    // 2. Regel 2: Wegpunkte dazwischen einbinden
-    if (NAVIS_ROUTE.waypoints && NAVIS_ROUTE.waypoints.length > 0) {
-        NAVIS_ROUTE.waypoints.forEach(wp => {
-            pathCoordinates.push([wp.lat, wp.lon]);
-        });
-    }
-
-    // 3. Zielpunkt hinzufügen
-    pathCoordinates.push([NAVIS_ROUTE.ziel.lat, NAVIS_ROUTE.ziel.lon]);
-
-    // Wenn die Linie bereits existiert, aktualisiere nur die Geometrie
-    if (NAVIS_VISUAL.routeLine) {
-        NAVIS_VISUAL.routeLine.setLatLngs(pathCoordinates);
-    } else {
-        // Linie neu erstellen (Kräftiges Cyan, gut sichtbar)
-        // Sollte 'map' in deinem Scope anders heißen (z.B. navisMap), hier anpassen!
+    // Linie zeichnen
+    try {
         NAVIS_VISUAL.routeLine = L.polyline(pathCoordinates, {
-            color: '#00b8d4', 
-            weight: 5,
-            opacity: 0.9,
-            dashArray: '8, 12', // Schöne gestrichelte Seefahrts-Linie
-            lineJoin: 'round'
+            color: '#00b8d4', weight: 5, opacity: 0.9, dashArray: '8, 12'
         }).addTo(map);
+        console.log("✅ Polyline erfolgreich gezeichnet!");
+    } catch (error) {
+        console.error("🔴 Fehler beim Zeichnen:", error);
     }
 }
-
-
 
 function createNavisEmojiIcon(emoji) {
     return L.divIcon({
