@@ -134,7 +134,7 @@
 
         <!-- RECHTE SPALTE: DIAGRAMM & LOOKUP-TABELLE -->
         <div class="panel panel-wide">
-            <h2>Nautisches Polardiagramm (Kreis-Performance)</h2>
+            <h2>Nautisches Polardiagramm (Gespiegeltes 360°-Bootsprofil)</h2>
             <div class="chart-box">
                 <canvas id="polarChartCanvas"></canvas>
             </div>
@@ -145,7 +145,7 @@
             <h2>Aktionen</h2>
             <div class="button-bar">
                 <button onclick="createProfile()">➕ Neues Profil</button>
-                <button onclick="saveCurrentProfile()" style="background:#27ae60;">💾 Profil保存 / Speichern</button>
+                <button onclick="saveCurrentProfile()" style="background:#27ae60;">💾 Profil speichern</button>
                 <button onclick="duplicateProfile()">📄 Profil kopieren</button>
             </div>
             <br>
@@ -154,8 +154,9 @@
     </div>
 
     <script>
-        const NAVIS_ANGLES =;
-        const NAVIS_WINDS =;
+        // Reparierte Arrays mit deinen exakten Gittervorgaben aus der originalen Struktur
+        const NAVIS_ANGLES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180];
+        const NAVIS_WINDS = [6, 8, 10, 12, 15, 20, 25];
         let currentProfile = null;
         let polarChart = null;
 
@@ -172,8 +173,7 @@
             NAVIS_WINDS.forEach(w => { html += `<th>${w} kn</th>`; });
             html += '</tr>';
 
-            // Standard-Dummy-Werte für ein sauberes Erst-Rendering
-            const defaultSpeeds = { 45: 3, 60: 4, 90: 5, 120: 5.5, 150: 4.5, 180: 3.5 };
+            const defaultSpeeds = { 45: 3.0, 60: 4.2, 90: 5.5, 120: 5.8, 150: 4.6, 180: 3.6 };
 
             NAVIS_ANGLES.forEach(angle => {
                 html += `<tr><td><b>${angle}°</b></td>`;
@@ -182,198 +182,250 @@
                     if(profile && profile.polar && profile.polar[angle] && profile.polar[angle][speed] !== undefined) {
                         val = profile.polar[angle][speed];
                     } else {
-                        // Finde nähesten Standardwert für die Anzeige beim ersten Start
-let closestKey = Object.keys(defaultSpeeds).reduce((a, b) => Math.abs(b - angle) < Math.abs(a - angle) ? b : a);
-val = (defaultSpeeds[closestKey] * (speed / 12)).toFixed(1);
-}
-html += <td><input class="polar-input" type="number" step="0.1" value="${val}" data-angle="${angle}" data-wind="${speed}" oninput="onTableInput(this)"></td>;
-});
-html += '';
-});
-html += '';
-container.innerHTML = html;
-}
-function initPolarChart() {
-const ctx = document.getElementById('polarChartCanvas').getContext('2d');
-try {
-polarChart = new Chart(ctx, {
-type: 'radar',
-data: {
-labels: NAVIS_ANGLES.map(a => a + "°"),
-datasets: [
-{ label: '6 kn Wind', data: [], borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.05)', borderWidth: 2, pointRadius: 1 },
-{ label: '12 kn Wind', data: [], borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.05)', borderWidth: 2, pointRadius: 1 },
-{ label: '20 kn Wind', data: [], borderColor: '#e74c3c', backgroundColor: 'rgba(231, 76, 60, 0.05)', borderWidth: 2, pointRadius: 1 }
-]
-},
-options: {
-responsive: true,
-maintainAspectRatio: false,
-scale: {
-ticks: { beginAtZero: true, max: 12 },
-gridLines: { color: 'rgba(0,0,0,0.1)' }
-}
-}
-});
-} catch (e) {
-console.error("Chart.js Init Fehler:", e);
-}
-}
-function updateChartVisuals() {
-if (!polarChart) return;
-const windIndices = { 6: 0, 12: 1, 20: 2 };
-const targetWinds =;
-targetWinds.forEach(wKn => {
-let datasetIdx = windIndices[wKn];
-let points = [];
-NAVIS_ANGLES.forEach(ang => {
-const input = document.querySelector(.polar-input[data-angle="${ang}"][data-wind="${wKn}"]);
-points.push(parseFloat(input ? input.value : 0));
-});
-if(polarChart.data.datasets[datasetIdx]) {
-polarChart.data.datasets[datasetIdx].data = points;
-}
-});
-polarChart.update();
-}
-function onSliderChange(angle, value) {
-const currentWind = document.getElementById("select-wind-edit").value;
-const sliderSpan = document.querySelector(#smart-sliders #slide-${angle} ~ span);
-if (sliderSpan) sliderSpan.innerText = parseFloat(value).toFixed(1);
-const targetInput = document.querySelector(.polar-input[data-angle="${angle}"][data-wind="${currentWind}"]);
-if (targetInput) targetInput.value = value;
-interpoliereZwischenWinkel(currentWind);
-updateChartVisuals();
-}
-function onTableInput(input) {
-ladeSmartSliderAusTabelle();
-updateChartVisuals();
-}
-function interpoliereZwischenWinkel(wind) {
-const keyAngles =;
-for (let i = 0; i < keyAngles.length - 1; i++) {
-let angA = keyAngles[i];
-let angB = keyAngles[i+1];
-let valA = parseFloat(document.querySelector(.polar-input[data-angle="${angA}"][data-wind="${wind}"])?.value || 0);
-let valB = parseFloat(document.querySelector(.polar-input[data-angle="${angB}"][data-wind="${wind}"])?.value || 0);
-NAVIS_ANGLES.forEach(ang => {
-if (ang > angA && ang < angB) {
-let ratio = (ang - angA) / (angB - angA);
-let interpolatedVal = valA + ratio * (valB - valA);
-let midInput = document.querySelector(.polar-input[data-angle="${ang}"][data-wind="${wind}"]);
-if (midInput) midInput.value = interpolatedVal.toFixed(1);
-}
-});
-}
-}
-function ladeSmartSliderAusTabelle() {
-const currentWind = document.getElementById("select-wind-edit").value;
-const keyAngles =;
-keyAngles.forEach(ang => {
-const input = document.querySelector(.polar-input[data-angle="${ang}"][data-wind="${currentWind}"]);
-const val = input ? parseFloat(input.value) : 0.0;
-const slider = document.getElementById(slide-${ang});
-if (slider) {
-slider.value = val;
-const sliderSpan = document.querySelector(#smart-sliders #slide-${ang} ~ span);
-if (sliderSpan) sliderSpan.innerText = val.toFixed(1);
-}
-});
-}
-async function loadProfileList() {
-try {
-const response = await fetch('/api/polar/list');
-const files = await response.json();
-const container = document.getElementById("profileList");
-container.innerHTML = '';
-files.forEach(file => {
-const button = document.createElement("button");
-button.className = "profile-btn";
-button.innerText = file.replace(".json","");
-button.onclick = () => {
-document.querySelectorAll('.profile-btn').forEach(btn => btn.classList.remove('active'));
-button.classList.add('active');
-loadProfile(file);
-};
-container.appendChild(button);
-});
-setStatus(files.length + " Profile auf dem Dateisystem gefunden.");
-} catch(e) {
-document.getElementById("profileList").innerHTML = "ESP32-Dateisystem offline (Läuft lokal)";
-}
-}
-async function loadProfile(file) {
-try {
-const response = await fetch('/api/polar/load?file=' + encodeURIComponent(file));
-const profile = await response.json();
-currentProfile = profile;
-document.getElementById("activeProfile").innerText = profile.name || file;
-document.getElementById("bootName").value = profile.name || '';
-document.getElementById("bootLength").value = profile.length || '';
-document.getElementById("bootBeam").value = profile.beam || '';
-document.getElementById("bootDraft").value = profile.draft || '1.5';
-document.getElementById("bootMastHeight").value = profile.mastHeight || '12.0';
-document.getElementById("bootDisplacement").value = profile.displacement || '';
-document.getElementById("bootMotorSpeed").value = profile.motorSpeed || '5.0';
-document.getElementById("bootVMGUpwind").value = profile.vmgUpwind || '45';
-document.getElementById("bootVMGDownwind").value = profile.vmgDownwind || '145';
-generatePolarTableStructures(profile);
-ladeSmartSliderAusTabelle();
-updateChartVisuals();
-setStatus("Profil geladen: " + profile.name);
-} catch(error) { setStatus("Fehler beim Abrufen des Profil-JSONs."); }
-}
-function collectProfileData() {
-const profile = {
-name: document.getElementById("bootName").value,
-length: parseFloat(document.getElementById("bootLength").value || 0),
-beam: parseFloat(document.getElementById("bootBeam").value || 0),
-draft: parseFloat(document.getElementById("bootDraft").value || 1.5),
-displacement: parseFloat(document.getElementById("bootDisplacement").value || 0),
-mastHeight: parseFloat(document.getElementById("bootMastHeight").value || 12.0),
-motorSpeed: parseFloat(document.getElementById("bootMotorSpeed").value || 5.0),
-vmgUpwind: parseFloat(document.getElementById("bootVMGUpwind").value || 45),
-vmgDownwind: parseFloat(document.getElementById("bootVMGDownwind").value || 145),
-windSpeeds: NAVIS_WINDS,
-polar: {}
-};
-document.querySelectorAll('.polar-input').forEach(input => {
-const angle = input.dataset.angle;
-const wind = input.dataset.wind;
-if(!profile.polar[angle]) profile.polar[angle] = {};
-profile.polar[angle][wind] = parseFloat(input.value || 0);
-});
-return profile;
-}
-async function saveCurrentProfile() {
-try {
-const profile = collectProfileData();
-const response = await fetch("/api/polar/save", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(profile)
-});
-if(response.ok) { setStatus("💾 Gespeichert!"); loadProfileList(); }
-} catch(e) { alert("Gespeichert! (API-Simulation lokal im Browser)"); }
-}
-function createProfile() {
-currentProfile = null;
-document.getElementById("activeProfile").innerText = "Neues Profil";
-document.getElementById("bootName").value = "Unbenannt";
-generatePolarTableStructures();
-ladeSmartSliderAusTabelle();
-updateChartVisuals();
-}
-function duplicateProfile() {
-const name = document.getElementById("bootName");
-if(!name.value) return;
-name.value = name.value + "_Kopie";
-}
-document.addEventListener("DOMContentLoaded", () => {
-generatePolarTableStructures();
-initPolarChart();
-ladeSmartSliderAusTabelle();
-updateChartVisuals();
-loadProfileList();
-});
+                        let closestKey = Object.keys(defaultSpeeds).reduce((a, b) => Math.abs(b - angle) < Math.abs(a - angle) ? b : a);
+                        val = (defaultSpeeds[closestKey] * (speed / 12)).toFixed(1);
+                    }
+                    html += `<td><input class="polar-input" type="number" step="0.1" value="${val}" data-angle="${angle}" data-wind="${speed}" oninput="onTableInput(this)"></td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            container.innerHTML = html;
+        }
 
+        function initPolarChart() {
+            const ctx = document.getElementById('polarChartCanvas').getContext('2d');
+            
+            let labels360 = [];
+            for (let a = 0; a < 360; a += 5) {
+                if (a <= 180) {
+                    labels360.push(a + "° STB");
+                } else {
+                    labels360.push((360 - a) + "° BB");
+                }
+            }
+
+            try {
+                polarChart = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: labels360,
+                        datasets: [
+                            { label: '6 kn Wind', data: new Array(72).fill(0), borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.03)', borderWidth: 2, pointRadius: 0 },
+                            { label: '12 kn Wind', data: new Array(72).fill(0), borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.03)', borderWidth: 2, pointRadius: 0 },
+                            { label: '20 kn Wind', data: new Array(72).fill(0), borderColor: '#e74c3c', backgroundColor: 'rgba(231, 76, 60, 0.03)', borderWidth: 2, pointRadius: 0 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        startAngle: -90, 
+                        scale: {
+                            ticks: { beginAtZero: true, max: 12 },
+                            gridLines: { color: 'rgba(0,170,204,0.15)' },
+                            angleLines: { color: 'rgba(0,170,204,0.25)' }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Chart.js Init Fehler:", e);
+            }
+        }
+
+        function updateChartVisuals() {
+            if (!polarChart) return;
+            const windIndices = { 6: 0, 12: 1, 20: 2 };
+            const targetWinds =;
+            
+            targetWinds.forEach(wKn => {
+                let datasetIdx = windIndices[wKn];
+                let points360 = [];
+                
+                for (let a = 0; a < 360; a += 5) {
+                    let zielWinkel = a;
+                    if (a > 180) zielWinkel = 360 - a;
+                    
+                    if (zielWinkel < 45) {
+                        points360.push(0); 
+                    } else {
+                        const input = document.querySelector(`.polar-input[data-angle="${zielWinkel}"][data-wind="${wKn}"]`);
+                        points360.push(parseFloat(input ? input.value : 0));
+                    }
+                }
+                
+                if(polarChart.data.datasets[datasetIdx]) {
+                    polarChart.data.datasets[datasetIdx].data = points360;
+                }
+            });
+            polarChart.update();
+        }
+
+        function onSliderChange(angle, value) {
+            const currentWind = document.getElementById("select-wind-edit").value;
+            const sliderSpan = document.querySelector(`#smart-sliders #slide-${angle} ~ span`);
+            if (sliderSpan) sliderSpan.innerText = parseFloat(value).toFixed(1);
+            
+            const targetInput = document.querySelector(`.polar-input[data-angle="${angle}"][data-wind="${currentWind}"]`);
+            if (targetInput) targetInput.value = value;
+
+            interpoliereZwischenWinkel(currentWind);
+            updateChartVisuals();
+        }
+
+        function onTableInput(input) {
+            ladeSmartSliderAusTabelle();
+            updateChartVisuals();
+        }
+
+        function interpoliereZwischenWinkel(wind) {
+            const keyAngles =;
+            for (let i = 0; i < keyAngles.length - 1; i++) {
+                let angA = keyAngles[i];
+                let angB = keyAngles[i+1];
+                let valA = parseFloat(document.querySelector(`.polar-input[data-angle="${angA}"][data-wind="${wind}"]`)?.value || 0);
+                let valB = parseFloat(document.querySelector(`.polar-input[data-angle="${angB}"][data-wind="${wind}"]`)?.value || 0);
+
+                NAVIS_ANGLES.forEach(ang => {
+                    if (ang > angA && ang < angB) {
+                        let ratio = (ang - angA) / (angB - angA);
+                        let interpolatedVal = valA + ratio * (valB - valA);
+                        let midInput = document.querySelector(`.polar-input[data-angle="${ang}"][data-wind="${wind}"]`);
+                        if (midInput) midInput.value = interpolatedVal.toFixed(1);
+                    }
+                });
+            }
+        }
+
+        function ladeSmartSliderAusTabelle() {
+            const currentWind = document.getElementById("select-wind-edit").value;
+            const keyAngles =;
+            keyAngles.forEach(ang => {
+                const input = document.querySelector(`.polar-input[data-angle="${ang}"][data-wind="${currentWind}"]`);
+                const val = input ? parseFloat(input.value) : 0.0;
+                const slider = document.getElementById(`slide-${ang}`);
+                if (slider) {
+                    slider.value = val;
+                    const sliderSpan = document.querySelector(`#smart-sliders #slide-${ang} ~ span`);
+                    if (sliderSpan) sliderSpan.innerText = val.toFixed(1);
+                }
+            });
+        }
+
+        async function loadProfileList() {
+            try {
+                const response = await fetch('/api/polar/list');
+                const files = await response.json();
+                const container = document.getElementById("profileList");
+                container.innerHTML = '';
+                files.forEach(file => {
+                    const button = document.createElement("button");
+                    button.className = "profile-btn";
+                    button.innerText = file.replace(".json","");
+                    button.onclick = () => {
+                        document.querySelectorAll('.profile-btn').forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                        loadProfile(file);
+                    };
+                    container.appendChild(button);
+                });
+                setStatus(files.length + " Profile auf dem Dateisystem gefunden.");
+            } catch(e) { 
+                document.getElementById("profileList").innerHTML = "<i>ESP32-Dateisystem offline (Läuft lokal)</i>";
+            }
+        }
+
+        async function loadProfile(file) {
+            try {
+                const response = await fetch('/api/polar/load?file=' + encodeURIComponent(file));
+                const profile = await response.json();
+                currentProfile = profile;
+                document.getElementById("activeProfile").innerText = profile.name || file;
+                document.getElementById("bootName").value = profile.name || '';
+                document.getElementById("bootLength").value = profile.length || '';
+                document.getElementById("bootBeam").value = profile.beam || '';
+                document.getElementById("bootDraft").value = profile.draft || '1.5';
+                document.getElementById("bootMastHeight").value = profile.mastHeight || '12.0';
+                document.getElementById("bootDisplacement").value = profile.displacement || '';
+                document.getElementById("bootMotorSpeed").value = profile.motorSpeed || '5.0';
+                document.getElementById("bootVMGUpwind").value = profile.vmgUpwind || '45';
+                document.getElementById("bootVMGDownwind").value = profile.vmgDownwind || '145';
+                generatePolarTableStructures(profile);
+                ladeSmartSliderAusTabelle();
+                updateChartVisuals();
+                setStatus("Profil geladen: " + profile.name);
+            } catch(error) { setStatus("Fehler beim Abrufen des Profil-JSONs."); }
+        }
+
+                function collectProfileData() {
+            const profile = {
+                name: document.getElementById("bootName").value,
+                length: parseFloat(document.getElementById("bootLength").value || 0),
+                beam: parseFloat(document.getElementById("bootBeam").value || 0),
+                draft: parseFloat(document.getElementById("bootDraft").value || 1.5),
+                displacement: parseFloat(document.getElementById("bootDisplacement").value || 0),
+                mastHeight: parseFloat(document.getElementById("bootMastHeight").value || 12.0),
+                motorSpeed: parseFloat(document.getElementById("bootMotorSpeed").value || 5.0),
+                vmgUpwind: parseFloat(document.getElementById("bootVMGUpwind").value || 45),
+                vmgDownwind: parseFloat(document.getElementById("bootVMGDownwind").value || 145),
+                windSpeeds: NAVIS_WINDS,
+                polar: {}
+            };
+
+            document.querySelectorAll('.polar-input').forEach(input => {
+                const angle = input.dataset.angle;
+                const wind = input.dataset.wind;
+                if (!profile.polar[angle]) {
+                    profile.polar[angle] = {};
+                }
+                profile.polar[angle][wind] = parseFloat(input.value || 0);
+            });
+            return profile;
+        }
+
+        async function saveCurrentProfile() {
+            try {
+                const profile = collectProfileData();
+                const response = await fetch("/api/polar/save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(profile)
+                });
+                if (response.ok) {
+                    setStatus("💾 Profil erfolgreich im Flash-Speicher gesichert!");
+                    loadProfileList();
+                } else {
+                    setStatus("Speichern fehlgeschlagen.");
+                }
+            } catch (e) {
+                alert("Gespeichert! (API-Simulation lokal im Browser)");
+            }
+        }
+
+        function createProfile() {
+            currentProfile = null;
+            document.getElementById("activeProfile").innerText = "Neues Profil";
+            document.getElementById("bootName").value = "Unbenannt";
+            generatePolarTableStructures();
+            ladeSmartSliderAusTabelle();
+            updateChartVisuals();
+            setStatus("Leeres Gitter-Profil initialisiert.");
+        }
+
+        function duplicateProfile() {
+            const name = document.getElementById("bootName");
+            if (!name.value) return;
+            name.value = name.value + "_Kopie";
+            setStatus("Profil dupliziert. Klicke auf 'Profil speichern' zum Sichern.");
+        }
+
+        // Dom-Ready Initialisierungsschleife
+        document.addEventListener("DOMContentLoaded", () => {
+            generatePolarTableStructures();
+            initPolarChart();
+            ladeSmartSliderAusTabelle();
+            updateChartVisuals();
+            loadProfileList();
+        });
+    </script>
+</body>
+</html>
