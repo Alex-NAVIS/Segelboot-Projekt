@@ -18,7 +18,52 @@ const NAVIS_VISUAL = {
     startMarker: null,
     zielMarker: null,
     waypointMarkers: []
+    routeLine: null // Hält die Referenz auf die gezeichnete Polyline
 };
+
+function updateNavisPolyline() {
+    // Regel 1: Linie wird nur erzeugt, wenn Start UND Ziel gesetzt sind
+    if (!NAVIS_ROUTE.start || !NAVIS_ROUTE.ziel) {
+        if (NAVIS_VISUAL.routeLine) {
+            map.removeLayer(NAVIS_VISUAL.routeLine);
+            NAVIS_VISUAL.routeLine = null;
+        }
+        return;
+    }
+
+    // Array für alle Koordinaten-Paare erstellen
+    const pathCoordinates = [];
+
+    // 1. Startpunkt hinzufügen (Nutze explizit .lon aus deinem Node-Objekt)
+    pathCoordinates.push([NAVIS_ROUTE.start.lat, NAVIS_ROUTE.start.lon]);
+
+    // 2. Regel 2: Wegpunkte dazwischen einbinden
+    if (NAVIS_ROUTE.waypoints && NAVIS_ROUTE.waypoints.length > 0) {
+        NAVIS_ROUTE.waypoints.forEach(wp => {
+            pathCoordinates.push([wp.lat, wp.lon]);
+        });
+    }
+
+    // 3. Zielpunkt hinzufügen
+    pathCoordinates.push([NAVIS_ROUTE.ziel.lat, NAVIS_ROUTE.ziel.lon]);
+
+    // Wenn die Linie bereits existiert, aktualisiere nur die Geometrie
+    if (NAVIS_VISUAL.routeLine) {
+        NAVIS_VISUAL.routeLine.setLatLngs(pathCoordinates);
+    } else {
+        // Linie neu erstellen (Kräftiges Cyan, gut sichtbar)
+        // Sollte 'map' in deinem Scope anders heißen (z.B. navisMap), hier anpassen!
+        NAVIS_VISUAL.routeLine = L.polyline(pathCoordinates, {
+            color: '#00b8d4', 
+            weight: 5,
+            opacity: 0.9,
+            dashArray: '8, 12', // Schöne gestrichelte Seefahrts-Linie
+            lineJoin: 'round'
+        }).addTo(map);
+    }
+}
+
+
 
 function createNavisEmojiIcon(emoji) {
     return L.divIcon({
@@ -176,7 +221,7 @@ function styleNavisMenuButton(btn){
         btn.style.color = '#ffffff';
     };
 }
-
+// Start- oder Zielpunkt visuell setzen
 // Start- oder Zielpunkt visuell setzen
 function setNavisPoint(type, latlng) {
     const point = createNavisNode(latlng), isStart = type === 'start', key = isStart ? 'start' : 'ziel', markerKey = isStart ? 'startMarker' : 'zielMarker', emoji = isStart ? "📍" : "🏁", label = isStart ? "Startpunkt" : "Zielpunkt", displayId = `route-${key}-display`;
@@ -185,13 +230,23 @@ function setNavisPoint(type, latlng) {
 
     NAVIS_VISUAL[markerKey] = L.marker([point.lat, point.lon], { draggable: true, icon: createNavisEmojiIcon(emoji) }).addTo(map);
     NAVIS_VISUAL[markerKey].bindPopup(`<b>${emoji} ${label}</b><br>Ziehen zum Verschieben.`);
-    NAVIS_VISUAL[markerKey].on('dragend', function(event) {
+    
+    // Geändert von 'dragend' auf 'drag' für Echtzeit-Bewegung der Linie
+    NAVIS_VISUAL[markerKey].on('drag', function(event) {
         const pos = event.target.getLatLng();
         NAVIS_ROUTE[key] = createNavisNode(pos);
         document.getElementById(displayId).innerText = `Lat: ${pos.lat.toFixed(4)} | Lon: ${pos.lng.toFixed(4)}`;
+        updateNavisPolyline(); // <-- Zieht die Linie live mit
+    });
+
+    // Protokollierung im Log bleibt beim Loslassen erhalten
+    NAVIS_VISUAL[markerKey].on('dragend', function(event) {
+        const pos = event.target.getLatLng();
         console.log(`${emoji} ${label.split('punkt')[0]} verschoben -> Tile t_${NAVIS_ROUTE[key].tileX}_${NAVIS_ROUTE[key].tileY}`);
     });
+
     document.getElementById(displayId).innerText = `Lat: ${point.lat.toFixed(4)} | Lon: ${point.lon.toFixed(4)}`;
+    updateNavisPolyline(); 
 }
 
 // Zwischen-Wegpunkte dynamisch hinzufügen
@@ -203,10 +258,18 @@ function addNavisWaypoint(latlng) {
     wpMarker.bindPopup(`🧭 Wegpunkt #${wpIndex}`);
     NAVIS_VISUAL.waypointMarkers.push(wpMarker);
 
-    wpMarker.on('dragend', function(event) {
+    // Geändert von 'dragend' auf 'drag' für Echtzeit-Bewegung der Linie
+    wpMarker.on('drag', function(event) {
         const pos = event.target.getLatLng(), markerIndex = NAVIS_VISUAL.waypointMarkers.indexOf(wpMarker);
         if (markerIndex > -1) {
             NAVIS_ROUTE.waypoints[markerIndex] = createNavisNode(pos);
+            updateNavisPolyline(); // <-- Zieht die Linie live mit
+        }
+    });
+
+    wpMarker.on('dragend', function(event) {
+        const markerIndex = NAVIS_VISUAL.waypointMarkers.indexOf(wpMarker);
+        if (markerIndex > -1) {
             console.log(`🧭 WP ${markerIndex + 1} verschoben -> Tile t_${NAVIS_ROUTE.waypoints[markerIndex].tileX}_${NAVIS_ROUTE.waypoints[markerIndex].tileY}`);
         }
     });
@@ -216,12 +279,16 @@ function addNavisWaypoint(latlng) {
         if (confirm(`Wegpunkt #${wpIndex} entfernen?`)) {
             const markerIndex = NAVIS_VISUAL.waypointMarkers.indexOf(wpMarker);
             if (markerIndex > -1) { NAVIS_VISUAL.waypointMarkers.splice(markerIndex, 1); NAVIS_ROUTE.waypoints.splice(markerIndex, 1); }
-            map.removeLayer(wpMarker); updateWaypointDisplay();
+            map.removeLayer(wpMarker); 
+            updateWaypointDisplay();
+            updateNavisPolyline(); // <-- Löscht den Punkt sofort aus der Linie
         }
     });
-
     updateWaypointDisplay();
+    updateNavisPolyline();
 }
+
+
 
 // Aktualisiert die Anzahl im linken Panel
 function updateWaypointDisplay() {
