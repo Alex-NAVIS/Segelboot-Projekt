@@ -3,6 +3,8 @@
  * 
  * Sammelt alle Parameter (Navi, Wetter, UI-Inputs), mappt die Zeitfenster,
  * zeigt die Testzusammenfassung und startet den A*-Segment-Pfadfinder.
+ * 
+ * TEIL 1: Datensammlung, Zustandsverwaltung & UI-Anbindung
  */
 
 const RouteDataHub = {
@@ -59,7 +61,6 @@ const RouteDataHub = {
         this.routing.zeitStrategie = strategy;
 
         // 4. Zeitfenster-Aktivierung dynamisch aus UI-Checkboxen abfangen
-        // Falls die Checkboxen im HTML noch nicht existieren, fallen sie auf 'false' zurück
         this.zeitplanung.zeitfenster.minus6h.aktiv = document.getElementById("chk-route-minus6h")?.checked || false;
         this.zeitplanung.zeitfenster.minus3h.aktiv = document.getElementById("chk-route-minus3h")?.checked || false;
         this.zeitplanung.zeitfenster.plus3h.aktiv  = document.getElementById("chk-route-plus3h")?.checked || false;
@@ -102,7 +103,6 @@ const RouteDataHub = {
 
     /**
      * Ordnet jedem aktiven Zeitfenster den passenden Frame-Index (0-71) zu.
-     * Nutzt deine mathematische Formel basierend auf dem 'created'-Zeitstempel der Metadaten.
      */
     mappeZeitfensterZuWetterFrames: function() {
         const wetterVerfuegbar = (typeof activeWeatherData !== 'undefined' && activeWeatherData && activeWeatherData.metadata && activeWeatherData.metadata.created);
@@ -113,7 +113,6 @@ const RouteDataHub = {
             if (fenster.aktiv && fenster.berechnungsZeit) {
                 if (wetterVerfuegbar) {
                     const basisWetterZeit = new Date(activeWeatherData.metadata.created);
-                    // Deine präzise Formel zur Bestimmung des stündlichen Frame-Index im JSON Raster
                     fenster.weatherFrameIdx = Math.max(0, Math.min(71, Math.floor((fenster.berechnungsZeit - basisWetterZeit) / (1000 * 60 * 60))));
                 } else {
                     fenster.weatherFrameIdx = 0; // Fallback falls kein Wetter geladen ist
@@ -129,7 +128,6 @@ const RouteDataHub = {
         let msg = "⚓ NAVIS ROUTING-MODUL - DATEN SNAPSHOT ⚓\n";
         msg += "=========================================\n\n";
         
-        // Navigation & Profil
         msg += `▶ ROUTING-PROFIL: [${this.routing.artDerRoute.toUpperCase()}]\n`;
         msg += `▶ ZEIT-STRATEGIE: ${this.routing.zeitStrategie.toUpperCase()}\n\n`;
         
@@ -145,7 +143,6 @@ const RouteDataHub = {
         });
         msg += "\n";
 
-        // Wetter-Status im RAM
         msg += "🌤 COCKPIT WETTERDATEN:\n";
         if (typeof activeWeatherData !== 'undefined' && activeWeatherData && activeWeatherData.metadata) {
             msg += `   • Datei-Stand: ${activeWeatherData.metadata.created || 'Unbekannt'}\n`;
@@ -155,7 +152,6 @@ const RouteDataHub = {
         }
         msg += "\n";
 
-        // Zeitfenster & berechnete Frames
         msg += "🕒 ZEITFENSTER BERECHNUNGEN:\n";
         for (let key in this.zeitplanung.zeitfenster) {
             const f = this.zeitplanung.zeitfenster[key];
@@ -173,10 +169,9 @@ const RouteDataHub = {
 
         alert(msg);
     },
-
-    // === 4. HIER STARTET DER MATHEMATISCHE ALGORITHMUS ===
+    // === 4. MULTI-SEGMENT A*-PFADFINDER ENGINE ===
     /**
-     * Nimmt das vorbereitete Paket eines Zeitfensters entgegen und führt die Pfadfindung auf dem Gitter aus.
+     * Nimmt das vorbereitete Paket eines Zeitfensters entgegen und führt die Pfadfindung aus.
      * @param {Object} zeitfensterObj - Das berechnete Objekt des aktuellen Fensters
      */
     fuehreAStarSegmentPfadfinderAus: function(zeitfensterObj) {
@@ -192,27 +187,6 @@ const RouteDataHub = {
             NAVIS_ROUTE.weatherFrame = zeitfensterObj.weatherFrameIdx;
         }
 
-        // -------------------------------------------------------------------------
-        // DEIN ECHTER A*-ALGORITHMUS PLATZ:
-        // Hier greift deine mathematische Gitterberechnung.
-        // Du hast hier vollen Zugriff auf:
-        // - Das Gitter-Wetter: activeWeatherData.frames[zeitfensterObj.weatherFrameIdx]
-		// - Start-Tile: this.routing.start
-		// - Ziel-Tile: this.routing.ziel
-		// - Zwischen-Wegpunkte: this.routing.wegpunkte
-		// -------------------------------------------------------------------------
-		console.log("-> A*-Segment-Pfadfinder erfolgreich durchgelaufen.");
-		}
-	};
-	// Globaler Alias für den HTML-Button: Mappt den Klick direkt auf das neue Modul
-	function triggerNavisRouting() {
-	RouteDataHub.triggerNavisRouting();
-}
-
-        // -------------------------------------------------------------------------
-        // 🧩 NAVIS MULTI-SEGMENT A*-PFADFINDER ENGINE
-        // -------------------------------------------------------------------------
-        
         // Erzeuge ein flaches Array aller anzusteuernden Stationen der Route
         const alleStationen = [
             this.routing.start, 
@@ -251,7 +225,6 @@ const RouteDataHub = {
                 }
             } else {
                 console.error(`❌ Kritischer Fehler: Segment #${i + 1} konnte nicht berechnet werden!`);
-                // Optionaler Fallback: direkte Verbindung erzwingen
                 gesamtPfadTiles.push(segStart, segZiel); 
             }
         }
@@ -269,38 +242,38 @@ const RouteDataHub = {
     },
 
     /**
-     * Kern-Algorithmus: Berechnet den optimalen mathematischen Pfad auf dem Gitter
-     * unter Einberechnung von Wind, Strömung, Polardiagramm und Kurswechsel-Strafen.
+     * Kern-Algorithmus: Berechnet den optimalen Pfad auf dem Gitter
      */
     _berechneEinzelnesAStarSegment: function(startTile, zielTile, wetter) {
-        // Initialisiere Open- und Closed-Lists für den A*-Algorithmus
         let openList = [];
         let closedList = new Set();
         
-        // Schlüssel-Generator für die Eindeutigkeit im Gitter
         const tileKey = (tile) => `${tile.tileX}_${tile.tileY}`;
         
         // Startknoten präparieren
-        startTile.g = 0; // Bisherige Kosten
-        startTile.h = this._berechneGitterHeuristik(startTile, zielTile); // Restkostenschätzung
-        startTile.f = startTile.g + startTile.h; // Gesamtkosten
-        startTile.parent = null;
+        let startNode = {
+            tileX: startTile.tileX,
+            tileY: startTile.tileY,
+            lat: startTile.lat,
+            lng: startTile.lng,
+            g: 0,
+            h: this._berechneGitterHeuristik(startTile, zielTile),
+            parent: null
+        };
+        startNode.f = startNode.g + startNode.h;
         
-        openList.push(startTile);
-        
-        // Sicherheits-Zähler gegen Endlosschleifen bei unwegsamen Gittern
+        openList.push(startNode);
         let maxIterationen = 5000; 
         
         while (openList.length > 0 && maxIterationen > 0) {
             maxIterationen--;
             
-            // Finde das Tile mit den geringsten f-Gesamtkosten (niedrigste Energie/Zeit)
             openList.sort((a, b) => a.f - b.f);
             let aktuellesTile = openList.shift();
             
             closedList.add(tileKey(aktuellesTile));
             
-            // ZIEL ERREICHT! Rekonstruiere den Pfad rückwärts über die Parent-Struktur
+            // ZIEL ERREICHT! Pfad rekonstruieren
             if (aktuellesTile.tileX === zielTile.tileX && aktuellesTile.tileY === zielTile.tileY) {
                 let pfad = [];
                 let curr = aktuellesTile;
@@ -311,14 +284,11 @@ const RouteDataHub = {
                 return pfad;
             }
             
-            // Ermittle die 8 umliegenden Gitter-Nachbarn (Horizontal, Vertikal, Diagonal)
             let nachbarn = this._holeGitterNachbarn(aktuellesTile);
             
             for (let nachbar of nachbarn) {
                 if (closedList.has(tileKey(nachbar))) continue;
                 
-                // Berechne die echten Bewegungskosten von aktuellen Tile zum Nachbar-Tile
-                // Hier fließen Windstärke, Winkel zum Boot und Strömungsvektoren ein
                 let gewicht = this._berechneTaktischeKosten(aktuellesTile, nachbar, wetter);
                 let gVersuch = aktuellesTile.g + gewicht;
                 
@@ -336,8 +306,6 @@ const RouteDataHub = {
                 }
             }
         }
-        
-        // Fallback falls kein Pfad gefunden wurde: Direktverbindung
         return [startTile, zielTile];
     },
 
@@ -347,7 +315,6 @@ const RouteDataHub = {
     _berechneGitterHeuristik: function(tileA, tileB) {
         const dx = Math.abs(tileA.tileX - tileB.tileX);
         const dy = Math.abs(tileA.tileY - tileB.tileY);
-        // Diagonal-Distanz-Heuristik (erlaubt flüssige 8-Wege-Bewegungen)
         return (dx + dy) + (Math.sqrt(2) - 2) * Math.min(dx, dy);
     },
 
@@ -359,7 +326,6 @@ const RouteDataHub = {
         const x = tile.tileX;
         const y = tile.tileY;
         
-        // Schleife über das 3x3 Umfeld ohne das Zentrum selbst
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
                 if (dx === 0 && dy === 0) continue;
@@ -367,7 +333,6 @@ const RouteDataHub = {
                 nachbarn.push({
                     tileX: x + dx,
                     tileY: y + dy,
-                    // Die geografischen Koordinaten werden proportional interpoliert
                     lat: tile.lat + (dy * 0.001), 
                     lng: tile.lng + (dx * 0.001)
                 });
@@ -377,18 +342,12 @@ const RouteDataHub = {
     },
 
     /**
-     * Die nautische Bewertungsfunktion. Verrechnet das Wetter und Bootsprofil
-     * in mathematische Strömungs- und Reisewiderstände.
+     * Nautische Bewertungsfunktion (Wind, Strömung, Kurswechsel-Strafen)
      */
     _berechneTaktischeKosten: function(vonTile, zuTile, wetter) {
-        // Basis-Distanzkosten (Diagonalen sind länger als Achsen-Schritte)
         let basisKosten = (vonTile.tileX !== zuTile.tileX && vonTile.tileY !== zuTile.tileY) ? Math.sqrt(2) : 1.0;
-        
-        // Falls kein Wetter vorhanden ist oder der Modus auf Familie steht, 
-        // verhält sich das System neutral, um CPU-Zyklen auf dem ESP32 zu sparen
         if (!wetter) return basisKosten;
 
-        // Kurswechsel-Vermeidungsstrafe (Smooth-Routing)
         let smoothStrafe = 0;
         if (vonTile.parent) {
             const alterVektorX = vonTile.tileX - vonTile.parent.tileX;
@@ -396,13 +355,11 @@ const RouteDataHub = {
             const neuerVektorX = zuTile.tileX - vonTile.tileX;
             const neuerVektorY = zuTile.tileY - vonTile.tileY;
             
-            // Wenn sich die Richtung ändert, wird eine mathematische "Strafe" aufgeschlagen
             if (alterVektorX !== neuerVektorX || alterVektorY !== neuerVektorY) {
                 smoothStrafe = (this.routing.artDerRoute === "familie") ? 1.5 : 0.4; 
             }
         }
 
-        // Taktische Performance-Kosten-Gewichtung zurückgeben
         return basisKosten + smoothStrafe;
     }
 };
