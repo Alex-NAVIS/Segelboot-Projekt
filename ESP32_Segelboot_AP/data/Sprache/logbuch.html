@@ -1,0 +1,146 @@
+
+<html>
+<head><script src="js/lang.js"></script>
+<meta charset="UTF-8">
+<title data-i18n="logbuch_txt_1">NAVIS Bordlogbuch</title>
+
+<style>
+	body { background-color: #001a26; color: #00e6e6; font-family: "Segoe UI", Arial, sans-serif; margin: 0; overflow-x: hidden; text-align: center; }
+	header { background-color: #002b3a; color: #00ffff; padding: 15px; font-size: 1.8em; font-weight: bold; border-bottom: 2px solid #005566; }
+	#navbar { display: flex; justify-content: center; gap: 8px; background-color: #002b3a; padding: 6px 0; border-bottom: 1px solid #005566; position: relative; }
+	.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 3px 10px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: 0.2s; }
+	.navbtn:hover { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; }
+	.section-title { color: #00ffff; margin-top: 30px; font-size: 1.4em; border-bottom: 1px solid #007a99; display: inline-block; padding-bottom: 4px; }
+	.button-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 20px; margin-top: 10px; }
+	.logbtn { background: #0b2a38; border: 2px solid #007a99; border-radius: 10px; color: white; padding: 16px; font-size: 17px; cursor: pointer; box-shadow: 0 0 10px rgba(0,255,255,0.2); transition: 0.3s; }
+	.logbtn:hover { background: #104a5f; }
+	select, textarea, input { background: #002b3a; color: white; border: 1px solid #007a99; border-radius: 6px; padding: 8px; margin: 6px; }
+	textarea { width: 70%; height: 100px; }
+	#status { margin-top: 20px; font-weight: bold; color: #66ffff; }
+	.group { background: #001f2b; border: 1px solid #005566; border-radius: 12px; margin: 20px auto; padding: 15px; max-width: 700px; box-shadow: 0 0 10px rgba(0,255,255,0.08); }
+	@media (max-width: 600px) { .button-panel { grid-template-columns: repeat(2, 1fr); } textarea { width: 90%; } }
+	footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
+</style>
+
+
+<body>
+
+<header data-i18n="logbuch_txt_2">NAVIS Bordlogbuch</header>
+
+<nav id="navbar">
+    <a href="index.html" class="navbtn" data-i18n="logbuch_txt_3">Dashboard</a>
+    <a href="karte.html" class="navbtn" data-i18n="logbuch_txt_4">Karte</a>
+    <a href="kompass.html" class="navbtn" data-i18n="logbuch_txt_5">Kompass</a>
+    <a href="horizont.html" class="navbtn" data-i18n="logbuch_txt_6">Horizont</a>
+    <a href="autopilot.html" class="navbtn" data-i18n="logbuch_txt_7">Autopilot</a>
+</nav>
+
+<div id="status" data-i18n="logbuch_txt_8">Bereit für Logbuch-Eintrag...</div>
+
+
+<div class="group">
+    <div class="section-title" data-i18n="logbuch_txt_9">Manöver</div>
+    <div class="button-panel">
+        <button class="logbtn" onclick="logEvent('hafen_auslaufen')" data-i18n="logbuch_txt_10">⛵ Ausgelaufen</button>
+        <button class="logbtn" onclick="logEvent('hafen_einlaufen')" data-i18n="logbuch_txt_11">⛵ Eingelaufen</button>
+        <button class="logbtn" onclick="logEvent('anker_gesetzt')" data-i18n="logbuch_txt_12">⚓ Anker gesetzt</button>
+        <button class="logbtn" onclick="logEvent('anker_gehoben')" data-i18n="logbuch_txt_13">⚓ Anker gehoben</button>
+        <button class="logbtn" onclick="logEvent('segel_gesetzt')" data-i18n="logbuch_txt_14">Segel gesetzt</button>
+        <button class="logbtn" onclick="logEvent('segel_geborgen')" data-i18n="logbuch_txt_15">Segel geborgen</button>
+        <button class="logbtn" onclick="logEvent('reff1')" data-i18n="logbuch_txt_16">Reff 1</button>
+        <button class="logbtn" onclick="logEvent('reff2')" data-i18n="logbuch_txt_17">Reff 2</button>
+        <button class="logbtn" onclick="logEvent('reff_raus')" data-i18n="logbuch_txt_18">Reff raus</button>
+        <button class="logbtn" onclick="logEvent('wende')" data-i18n="logbuch_txt_19">Wende</button>
+        <button class="logbtn" onclick="logEvent('halse')" data-i18n="logbuch_txt_20">Halse</button>
+        <button class="logbtn" onclick="logEvent('motor_start')" data-i18n="logbuch_txt_21">Motor START</button>
+        <button class="logbtn" onclick="logEvent('motor_stop')" data-i18n="logbuch_txt_22">Motor STOP</button>
+    </div>
+</div>
+
+
+<div class="group">
+    <div class="section-title" data-i18n="logbuch_txt_23">Sicherheit & Übungen</div>
+    <div class="button-panel">
+        <button class="logbtn" onclick="logEvent('sicherheitseinweisung')" data-i18n="logbuch_txt_24">Einweisung</button>
+        <button class="logbtn" onclick="logEvent('mob_uebung')" data-i18n="logbuch_txt_25">MOB Übung</button>
+        <button class="logbtn" onclick="logEvent('mob_alarm')" data-i18n="logbuch_txt_26">🔴 MOB ALARM</button>
+        <button class="logbtn" onclick="logEvent('rettungswesten_kontrolle')" data-i18n="logbuch_txt_27">Westen Check</button>
+    </div>
+</div>
+
+
+<div class="group">
+    <div class="section-title" data-i18n="logbuch_txt_28">Wind & Wellen</div><br>
+    <div>
+        <label data-i18n="logbuch_txt_29">Wind:</label>
+        <select id="winddir">
+            <option data-i18n="logbuch_txt_30">N</option><option data-i18n="logbuch_txt_31">NE</option><option data-i18n="logbuch_txt_32">E</option><option data-i18n="logbuch_txt_33">SE</option>
+            <option data-i18n="logbuch_txt_34">S</option><option data-i18n="logbuch_txt_35">SW</option><option>W</option><option data-i18n="logbuch_txt_36">NW</option>
+        </select>
+        <select id="wind">
+            <option value="" data-i18n="logbuch_txt_37">Bft</option>
+            <option>0</option><option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option><option>7</option>
+        </select>
+    </div>
+    <div style="margin-top:10px;">
+        <label data-i18n="logbuch_txt_38">Welle:</label>
+        <select id="waves">
+            <option data-i18n="logbuch_txt_39">ruhig</option><option data-i18n="logbuch_txt_40">0.5 m</option><option data-i18n="logbuch_txt_41">1 m</option>
+            <option data-i18n="logbuch_txt_42">1.5 m</option><option data-i18n="logbuch_txt_43">2 m</option>
+        </select>
+    </div>
+    <button class="logbtn save-btn" onclick="sendWeather()" data-i18n="logbuch_txt_44">Wetter speichern</button>
+</div>
+
+
+<div class="group">
+    <div class="section-title" data-i18n="logbuch_txt_45">Logbuch Notiz</div><br>
+    <textarea id="note" placeholder="Freitext Logbucheintrag..." data-i18n-placeholder="logbuch_placeholder_1"></textarea><br>
+    <button class="logbtn save-btn" onclick="sendNote()" data-i18n="logbuch_txt_46">Notiz speichern</button>
+</div>
+
+
+<footer>
+	<strong data-i18n="logbuch_txt_47">Marine Logbuch v1.1</strong><br data-i18n="logbuch_txt_48">
+	Entwickelt von <span style="color:#00ffff;" data-i18n="logbuch_txt_49">Eike</span data-i18n="logbuch_txt_50"> & <span style="color:#00ffff;" data-i18n="logbuch_txt_51">NAVIS</span><br data-i18n="logbuch_txt_52">
+	© 2026 – Bootssystem ESP32 • Live Monitoring
+</footer>
+
+<script>
+    function setStatus(text) {
+        const s = document.getElementById("status");
+        s.innerText = text;
+        setTimeout(() => { s.innerText = "Bereit..."; }, 3000);
+    }
+
+    function logEvent(type) {
+        fetch("/logbook?type=" + type)
+            .then(r => setStatus("✔ Gespeichert: " + type.replace('_',' ')))
+            .catch(e => setStatus("❌ Fehler!"));
+    }
+
+    function sendWeather() {
+        let dir = document.getElementById("winddir").value;
+        let wind = document.getElementById("wind").value;
+        let waves = document.getElementById("waves").value;
+        fetch(`/logbook?type=wetter&dir=${dir}&wind=${wind}&waves=${waves}`)
+            .then(r => setStatus("✔ Wetter gespeichert"))
+            .catch(e => setStatus("❌ Fehler!"));
+    }
+
+    function sendNote() {
+        let text = document.getElementById("note").value;
+        if(!text) return;
+        fetch("/logbook?type=note&text=" + encodeURIComponent(text))
+            .then(r => {
+                setStatus("✔ Notiz gespeichert");
+                document.getElementById("note").value = "";
+            })
+            .catch(e => setStatus("❌ Fehler!"));
+    }
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,83 @@
+/* ==========================================================================
+   1. GLOBAL & FONTS (index, system_settings, autopilot, etc.)
+   ========================================================================== */
+body { background: #001a26; color: #00e6e6; font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 0 0 20px 0; overflow-x: hidden; text-align: center; line-height: 1.4; }
+header { position: relative; background-color: #002b3a; color: #00ffff; padding: 15px; font-size: 1.8em; font-weight: bold; border-bottom: 2px solid #005566; display: flex; justify-content: center; align-items: center; gap: 15px; }
+h1 { color: #00bcd4; margin-top: 20px; margin-bottom: 0.5rem; }
+h2 { color: #00bcd4; margin-top: 25px; font-size: 1.2rem; }
+.section-title { color: #00ffff; margin-top: 30px; font-size: 1.4em; border-bottom: 1px solid #007a99; display: inline-block; padding-bottom: 4px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 15px; }
+footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
+
+/* ==========================================================================
+   2. WEBSOCKET-STATUS & CORE INFRASTRUKTUR (index, Alarm, autopilot)
+   ========================================================================== */
+#wsStatus { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #ccc; z-index: 10; }
+#wsLed { width: 12px; height: 12px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 6px rgba(255,0,0,0.8); }
+
+/* ==========================================================================
+   3. KOPF-NAVIGATION & SPRACHAUSWAHL (#navbar)
+   ========================================================================== */
+#navbar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
+.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 3px 10px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: 0.2s; }
+.navbtn:hover, .navbtn.active { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
+#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px; font-size: .85em; font-weight: bold; cursor: pointer; outline: none; }
+#langSelect option { background: #001a26; color: #00ffff; }
+
+/* ==========================================================================
+   4. LIVE SENSOR DISPLAY BOXEN (index, wetterdaten, tide)
+   ========================================================================== */
+.sensor-data { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 20px; }
+.data-box { background-color: #003d52; border: 1px solid #007a99; border-radius: 10px; padding: 10px 15px; width: 220px; box-shadow: 0 0 6px rgba(0,255,255,0.2); }
+.data-title { color: #66ffff; font-weight: bold; font-size: 1em; }
+.data-value { color: #ffffff; font-size: 1.2em; margin-top: 5px; }
+
+/* ==========================================================================
+   5. DIGITALE BORD-SCHALTER & AKTUATOREN-LEDS (index, autopilot)
+   ========================================================================== */
+.switch-section { margin-top: 40px; padding: 25px 0; background: linear-gradient(180deg, #00141d, #00242f); border-top: 2px solid #005566; border-bottom: 2px solid #005566; box-shadow: inset 0 0 20px rgba(0, 255, 255, 0.05); }
+.switch-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; margin: 20px 0; }
+.switch { background-color: #0b2a38; border: 2px solid #007a99; border-radius: 12px; width: 180px; padding: 15px; color: #fff; font-size: 18px; font-weight: bold; text-align: center; cursor: pointer; box-shadow: 0 0 10px rgba(0,255,255,0.2); transition: 0.3s; }
+.switch:hover { background-color: #104a5f; }
+.led { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-left: 8px; vertical-align: middle; background-color: red; box-shadow: 0 0 6px #ff0000; }
+.switch.on .led { background-color: limegreen; box-shadow: 0 0 10px #00ff00; }
+
+/* ==========================================================================
+   6. DATEN-TABELLEN & ALARME (system_settings, logbuch, polar, tide)
+   ========================================================================== */
+table, .data-table { margin: 20px auto; border-collapse: collapse; width: 90%; max-width: 700px; background: #1a1f28; border-radius: 8px; overflow: hidden; }
+th, td { border: 1px solid #252a38; padding: 12px; text-align: left; }
+th { background: #00bcd4; color: #0f1218; text-align: center; font-weight: bold; }
+tr:nth-child(even) { background-color: #00222f; }
+
+/* ==========================================================================
+   7. INPUT-FELDER & FORMULAR-CONTAINER (settings, autopilot_settings, Alarm)
+   ========================================================================== */
+.settings-form { background-color: #1a1f28; border: 1px solid #252a38; border-radius: 8px; max-width: 550px; margin: 20px auto; padding: 20px; text-align: left; }
+.form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 6px; }
+input[type="number"], input[type="text"] { width: 100%; box-sizing: border-box; background: #252a38; color: #fff; border: 1px solid #007d91; padding: 8px; border-radius: 4px; }
+input[type="checkbox"] { transform: scale(1.2); margin-right: 8px; cursor: pointer; }
+.info-text { font-size: 0.85em; color: #aaa; margin-top: 4px; display: block; }
+.info-text_checkbox { font-size: 0.85em; color: #fda; margin-top: 4px; display: block; }
+
+/* ==========================================================================
+   8. SYSTEM BARS & OPERATIONEN (system_settings, upload)
+   ========================================================================== */
+.buttonBar { margin-top: 30px; padding: 20px; border-top: 1px solid #252a38; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+button, .btn-submit { padding: 12px 20px; font-size: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; min-width: 180px; transition: all 0.2s ease; }
+button:hover, .btn-submit:hover { transform: translateY(-2px); filter: brightness(1.1); }
+#saveBtn { background: #00bcd4; color: #0f1218; }
+#cancelBtn { background: #333; color: #fff; }
+#calibCompassBtn { background: #ff9800; color: #000; }
+#calibGyroBtn { background: #f44336; color: #fff; }
+.calib-cell { text-align: center; vertical-align: middle; width: 220px; }
+
+/* ==========================================================================
+   9. GRAFIKEN & KARTEN-CONTAINER (karte, kompass, horizont)
+   ========================================================================== */
+#map, .canvas-container { width: 100%; height: 70vh; max-height: 600px; background-color: #00141d; border: 2px solid #005566; border-radius: 8px; margin: 15px 0; }
+
+/* ==========================================================================
+   10. RESPONSIVE LAYOUTS (Mobilgeräte Optimierung)
+   ========================================================================== */
+@media (max-width: 600px) { #navbar { gap: 6px; padding: 8px 4px; } .navbtn { padding: 4px 8px; font-size: 0.8em; } }

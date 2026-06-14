@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title_alarms">Alarm Einstellungen</title>
+    <style>
+        body { background:#001a26; color:#00e6e6; font-family:"Segoe UI", Arial, sans-serif; margin: 0; text-align: center; }
+        header { background:#002b3a; color:#00ffff; padding: 15px; font-size: 1.6em; font-weight: bold; border-bottom: 2px solid #005566; }
+        #navbar { display: flex; justify-content: center; gap: 6px; background:#002b3a; padding: 6px 0; border-bottom: 1px solid #005566; position: relative; flex-wrap: wrap; align-items: center; }
+        #wsStatus { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size:.75em; color:#ccc; }
+        #wsLed { width: 12px; height: 12px; border-radius: 50%; background:#ff3333; box-shadow: 0 0 6px rgba(255, 0, 0,.8); }
+        .navbtn { background:#003d52; color:#00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px 10px; text-decoration: none; font-size:.85em; font-weight: bold; }
+        .lang-select-container { margin-left: 10px; }
+        #langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px; font-size: .85em; font-weight: bold; cursor: pointer; }
+        #langSelect option { background: #001a26; color: #00ffff; }
+        .main { max-width: 720px; margin: 20px auto; padding: 15px; }
+        .group { background:#001f2b; border: 1px solid #005566; border-radius: 14px; padding: 15px; margin-bottom: 18px; box-shadow: inset 0 0 12px rgba(0, 255, 255,.05); }
+        .group-title { color:#00ffff; font-size: 1.2em; margin-bottom: 10px; font-weight: bold; text-align: center; border-bottom: 1px solid #007a99; padding-bottom: 6px; }
+        #alarmStatus { background:#2a0000; border: 1px solid #aa3333; border-radius: 10px; padding: 8px; box-shadow: 0 0 8px rgba(255, 0, 0,.25);}
+        .alarm-box { background:#003d52; border: 1px solid #007a99; border-radius: 12px; padding: 12px; margin: 12px 0; box-shadow: 0 0 6px rgba(0, 255, 255,.2); text-align: left; }
+        .alarm-head { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color:#66ffff; margin-bottom: 6px; }
+        .slider-row { display: flex; align-items: center; gap: 10px; }
+        .slider-row input[type=range] { flex: 1; }
+        .value { min-width: 60px; text-align: right; color:#fff; font-weight: bold; }
+        button { margin: 12px 6px; padding: 12px 22px; font-size: 1em; background:#007a99; color:#fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:hover { background:#00b8d4; color:#001a26; }
+        button:disabled { background:#555; color:#aaa; cursor: not-allowed; }
+        .danger { background:#992222; }
+        .danger:hover { background:#cc3333; }
+        footer { margin: 30px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color:#00b8d4; font-size:.85 em; text-align: center; opacity:.9; line-height: 1.4; }
+    </style>
+    
+    <!-- Sprach-Manager vor dem Body laden -->
+    <script src="js/lang_manager.js"></script>
+</head>
+<body>
+
+    <header data-i18n="title_alarms">Alarm Einstellungen</header>
+
+    <nav id="navbar">
+        <div id="wsStatus">
+            <div id="wsLed"></div>
+            <span>WS</span>
+        </div>
+        <a href="index.html" class="navbtn" data-i18n="nav_dashboard">Dashboard</a>
+        <a href="karte.html" class="navbtn" data-i18n="nav_karte">Karte</a>
+        <a href="autopilot.html" class="navbtn" data-i18n="nav_autopilot">Autopilot</a>
+        <a href="kompass.html" class="navbtn" data-i18n="nav_kompass">Kompass</a>
+        <a href="horizont.html" class="navbtn" data-i18n="nav_horizont">Horizont</a>
+        
+        <!-- Integrierter Sprachumschalter am Ende der Navbar -->
+        <div class="lang-select-container">
+            <select id="langSelect" onchange="changeLanguage(this.value)">
+                <option value="de">DE</option>
+                <option value="en">EN</option>
+                <option value="fr">FR</option>
+                <option value="it">IT</option>
+            </select>
+        </div>
+    </nav>
+
+    <div class="main">
+        <!-- ================= Geschwindigkeit ================= -->
+        <div class="group">
+            <div class="group-title" data-i18n="group_speed">Geschwindigkeit Boot</div>
+            <div class="alarm-box">
+                <div class="alarm-head">
+                    <label><input type="checkbox" id="en_speed_max"><span data-i18n="lbl_speed_max">Geschwindigkeit zu hoch</span></label>
+                </div>
+                <div class="slider-row">
+                    <input type="range" id="alarm_speed_max" min="0" max="20" step="0.1" value="10" oninput="upd(this,'v_speed_max')">
+                    <div class="value"><span id="v_speed_max">10</span> kn</div>
+                </div>
+            </div>
+            <div class="alarm-box">
+                <div class="alarm-head">
+                    <label><input type="checkbox" id="en_speed_min"><span data-i18n="lbl_speed_min">Geschwindigkeit zu niedrig</span></label>
+                </div>
+                <div class="slider-row">
+                    <input type="range" id="alarm_speed_min" min="0" max="20" step="0.1" value="2" oninput="upd(this,'v_speed_min')">
+                    <div class="value"><span id="v_speed_min">2</span> kn</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= Wassertiefe Echolot ================= -->
+        <div class="group">
+            <div class="group-title" data-i18n="group_depth">Wassertiefe</div>
+            <div class="alarm-box">
+                <div class="alarm-head">
+                    <label><input type="checkbox" id="en_echolot"><span data-i18n="lbl_depth_low">Wassertiefe geringer als...</span></label>
+                </div>
+                <div class="slider-row">
+                    <input type="range" id="alarm_echolot_dev" min="1" max="8" step="0.1" value="4" oninput="upd(this,'v_echolot_dev')">
+                    <div class="value"><span id="v_echolot_dev">4</span> m</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= Steuerkurs ================= -->
+        <div class="group">
+            <div class="group-title" data-i18n="group_course">Abweichung vom Kurs</div>
+            <div class="alarm-box">
+                <div class="alarm-head">
+                    <label><input type="checkbox" id="en_course_dev"><span data-i18n="lbl_course_dev">Kursabweichung</span></label>
+                </div>
+                <div class="slider-row">
+                    <input type="range" id="alarm_course_dev" min="1" max="15" step="0.1" value="5" oninput="upd(this,'v_course_dev')">
+                    <div class="value"><span id="v_course_dev">5</span> °</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= Bootslage ================= -->
+        <div class="group">
+            <div class="group-title" data-i18n="group_attitude">Bootslage</div>
+            <div class="alarm-box">
+                <div class="alarm-head">
+                    <label><input type="checkbox" id="en_roll"><span data-i18n="lbl_roll">Krängung (Roll)</span></label>
+                </div>
+                <div class="slider-row">
+                    <input type="range" id="alarm_roll" min="0" max="60" step="1" value="25" oninput="upd(this,'v_roll')">
+                    <div class="value"><span id="v_roll">25</span> °</div>
+                </div>
+            </div>
+            <div class="alarm-box">
+                <div class="alarm-head">
+                    <label><input type="checkbox" id="en_pitch"><span data-i18n="lbl_pitch">Nick (Pitch)</span></label>
+                </div>
+                <div class="slider-row">
+                    <input type="range" id="alarm_pitch" min="0" max="60" step="1" value="25" oninput="upd(this,'v_pitch')">
+                    <div class="value"><span id="v_pitch">25</span> °</div>
+                </div>
+            </div>
+        </div>
+		<!-- ================= Wind ================= -->
+		<div class="group">
+			<div class="group-title" data-i18n="group_wind">Wind</div>
+			<div class="alarm-box">
+				<div class="alarm-head">
+					<label><input type="checkbox" id="en_wind_max"><span data-i18n="lbl_wind_max">Wind zu stark</span></label>
+				</div>
+				<div class="slider-row">
+					<input type="range" id="alarm_wind_max" min="0" max="60" step="1" value="25" oninput="upd(this,'v_wind_max')">
+					<div class="value"><span id="v_wind_max">25</span> kn</div>
+				</div>
+			</div>
+			<div class="alarm-box">
+				<div class="alarm-head">
+					<label><input type="checkbox" id="en_wind_min"><span data-i18n="lbl_wind_min">Wind zu schwach</span></label>
+				</div>
+				<div class="slider-row">
+					<input type="range" id="alarm_wind_min" min="0" max="60" step="1" value="5" oninput="upd(this,'v_wind_min')">
+					<div class="value"><span id="v_wind_min">5</span> kn</div>
+				</div>
+			</div>
+			<div class="alarm-box">
+				<div class="alarm-head">
+					<label><input type="checkbox" id="en_wind_dir"><span data-i18n="lbl_wind_dir">Windrichtungs-Abweichung</span></label>
+				</div>
+				<div class="slider-row">
+					<input type="range" id="alarm_wind_dir" min="0" max="180" step="1" value="30" oninput="upd(this,'v_wind_dir')">
+					<div class="value"><span id="v_wind_dir">30</span> °</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- ================= Anker ================= -->
+		<div class="group">
+			<div class="group-title" data-i18n="group_anchor">Ankerplatz Überwachung</div>
+			<div class="alarm-box">
+				<div class="alarm-head">
+					<label><input type="checkbox" id="en_anchor"><span data-i18n="lbl_anchor_leave">Ankerbereich verlassen</span></label>
+				</div>
+				<div class="slider-row">
+					<input type="range" id="alarm_anchor_radius" min="5" max="200" step="1" value="30" oninput="upd(this,'v_anchor')">
+					<div class="value"><span id="v_anchor">30</span> m</div>
+				</div>
+				<div class="alarm-head">
+					<label data-i18n="lbl_chain_len">Ankerkette Länge</label>
+				</div>
+				<div class="slider-row">
+					<input type="range" id="alarm_ankerkette" min="10" max="60" step="1" value="20" oninput="upd(this,'v_ankerkette')">
+					<div class="value"><span id="v_ankerkette">20</span> m</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="alarmStatus" style="min-height:28px;font-weight:bold;color:#ff4444;margin-top:10px;"></div>
+	<div id="saveStatus" style="min-height:24px;font-weight:bold;color:#66ffff;margin-top:6px;"></div>
+
+	<button id="saveBtn" onclick="saveAlarms()" data-i18n="btn_save">Alarme speichern</button>
+	<button class="danger" onclick="resetAlarms()" data-i18n="btn_clear">Alle Alarme löschen</button>
+
+	<footer>
+		<strong>Marine Dashboard Alarm v1.1</strong><br>
+		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
+		© 2026 – Bootssystem ESP32 • Überwachung & Alarmsystem
+	</footer>
+
+	<script>
+		// -------------------------------------------------------------
+		// WS STATUS LED
+		// -------------------------------------------------------------
+		const wsLed = document.getElementById("wsLed");
+
+		function ledDisconnected() {
+			wsLed.style.background = "#ff3333";
+			wsLed.style.boxShadow = "0 0 6px rgba(255,0,0,0.8)";
+		}
+		function ledConnecting() {
+			wsLed.style.background = "#ffcc00";
+			wsLed.style.boxShadow = "0 0 6px rgba(255,204,0,0.8)";
+		}
+		function ledConnected() {
+			wsLed.style.background = "#00ff66";
+			wsLed.style.boxShadow = "0 0 6px rgba(0,255,102,0.9)";
+		}
+	
+		// ===============================
+		// Alarmcodes → Klartext
+		// ===============================
+		function alarmText(code) {
+			switch (code) {
+				case 0: return "✅ Kein Alarm";
+				case 1: return "🚨 Geschwindigkeit zu hoch";
+				case 2: return "🚨 Geschwindigkeit zu niedrig";
+				case 3: return "🌬️ Wind zu stark";
+				case 4: return "🌬️ Wind zu schwach";
+				case 5: return "🧭 Windrichtungs-Abweichung";
+				case 6: return "🧭 Kursabweichung";
+				case 7: return "⚓ Ankerbereich verlassen";
+				case 8: return "📐 Krängung zu groß";
+				case 9: return "📐 Nickwinkel zu groß";
+				case 10: return "🌊 Wassertiefe zu gering";
+				default: return "⚠️ Unbekannter Alarm";
+			}
+		}
+
+		// -------------------------------------------------------------
+		// Alarm anzeigen
+		// -------------------------------------------------------------
+		function showAlarm(code) {
+			const status = document.getElementById('alarmStatus');
+			if (code === 0) {
+				status.style.background = "#002b1a";
+			} else {
+				status.style.background = "#2a0000";
+			}
+			status.textContent = alarmText(code);
+		}
+
+		function upd(slider, id) {
+			const target = document.getElementById(id);
+			if (target) target.textContent = slider.value;
+		}
+
+		async function saveAlarms() {
+			const status = document.getElementById('saveStatus');
+			const btn = document.getElementById('saveBtn');
+			btn.disabled = true;
+			status.style.color = "#ffaa00";
+			status.textContent = "Sende Alarme...";
+			const data = {
+				en_speed_max:  document.getElementById('en_speed_max').checked,
+				speedMax:      +document.getElementById('alarm_speed_max').value,
+				en_speed_min:  document.getElementById('en_speed_min').checked,
+				speedMin:      +document.getElementById('alarm_speed_min').value,
+				en_echolot:    document.getElementById('en_echolot').checked,
+				echolotMin:    +document.getElementById('alarm_echolot_dev').value,
+				en_wind_max:   document.getElementById('en_wind_max').checked,
+				windMax:       +document.getElementById('alarm_wind_max').value,
+				en_wind_min:   document.getElementById('en_wind_min').checked,
+				windMin:       +document.getElementById('alarm_wind_min').value,
+				en_wind_dir:   document.getElementById('en_wind_dir').checked,
+				windDir:       +document.getElementById('alarm_wind_dir').value,
+				en_course_dev: document.getElementById('en_course_dev').checked,
+				courseDev:     +document.getElementById('alarm_course_dev').value,
+				en_anchor:     document.getElementById('en_anchor').checked,
+				anchorRadius:  +document.getElementById('alarm_anchor_radius').value,
+				anchorChain:   +document.getElementById('alarm_ankerkette').value,
+				en_roll:       document.getElementById('en_roll').checked,
+				roll:          +document.getElementById('alarm_roll').value,
+				en_pitch:      document.getElementById('en_pitch').checked,
+				pitch:         +document.getElementById('alarm_pitch').value
+			};
+			try {
+				const resp = await fetch('/saveAlarms', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(data)
+				});
+				const result = await resp.json();
+				status.style.color = result.status === "ok" ? "#00ff88" : "#ff4444";
+				status.textContent = result.status === "ok"
+					? "✅ Alarme eingerichtet"
+					: "❌ Fehler: " + (result.msg || "unbekannt");
+				btn.disabled = false;
+				return result;
+			} catch (e) {
+				status.style.color = "#ff4444";
+				status.textContent = "❌ Verbindung fehlgeschlagen";
+				btn.disabled = false;
+				return { status: "error" };
+			}
+		}
+
+		async function loadAlarms() {
+			const status = document.getElementById('saveStatus');
+			try {
+				status.style.color = "#ffaa00";
+				status.textContent = "Lade Alarme...";
+				
+				const resp = await fetch('/getAlarms');
+				if (!resp.ok) throw new Error("HTTP Fehler " + resp.status);
+				const data = await resp.json();
+
+				// Checkboxen setzen
+				['en_speed_max','en_speed_min','en_echolot','en_wind_max','en_wind_min','en_wind_dir','en_course_dev','en_anchor','en_roll','en_pitch']
+					.forEach(id => {
+						const el = document.getElementById(id);
+						if (el) el.checked = data[id];
+					});
+				// Slider-Werte setzen + Text aktualisieren
+				[
+					['alarm_speed_max','speedMax','v_speed_max'], ['alarm_speed_min','speedMin','v_speed_min'],
+					['alarm_echolot_dev','echolotMin','v_echolot_dev'],
+					['alarm_wind_max','windMax','v_wind_max'], ['alarm_wind_min','windMin','v_wind_min'],
+					['alarm_wind_dir','windDir','v_wind_dir'], ['alarm_course_dev','courseDev','v_course_dev'],
+					['alarm_anchor_radius','anchorRadius','v_anchor'], ['alarm_ankerkette','anchorChain','v_ankerkette'], 
+					['alarm_roll','roll','v_roll'], ['alarm_pitch','pitch','v_pitch']
+				].forEach(([id, key, vid]) => {
+					const el = document.getElementById(id);
+					el.value = data[key];
+					upd(el, vid);
+				});
+
+				status.style.color = "#00ff88";
+				status.textContent = "✅ Alarme geladen";
+
+			} catch(e) {
+				console.error("Fehler beim Laden der Alarmwerte:", e);
+				status.style.color = "#ff4444";
+				status.textContent = "❌ Alarme konnten nicht geladen werden";
+			}
+		}
+
+		// ===================== ALLE ALARME LÖSCHEN =====================
+		async function resetAlarms() {
+			// Alle Checkboxen zurücksetzen
+			document.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+			const status = document.getElementById('saveStatus');
+			status.style.color = "#ffaa00";
+			status.textContent = "Sende neue Alarm-Konfiguration...";
+			try {
+				// saveAlarms() gibt ein Promise zurück → korrekt awaiten
+				const result = await saveAlarms();
+				status.style.color = result.status === "ok" ? "#00ff88" : "#ff4444";
+				status.textContent = result.status === "ok"
+					? "🧹 Alle Alarme gelöscht"
+					: "❌ Fehler beim Löschen";
+			} catch (e) {
+				status.style.color = "#ff4444";
+				status.textContent = "❌ Reset fehlgeschlagen";
+				console.error(e);
+			}
+		}
+
+		// -------------------------------------------------------------
+		// WEBSOCKET mit Auto-Reconnect
+		// -------------------------------------------------------------
+		let ws = null;
+		let reconnectTimer = null;
+		let reconnectDelay = 1000;
+		const MAX_RECONNECT_DELAY = 5000;
+
+		function connectWS() {
+			if (ws && ws.readyState === WebSocket.OPEN) return;
+			ledConnecting();
+			console.log("WS: Verbindungsversuch …");
+			ws = new WebSocket(`ws://${window.location.host}/ws`);
+			ws.onopen = () => {
+				console.log("WS verbunden");
+				ledConnected();
+				reconnectDelay = 1000;
+			};
+			ws.onmessage = (event) => {
+				try {
+					const data = JSON.parse(event.data);
+					// 🔥 WICHTIG: Alarm auswerten
+					if (data.alarm_status !== undefined) {
+						showAlarm(data.alarm_status);
+					}
+
+				} catch (e) {
+					console.warn("WS JSON Fehler", e);
+				}
+			};
+			ws.onerror = () => ws.close();
+			ws.onclose = () => {
+				console.warn("WS getrennt");
+				ledDisconnected();
+				ws = null;
+				if (!reconnectTimer) {
+					reconnectTimer = setTimeout(() => {
+						reconnectTimer = null;
+						reconnectDelay = Math.min(reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+						connectWS();
+					}, reconnectDelay);
+				}
+			};
+		}
+
+		window.addEventListener('DOMContentLoaded', () => {
+			loadAlarms();
+			connectWS();
+		});
+	</script>
+</body>
+</html>

@@ -720,24 +720,156 @@ void handleTrack(AsyncWebServerRequest *request) {
   request->send(200, "application/json", out);
 }
 
-void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-  String json;
-  for (size_t i = 0; i < len; i++) {
-    json += (char)data[i];
-  }
-  JsonDocument doc;
-  if (deserializeJson(doc, json)) {
-    request->send(400, "text/plain", "JSON Fehler");
+// ======================================================================
+// Bezeichnung: handlePolarInquiry
+// Erklärung:   Prüft die Existenz des Standard-Polardiagramms im
+//              lokalen Dateisystem (LittleFS) unter '/polar/myboot.json'.
+//
+//              Wenn die Datei existiert, wird sie direkt an den Client
+//              gestreamt. Andernfalls wird ein leerer JSON-Inhalt mit
+//              dem HTTP-Status 404 zurückgegeben.
+//
+//              Zurückgegebene Daten:
+//                - Inhalt von /polar/myboot.json (als application/json)
+//                - {} bei Nichtexistenz
+//
+//              Der Endpunkt dient als Grundlage für:
+//                - Abruf des aktuell aktiven Boot-Polardiagramms
+//                - Initialisierung von Performance-Anzeigen im Frontend
+// ======================================================================
+void handlePolarInquiry(
+  AsyncWebServerRequest *request) {
+  if (!LittleFS.exists("/polar/myboot.json")) {
+    request->send(404, "application/json", "{}");
     return;
   }
-  String filename = doc["name"].as<String>();
-  filename.replace(" ", "_");
-  filename.toLowerCase();
-  String path = "/polar/" + filename + ".json";
-  File file = LittleFS.open(path, "w");
-  serializeJsonPretty(doc, file);
-  file.close();
-  request->send(200, "text/plain", "OK");
+  request->send(LittleFS, "/polar/myboot.json", "application/json");
+}
+
+// ======================================================================
+// Bezeichnung: handlePolarSave
+// Erklärung:   Verarbeitet den Upload von Polardaten in Teilstücken
+//              (Chunks) direkt in eine temporäre Datei im LittleFS, um
+//              den RAM während des Transfers komplett zu entlasten.
+//
+//              Nach dem vollständigen Empfang wird die temporäre Datei
+//              geschlossen. Vor dem Parsen wird die Dateigröße im Flash
+//              strikt limitiert (max. 20 KB). Erst nach erfolgreichem
+//              Größencheck erfolgt die reine JSON-Validierung. Bei Erfolg
+//              wird die alte Datei entfernt und die neue umbenannt.
+//
+//              Fehlerbehandlung:
+//                - 413: HTTP-Payload oder Gesamtübertragung > 20 KB
+//                - 400: Datei im Flash überschreitet 20 KB oder ungültiges JSON
+//                - 500: Dateisystem-Fehler oder unvollständiger Flash-Schreibvorgang
+//
+//              Architektur-Hinweise (NAVIS-Sicherheit):
+//                - Aktuell für Ein-Benutzer-System (Single-User) ausgelegt.
+//                - 'static File' wird bei jedem Schließen oder Fehler explizit 
+//                  zurückgesetzt (file = File()), um ungültige Handles zu vermeiden.
+//                - Höchste Portabilität: Da LittleFS-Implementierungen sich beim 
+//                  Überschreiben via rename() je nach Core-Version unterscheiden, 
+//                  wird die Zieldatei vor dem Umbenennen explizit gelöscht.
+//                - Ein abgebrochener Upload hinterlässt die '.tmp'-Datei.
+//                  Diese wird beim nächsten Start (index == 0) sicher entfernt.
+// ======================================================================
+void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  static File file;
+  const String tmpPath = "/polar/upload.tmp";
+  const String finalPath = "/polar/myboot.json";
+  const size_t MAX_POLAR_SIZE = 20000; 
+
+  // 1. Frühzeitige Erkennung direkt im HTTP-Header
+  if (total > MAX_POLAR_SIZE) {
+    request->send(413, "application/json", "{\"status\":\"error\",\"message\":\"Datei zu gross\"}");
+    return;
+  }
+
+  // 2. Initialisierung beim ersten Datenblock
+  if (index == 0) {
+    // Sicherheits-Check: Falls ein vorheriger Stream-Upload abbrach
+    if (file) {
+      file.close();
+      file = File();
+    }
+
+    if (!LittleFS.exists("/polar")) {
+      LittleFS.mkdir("/polar");
+    }
+
+    // Garantiert sauberen Start herstellen und Reste eines abgebrochenen Uploads entfernen
+    if (LittleFS.exists(tmpPath)) {
+      LittleFS.remove(tmpPath);
+    }
+
+    file = LittleFS.open(tmpPath, "w");
+    if (!file) {
+      request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Datei konnte nicht erstellt werden\"}");
+      return;
+    }
+  }
+
+  // 3. Datenblock in den Flash übertragen
+  if (file) {
+    size_t written = file.write(data, len);
+    
+    // Sofortiger Abbruch bei Schreibfehler (z.B. Flash voll) -> Handle resetten
+    if (written != len) {
+      file.close();
+      file = File();
+      LittleFS.remove(tmpPath);
+      request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Flash Schreibfehler\"}");
+      return;
+    }
+  } else {
+    if (index + len == total) {
+      request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Schreibfehler (Datei nicht offen)\"}");
+    }
+    return;
+  }
+
+  // 4. Nach dem letzten Datenblock: Validierung und Finalisierung
+  if (index + len == total) {
+    file.close();
+    file = File();
+
+    File checkFile = LittleFS.open(tmpPath, "r");
+    if (!checkFile) {
+      request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Validierungsdatei fehlt\"}");
+      return;
+    }
+
+    // Striktes Abfangen VOR dem Parsen schützt den Heap effektiv
+    if (checkFile.size() > MAX_POLAR_SIZE) {
+      checkFile.close();
+      LittleFS.remove(tmpPath);
+      request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"JSON-Datei überschreitet 20KB\"}");
+      return;
+    }
+
+    // Pure Syntax-Prüfung: RAM-Peak ist durch die 20KB-Grenze sicher beherrschbar
+    JsonDocument doc; 
+    DeserializationError error = deserializeJson(doc, checkFile);
+    checkFile.close();
+
+    if (error) {
+      LittleFS.remove(tmpPath);
+      request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Ungueltiges JSON-Format\"}");
+      return;
+    }
+
+    // Maximale Portabilität für alle ESP32 Core-Versionen: Explizites Löschen vor Rename
+    if (LittleFS.exists(finalPath)) {
+      LittleFS.remove(finalPath);
+    }
+    
+    if (LittleFS.rename(tmpPath, finalPath)) {
+      request->send(200, "application/json", "{\"status\":\"success\",\"message\":\"Polardaten erfolgreich gespeichert\"}");
+    } else {
+      LittleFS.remove(tmpPath); 
+      request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Fehler beim Finalisieren der Datei\"}");
+    }
+  }
 }
 
 // ======================================================================
@@ -774,40 +906,18 @@ void setupWebServer() {
   server.on("/track", HTTP_GET, handleTrack);
 
   // 3. NAVIS-Bootsprofilmanager
-  server.on("/api/polar/list", HTTP_GET, [](AsyncWebServerRequest *request) {
-    JsonDocument doc;
-    JsonArray arr = doc.to<JsonArray>();
-    File root = LittleFS.open("/polar");
-    File file = root.openNextFile();
-    while (file) {
-      String name = file.name();
-      if (name.endsWith(".json")) {
-        name.replace("/polar/", "");
-        arr.add(name);
-      }
-      file = root.openNextFile();
-    }
-    String output;
-    serializeJson(doc, output);
-    request->send(200, "application/json", output);
-  });
+  // Polar speichern
+  server.on(
+    "/api/polar/save",
+    HTTP_POST,
+    [](AsyncWebServerRequest *request) {},
+    NULL,
+    handlePolarSave);
 
-  server.on("/api/polar/load", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (!request->hasParam("file")) {
-      request->send(400, "text/plain", "missing file");
-      return;
-    }
-    String fileName = request->getParam("file")->value();
-    String path = "/polar/" + fileName;
-    if (!LittleFS.exists(path)) {
-      request->send(404, "text/plain", "not found");
-      return;
-    }
-    request->send(LittleFS, path, "application/json");
-  });
-
-  server.on("/api/polar/save", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL, handlePolarSave);
-
+  // Polar abfragen
+  server.on("/api/polar/inquiry",
+            HTTP_GET,
+            handlePolarInquiry);
 
   // 4. Alarm Systeme
   server.on(
