@@ -81,10 +81,43 @@
         .polar-input { width: 60px; text-align: center; background: #000; border: 1px solid #005566; color: #fff; }
         #activeProfile { font-size: 18px; font-weight: bold; color: white; }
         #statusText { font-weight: bold; color: var(--accent2); }
+		
+		/* --- BASIS-STYLING FÜR DIE NAV-BAR --- */
+		#navbar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
+
+		/* --- BUTTON-STYLING --- */
+		.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 5px 12px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: all 0.2s ease-in-out; }
+
+		/* --- HOVER- UND AKTIV-EFFEKTE --- */
+		.navbtn:hover, .navbtn.active { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
+
+		/* --- SPRACHAUSWAHL --- */
+		#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; cursor: pointer; outline: none; }
+		#langSelect option { background: #001a26; color: #00ffff; }
+
+		/* --- RESPONSIVE ANPASSUNG (MOBILGERÄTE) --- */
+		@media (max-width: 600px) {
+			#navbar { gap: 6px; padding: 8px 4px; }
+			.navbtn { padding: 4px 8px; font-size: 0.8em; }
+		}
+
+		footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
     </style>
 </head>
 <body>
-
+	<nav id="navbar">
+		<a href="index.html" class="navbtn" data-i18n="nav.overview">Übersicht</a>
+		<a href="system_settings.html" class="navbtn" data-i18n="nav.sys_settings">System</a>
+		
+		<div style="padding-left: 5px;">
+			<select id="langSelect" onchange="changeLanguage(this.value)">
+				<option value="de">Deutsch</option>
+				<option value="en">English</option>
+				<option value="fr">Français</option>
+				<option value="it">Italiano</option>
+			</select>
+		</div>
+	</nav>
     <h1>⚓ NAVIS Bootsprofilmanager</h1>
 
     <div class="dashboard">
@@ -184,6 +217,11 @@
         </div>
     </div>
 
+	<footer>
+		<strong>Marine Dashboard v1.1</strong><br>
+		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
+		© 2025 – Bootssystem ESP32 • Live Monitoring
+	</footer>
     <script>
         // Reparierte Arrays mit deinen exakten Gittervorgaben aus der originalen Struktur
         const NAVIS_ANGLES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180];
@@ -733,27 +771,82 @@
             return profile;
         }
 
-        async function saveCurrentProfile() {
-            try {
-                const profile = collectProfileData();
-                const response = await fetch("/api/polar/save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(profile)
-                });
-                if (response.ok) {
-                    setStatus("💾 Profil erfolgreich im Flash-Speicher gesichert!");
-                } else {
-                    setStatus("Speichern fehlgeschlagen.");
-                }
-            } catch (e) {
-                alert("Gespeichert! (API-Simulation lokal im Browser)");
-            }
-        }
+		async function saveCurrentProfile() {
+			try {
+				const profile = collectProfileData();
+				const jsonString = JSON.stringify(profile);
+				// Exakte Byte-Größe statt Zeichenanzahl bestimmen
+				const sizeBytes = new Blob([jsonString]).size;
+				if (sizeBytes > 20000) {
+					setStatus(`❌ Profil zu groß (${sizeBytes} Byte / max. 20000 Byte)`);
+					return;
+				}
+				setStatus("⏳ Übertrage Polardaten...");
+				const response = await fetch("/api/polar/save", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json"
+					},
+					body: jsonString
+				});
+				let result = {};
+				try {
+					result = await response.json();
+				} catch {
+					result.message = "Ungültige Serverantwort";
+				}
+				if (response.ok) {
+					setStatus("💾 Profil erfolgreich gespeichert");
+				} else {
+					setStatus(`❌ ${result.message || "Speichern fehlgeschlagen"}`);
+				}
+			} catch (e) {
+				console.error("Polar Save Error:", e);
+				setStatus(`❌ ${e.message || "Speichern fehlgeschlagen"}`);
+			}
+		}
 
+		async function loadCurrentProfile() {
+			try {
+				setStatus("⏳ Lade Bootsprofil...");
+				const response = await fetch("/api/polar/inquiry", {
+					method: "POST"
+				});
+				if (!response.ok) {
+					throw new Error("Kein gespeichertes Profil gefunden");
+				}
+				const profile = await response.json();
+				if (!profile || Object.keys(profile).length === 0) {
+					setStatus("ℹ️ Kein Profil vorhanden");
+					return;
+				}
+				applyProfileData(profile);
+				setStatus("✅ Bootsprofil geladen");
+			} catch (error) {
+				console.warn("Profil konnte nicht geladen werden:", error);
+				setStatus("ℹ️ Starte mit Standardwerten");
+			}
+		}
+		
+		function applyProfileData(profile) {
+			document.getElementById("boatName").value = profile.name || "";
+			document.getElementById("boatLength").value = profile.length || 0;
+			document.getElementById("boatBeam").value = profile.beam || 0;
+			document.getElementById("boatDraft").value = profile.draft || 0;
+			document.getElementById("mastHeight").value = profile.mastHeight || 0;
+			document.getElementById("displacement").value = profile.displacement || 0;
+			document.getElementById("motorSpeed").value = profile.motorSpeed || 0;
+			document.getElementById("vmgUpwind").value = profile.vmgUpwind || 45;
+			document.getElementById("vmgDownwind").value = profile.vmgDownwind || 145;
+			if (profile.polarDefaults) {
+				loadPolarTable(profile.polarDefaults);
+			}
+		}
+		
         // Dom-Ready Initialisierungsschleife
         document.addEventListener("DOMContentLoaded", () => {
             generatePolarTableStructures();
+			loadCurrentProfile();
             initPolarChart();
             ladeSmartSliderAusTabelle();
             updateChartVisuals();
