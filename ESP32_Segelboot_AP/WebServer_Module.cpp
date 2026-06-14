@@ -765,29 +765,33 @@ void handlePolarInquiry(
 //
 //              Architektur-Hinweise (NAVIS-Sicherheit):
 //                - Aktuell für Ein-Benutzer-System (Single-User) ausgelegt.
-//                - 'static File' wird bei jedem Schließen oder Fehler explizit 
+//                - 'static File' wird bei jedem Schließen oder Fehler explizit
 //                  zurückgesetzt (file = File()), um ungültige Handles zu vermeiden.
-//                - Höchste Portabilität: Da LittleFS-Implementierungen sich beim 
-//                  Überschreiben via rename() je nach Core-Version unterscheiden, 
+//                - Höchste Portabilität: Da LittleFS-Implementierungen sich beim
+//                  Überschreiben via rename() je nach Core-Version unterscheiden,
 //                  wird die Zieldatei vor dem Umbenennen explizit gelöscht.
 //                - Ein abgebrochener Upload hinterlässt die '.tmp'-Datei.
 //                  Diese wird beim nächsten Start (index == 0) sicher entfernt.
 // ======================================================================
 void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
   static File file;
+  static bool uploadError = false;  // Schützt vor Folge-Chunks bei vorzeitigem Abbruch
   const String tmpPath = "/polar/upload.tmp";
   const String finalPath = "/polar/myboot.json";
-  const size_t MAX_POLAR_SIZE = 20000; 
+  const size_t MAX_POLAR_SIZE = 20000;
 
-  // 1. Frühzeitige Erkennung direkt im HTTP-Header
-  if (total > MAX_POLAR_SIZE) {
-    request->send(413, "application/json", "{\"status\":\"error\",\"message\":\"Datei zu gross\"}");
-    return;
-  }
-
-  // 2. Initialisierung beim ersten Datenblock
+  // 1. Initialisierung beim allerersten Datenblock
   if (index == 0) {
-    // Sicherheits-Check: Falls ein vorheriger Stream-Upload abbrach
+    uploadError = false;  // Reset für den neuen Upload-Vorgang
+
+    // Frühzeitige Erkennung direkt im HTTP-Header
+    if (total > MAX_POLAR_SIZE) {
+      uploadError = true;
+      request->send(413, "application/json", "{\"status\":\"error\",\"message\":\"Datei zu gross (Header-Check)\"}");
+      return;
+    }
+
+    // Sicherheits-Check: Falls ein vorheriger Stream-Upload unsauber abbrach
     if (file) {
       file.close();
       file = File();
@@ -797,31 +801,39 @@ void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
       LittleFS.mkdir("/polar");
     }
 
-    // Garantiert sauberen Start herstellen und Reste eines abgebrochenen Uploads entfernen
+    // Reste eines alten abgebrochenen Uploads entfernen
     if (LittleFS.exists(tmpPath)) {
       LittleFS.remove(tmpPath);
     }
 
     file = LittleFS.open(tmpPath, "w");
     if (!file) {
+      uploadError = true;
       request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Datei konnte nicht erstellt werden\"}");
       return;
     }
   }
 
+  // 2. Schneller Ausstieg für Folge-Chunks, falls zuvor ein Fehler auftrat
+  if (uploadError) {
+    return;
+  }
+
   // 3. Datenblock in den Flash übertragen
   if (file) {
     size_t written = file.write(data, len);
-    
+
     // Sofortiger Abbruch bei Schreibfehler (z.B. Flash voll) -> Handle resetten
     if (written != len) {
       file.close();
       file = File();
       LittleFS.remove(tmpPath);
+      uploadError = true;
       request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Flash Schreibfehler\"}");
       return;
     }
   } else {
+    // Sicherheitsnetz, falls die Datei aus unbekanntem Grund während des Streams schließt
     if (index + len == total) {
       request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Schreibfehler (Datei nicht offen)\"}");
     }
@@ -831,7 +843,7 @@ void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
   // 4. Nach dem letzten Datenblock: Validierung und Finalisierung
   if (index + len == total) {
     file.close();
-    file = File();
+    file = File();  // Handle explizit freigeben
 
     File checkFile = LittleFS.open(tmpPath, "r");
     if (!checkFile) {
@@ -843,12 +855,12 @@ void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
     if (checkFile.size() > MAX_POLAR_SIZE) {
       checkFile.close();
       LittleFS.remove(tmpPath);
-      request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"JSON-Datei überschreitet 20KB\"}");
+      request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"JSON-Datei ueberschreitet 20KB\"}");
       return;
     }
 
     // Pure Syntax-Prüfung: RAM-Peak ist durch die 20KB-Grenze sicher beherrschbar
-    JsonDocument doc; 
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, checkFile);
     checkFile.close();
 
@@ -862,15 +874,16 @@ void handlePolarSave(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
     if (LittleFS.exists(finalPath)) {
       LittleFS.remove(finalPath);
     }
-    
+
     if (LittleFS.rename(tmpPath, finalPath)) {
       request->send(200, "application/json", "{\"status\":\"success\",\"message\":\"Polardaten erfolgreich gespeichert\"}");
     } else {
-      LittleFS.remove(tmpPath); 
+      LittleFS.remove(tmpPath);
       request->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Fehler beim Finalisieren der Datei\"}");
     }
   }
 }
+
 
 // ======================================================================
 // Bezeichnung: setupWebServer
@@ -908,16 +921,9 @@ void setupWebServer() {
   // 3. NAVIS-Bootsprofilmanager
   // Polar speichern
   server.on(
-    "/api/polar/save",
-    HTTP_POST,
-    [](AsyncWebServerRequest *request) {},
-    NULL,
-    handlePolarSave);
-
+    "/api/polar/save", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL, handlePolarSave);
   // Polar abfragen
-  server.on("/api/polar/inquiry",
-            HTTP_GET,
-            handlePolarInquiry);
+  server.on("/api/polar/inquiry", HTTP_GET, handlePolarInquiry);
 
   // 4. Alarm Systeme
   server.on(
