@@ -209,9 +209,27 @@
             <div id="polarContainer" class="polar-container"></div>
 
             <h2>Aktionen</h2>
-            <div class="button-bar">
-                <button onclick="saveCurrentProfile()" style="background:#27ae60;">💾 Profil speichern</button>
-            </div>
+			<!-- NAVIS Bootsprofil-Aktionen -->
+			<div class="flex flex-col gap-3 mt-6 w-full max-w-2xl">
+				<!-- Erste Zeile: Speichern und Exportieren nebeneinander -->
+				<div class="flex flex-row gap-3 w-full">
+					<!-- 1. Speichern (An ESP32 senden) -->
+					<button onclick="saveCurrentProfile()" class="flex-1 flex items-center justify-center gap-2 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200">
+						<span>💾</span> <span class="whitespace-nowrap">Profil speichern</span>
+					</button>
+
+					<!-- 2. Exportieren (Lokales Backup) -->
+					<button onclick="downloadProfileBackup()" class="flex-1 flex items-center justify-center gap-2 h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200">
+						<span>📥</span> <span class="whitespace-nowrap">Profil exportieren</span>
+					</button>
+				</div>
+
+				<!-- Zweite Zeile: Importieren über die volle Breite darunter -->
+				<label class="w-full flex items-center justify-center gap-2 h-11 bg-slate-600 hover:bg-slate-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200 cursor-pointer text-center select-none m-0">
+					<span>📂</span> <span class="whitespace-nowrap">Profil importieren</span>
+					<input type="file" accept=".json" onchange="uploadProfileBackup(event)" class="hidden">
+				</label>
+			</div>
             <br>
             <h2>Systemstatus: <span id="statusText">Bereit</span></h2>
         </div>
@@ -771,39 +789,110 @@
             return profile;
         }
 
-		async function saveCurrentProfile() {
+		// Funktion 1: Exportiert die aktuellen Tabellendaten direkt als .json-Datei
+		function downloadProfileBackup() {
 			try {
-				const profile = collectProfileData();
-				const jsonString = JSON.stringify(profile);
-				// Exakte Byte-Größe statt Zeichenanzahl bestimmen
-				const sizeBytes = new Blob([jsonString]).size;
-				if (sizeBytes > 20000) {
-					setStatus(`❌ Profil zu groß (${sizeBytes} Byte / max. 20000 Byte)`);
-					return;
-				}
-				setStatus("⏳ Übertrage Polardaten...");
-				const response = await fetch("/api/polar/save", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json"
-					},
-					body: jsonString
-				});
-				let result = {};
-				try {
-					result = await response.json();
-				} catch {
-					result.message = "Ungültige Serverantwort";
-				}
-				if (response.ok) {
-					setStatus("💾 Profil erfolgreich gespeichert");
-				} else {
-					setStatus(`❌ ${result.message || "Speichern fehlgeschlagen"}`);
-				}
+				const profile = collectProfileData(); // Nutzt deine vorhandene Datensammlung
+				const jsonString = JSON.stringify(profile, null, 2); // Schön formatiert
+				
+				// Dateiname basierend auf dem Bootsnamen generieren
+				const bootName = document.getElementById("bootName").value.trim() || "myboot";
+				const fileName = `${bootName.replace(/[^a-z0-9]/gi, '_')}_polar_backup.json`;
+				
+				// Download-Trigger im Browser erzeugen
+				const blob = new Blob([jsonString], { type: "application/json" });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement("a");
+				
+				a.href = url;
+				a.download = fileName;
+				document.body.appendChild(a);
+				a.click();
+				
+				// Aufräumen
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+				setStatus("📥 Backup erfolgreich heruntergeladen");
 			} catch (e) {
-				console.error("Polar Save Error:", e);
-				setStatus(`❌ ${e.message || "Speichern fehlgeschlagen"}`);
+				console.error("Backup download failed:", e);
+				setStatus("❌ Fehler beim Erstellen der Backup-Datei");
 			}
+		}
+
+		// Funktion 2: Liest eine lokale .json-Datei ein und befüllt die Maske (ohne direkt zum ESP32 zu senden)
+		function uploadProfileBackup(event) {
+			const file = event.target.files[0];
+			if (!file) return;
+
+			const reader = new FileReader();
+			reader.onload = function(e) {
+				try {
+					const profile = JSON.parse(e.target.result);
+					
+					// Validierung, ob es sich um ein echtes Profil handelt
+					if (!profile.name && !profile.polar) {
+						throw new Error("Ungültiges Dateiformat");
+					}
+					
+					// Profil in die UI laden (Nutzt die korrigierte Funktion von vorhin)
+					applyProfileData(profile);
+					
+					setStatus("📂 Backup erfolgreich in die Maske geladen. Bitte 'Speichern' klicken!");
+					
+					// Input-Feld zurücksetzen, damit dieselbe Datei erneut gewählt werden kann
+					event.target.value = '';
+				} catch (err) {
+					setStatus("❌ Fehler: Ungültige oder beschädigte JSON-Datei");
+					event.target.value = '';
+				}
+			};
+			reader.readAsText(file);
+		}
+
+		async function saveCurrentProfile() {
+		  try {
+			const profile = collectProfileData();
+			const jsonString = JSON.stringify(profile);
+			
+			// Exakte Byte-Größe statt Zeichenanzahl bestimmen
+			const sizeBytes = new Blob([jsonString]).size;
+			if (sizeBytes > 20000) {
+			  setStatus(`❌ Profil zu groß (${sizeBytes} Byte / max. 20000 Byte)`);
+			  return;
+			}
+
+			setStatus("⏳ Übertrage Polardaten...");
+
+			const response = await fetch("/api/polar/save", {
+			  method: "POST",
+			  headers: {
+				"Content-Type": "application/json"
+			  },
+			  body: jsonString
+			});
+
+			// Versuche immer, die JSON-Antwort des Servers zu lesen
+			let result = {};
+			try {
+			  result = await response.json();
+			} catch (jsonError) {
+			  // Falls der Server keine valide JSON-Antwort geliefert hat
+			  result.message = `Server-Fehler (${response.status})`;
+			}
+
+			// HTTP-Status 200-299 abfangen
+			if (response.ok) {
+			  setStatus(`💾 ${result.message || "Polardaten erfolgreich gespeichert"}`);
+			} else {
+			  // Hier werden die C++ Fehler (400, 413, 500) direkt im UI sichtbar gemacht
+			  setStatus(`❌ Fehler ${response.status}: ${result.message || "Speichern fehlgeschlagen"}`);
+			}
+
+		  } catch (e) {
+			// Fängt Netzwerkfehler ab (z.B. ESP32 Offline, Verbindungsabbruch)
+			console.error("Polar Save Error:", e);
+			setStatus(`❌ Verbindungsfehler: Der Boot-Server antwortet nicht.`);
+		  }
 		}
 
 		async function loadCurrentProfile() {
@@ -827,18 +916,50 @@
 			}
 		}
 		
-	function applyProfileData(profile) {
-		document.getElementById("bootName").value = profile.name || "";
-		document.getElementById("bootLength").value = profile.length || 0;
-		document.getElementById("bootBeam").value = profile.beam || 0;
-		document.getElementById("bootDraft").value = profile.draft || 0;
-		document.getElementById("bootMastHeight").value = profile.mastHeight || 0;
-		document.getElementById("bootDisplacement").value = profile.displacement || 0;
-		document.getElementById("bootMotorSpeed").value = profile.motorSpeed || 0;
-		document.getElementById("bootVMGUpwind").value = profile.vmgUpwind || 45;
-		document.getElementById("bootVMGDownwind").value = profile.vmgDownwind || 145;
-	}
-		
+		function applyProfileData(profile) {
+			if (!profile) return;
+			// 1. Stammdaten (Sicherheitsgrenzen) befüllen
+			if (profile.name !== undefined) document.getElementById("bootName").value = profile.name;
+			if (profile.length !== undefined) document.getElementById("bootLength").value = profile.length;
+			if (profile.beam !== undefined) document.getElementById("bootBeam").value = profile.beam;
+			if (profile.draft !== undefined) document.getElementById("bootDraft").value = profile.draft;
+			if (profile.mastHeight !== undefined) document.getElementById("bootMastHeight").value = profile.mastHeight;
+			if (profile.displacement !== undefined) document.getElementById("bootDisplacement").value = profile.displacement;
+			if (profile.motorSpeed !== undefined) document.getElementById("bootMotorSpeed").value = profile.motorSpeed;
+			if (profile.vmgUpwind !== undefined) document.getElementById("bootVMGUpwind").value = profile.vmgUpwind;
+			if (profile.vmgDownwind !== undefined) document.getElementById("bootVMGDownwind").value = profile.vmgDownwind;
+
+			// Setze den Anzeigenamen über der Tabelle
+			document.getElementById("activeProfile").innerText = profile.name || "Benutzerprofil";
+
+			// 2. Polardaten in die 196-Felder-Tabelle eintragen
+			if (profile.polar) {
+				Object.keys(profile.polar).forEach(angle => {
+					Object.keys(profile.polar[angle]).forEach(wind => {
+						const input = document.querySelector(`.polar-input[data-angle="${angle}"][data-wind="${wind}"]`);
+						if (input) {
+							input.value = parseFloat(profile.polar[angle][wind]).toFixed(1);
+						}
+					});
+				});
+
+				// Interpolation für alle Windstärken nachziehen, falls Lücken im JSON waren
+				if (typeof interpoliereZwischenWinkel === "function") {
+					NAVIS_WINDS.forEach(wind => {
+						interpoliereZwischenWinkel(wind);
+					});
+				}
+			}
+
+			// 3. UI-Elemente und Diagramm auf Basis der neuen Daten synchronisieren
+			if (typeof ladeSmartSliderAusTabelle === "function") {
+				ladeSmartSliderAusTabelle();
+			}
+			if (typeof updateChartVisuals === "function") {
+				updateChartVisuals();
+			}
+		}
+
         // Dom-Ready Initialisierungsschleife
         document.addEventListener("DOMContentLoaded", () => {
             generatePolarTableStructures();
