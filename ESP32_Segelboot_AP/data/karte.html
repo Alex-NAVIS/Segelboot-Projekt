@@ -1227,51 +1227,133 @@ function updateRangeCircles() {
         });
     }
 }
-
-let navisRouteLayer = null;
-
-function drawNavisRoute(route) {
-    if (!route || route.length === 0) {
-        alert("Keine Route gefunden");
-        return;
-    }
-    const latlngs = route.map(p => [p.lat, p.lon]);
-    if (navisRouteLayer) {
-        map.removeLayer(navisRouteLayer);
-    }
-    navisRouteLayer = L.polyline(latlngs, {
-        color: '#00ff88',
-        weight: 4,
-        opacity: 0.9
-    }).addTo(map);
-    map.fitBounds(navisRouteLayer.getBounds());
-}
-let navisCalculatedRoute = null;
-
 function drawCalculatedRoute(route) {
-
     if (!route || route.length === 0) {
         alert("Keine Route gefunden");
         return;
     }
 
-    const coords = route.map(p => [p.lat, p.lon]);
+    // =========================================================================
+    // 1. ALTE ROUTE UND MARKER LÖSCHEN
+    // =========================================================================
+    routePoints = [];
+    routeMarkers.forEach(m => {
+        try { map.removeLayer(m); } catch(e) {}
+    });
+    routeMarkers = [];
 
-    if (navisCalculatedRoute) {
-        map.removeLayer(navisCalculatedRoute);
+    if (routeLine) {
+        try { map.removeLayer(routeLine); } catch(e) {}
+        routeLine = null;
     }
 
-    navisCalculatedRoute = L.polyline(coords, {
-        color: '#00ff88',
-        weight: 4,
-        opacity: 1
+    if (window.navisDarkRedLine) {
+        try { map.removeLayer(window.navisDarkRedLine); } catch(e) {}
+        window.navisDarkRedLine = null;
+    }
+
+    // =========================================================================
+    // 2. DUNKELROTE LEITLINIE (ZEIGT DIE ECHTE SPUR DES BOOTES)
+    // =========================================================================
+    const rawLatLngs = route.map(p => [p.lat, p.lon]);
+    window.navisDarkRedLine = L.polyline(rawLatLngs, {
+        color: '#8B0000',     // Dunkelrot
+        weight: 3,            
+        opacity: 0.85,
+        interactive: false    
     }).addTo(map);
 
-    console.log(
-        `✅ Route gezeichnet (${route.length} Punkte)`
-    );
+    // =========================================================================
+    // 3. RADIKALER MANÖVER-FILTER (NUR NOCH WENDEN, HALSEN & GROSSE KNICKE)
+    // =========================================================================
+    const filteredRoute = [];
+    filteredRoute.push(route[0]); // Startpunkt ist immer WP #1
 
+    // Schwellenwert für echte Manöver: Erst ab 30° Kursänderung wird ein WP erzeugt!
+    // Das blockiert alle kleinen Kurven im Fahrwasser und isoliert nur echte Bugwechsel.
+    const MANEUVER_THRESHOLD = 30.0; 
+    
+    let currentSegmentStartIdx = 0;
+
+    for (let i = 1; i < route.length - 1; i++) {
+        const startPt = route[currentSegmentStartIdx];
+        const pivotPt = route[i];
+        const nextPt = route[i + 1];
+
+        // Berechne die Richtung vor dem Punkt und nach dem Punkt
+        const bearingBefore = calculateBearing(startPt.lat, startPt.lon, pivotPt.lat, pivotPt.lon);
+        const bearingAfter = calculateBearing(pivotPt.lat, pivotPt.lon, nextPt.lat, nextPt.lon);
+
+        let deltaBearing = Math.abs(bearingAfter - bearingBefore);
+        if (deltaBearing > 180) deltaBearing = 360 - deltaBearing;
+
+        // Hat das Boot gerade gewendet oder halse vollzogen (harter Richtungsknick)?
+        if (deltaBearing > MANEUVER_THRESHOLD) {
+            filteredRoute.push(pivotPt);
+            currentSegmentStartIdx = i; // Setze den Referenzpunkt für das nächste gerade Segment
+        }
+    }
+
+    // Zielpunkt als letzten Marker fixieren
+    if (filteredRoute[filteredRoute.length - 1] !== route[route.length - 1]) {
+        filteredRoute.push(route[route.length - 1]);
+    }
+
+    console.log(`🎰 RADIKAL-FILTER EFFEKT: Von ${route.length} Gitterpunkten blieben nur ${filteredRoute.length} echte Manöver-Wegpunkte übrig.`);
+
+    // =========================================================================
+    // 4. NUR DIE GEFILTERTEN MANÖVER-MARKER RENDERN
+    // =========================================================================
+    filteredRoute.forEach((p, idx) => {
+        const latlng = L.latLng(p.lat, p.lon);
+        routePoints.push(latlng);
+
+        const marker = L.marker(latlng, {
+            draggable: true,
+            icon: createDiamondIcon('blue')
+        }).addTo(map);
+
+        routeMarkers.push(marker);
+
+        // Tooltip (ETA-Stunden ab Start)
+        const etaText = `WP #${idx + 1} (+${p.timeElapsed.toFixed(1)}h)`;
+        marker.bindTooltip(etaText, { permanent: false, direction: 'top' });
+
+        // Popup für Touchscreen-Geräte
+        const popupContent = `
+            <div style="text-align: center; font-family: sans-serif;">
+                <strong>Wegpunkt #${idx + 1}</strong><br>
+                ⏱ Zeit ab Start: ${p.timeElapsed.toFixed(2)} Std.<br>
+                <button onclick="removeWaypoint(${idx})" style="margin-top: 8px; background: #ff2a2a; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                    🗑 Löschen
+                </button>
+            </div>
+        `;
+        marker.bindPopup(popupContent);
+
+        marker.on('drag', () => {
+            const i = routeMarkers.indexOf(marker);
+            if (i === -1) return;
+            routePoints[i] = marker.getLatLng();
+            updateRouteDisplay();
+        });
+
+        marker.on('contextmenu', (evt) => {
+            evt.originalEvent.preventDefault();
+            const i = routeMarkers.indexOf(marker);
+            if (i !== -1) removeWaypoint(i);
+        });
+    });
+
+    // =========================================================================
+    // 5. HAUPTLINIE AKTUALISIEREN & ZOOMEN
+    // =========================================================================
+    updateRouteDisplay();
+
+    const bounds = L.latLngBounds(filteredRoute.map(p => [p.lat, p.lon]));
+    map.fitBounds(bounds, { padding: [40, 40] });
 }
+
 
 
 /* ------------------------------
