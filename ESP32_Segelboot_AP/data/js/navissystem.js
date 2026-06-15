@@ -354,17 +354,35 @@ window.triggerNavisRouting = function () {
     NAVIS_ROUTE.weatherFrame = weatherFrameIdx;
 
     // 5. Konsolen-Logging für Debugging
-    console.log("=== 🚀 NAVIS GRID ROUTER ENGAGED ===");
-    console.log(`Gewähltes Profil: ${profile}`);
-    console.log(`Kurswechsel-Strafe (Smooth): Aktiviert`);
-    console.log(`Anzahl Zwischen-Wegpunkte: ${NAVIS_ROUTE.waypoints.length}`);
-    console.log(`Start-Tile: t_${startPos.tileX}_${startPos.tileY}`);
-    
-    NAVIS_ROUTE.waypoints.forEach((wp, i) => {
-        console.log(`WP #${i + 1}-Tile: t_${wp.tileX}_${wp.tileY}`);
-    });
-    
-    console.log(`Ziel-Tile: t_${zielPos.tileX}_${zielPos.tileY}`);
+	console.log("=== 🚀 NAVIS GRID ROUTER ENGAGED ===");
+	console.log(`Profil: ${profile}`);
+	console.log(`Start-Tile: t_${startPos.tileX}_${startPos.tileY}`);
+
+	NAVIS_ROUTE.waypoints.forEach((wp, i) => {console.log(`WP #${i + 1}-Tile: t_${wp.tileX}_${wp.tileY}`);});
+	console.log(`Ziel-Tile: t_${zielPos.tileX}_${zielPos.tileY}`);
+	switch(profile) {
+		case "fastest":
+			console.log("⚡ Schnellste Route");
+			break;
+		case "comfort":
+			console.log("🛋 Komfortabelste Route");
+			break;
+		case "safest":
+			console.log("🛡 Sicherste Route");
+			break;
+		case "eco":
+			console.log("🔋 Energieeffizienteste Route");
+			break;
+		case "avoid_wind":
+			console.log("💨 Starkwind vermeiden");
+			break;
+		case "avoid_waves":
+			console.log("🌊 Wellen vermeiden");
+			break;
+		case "coastal":
+			console.log("⚓ Küstennah fahren");
+			break;
+	}
     console.log("🚀 Starte A*-Routing");
 
     // 6. Asynchrone Routenplanung (A*) ausführen
@@ -372,19 +390,18 @@ window.triggerNavisRouting = function () {
         try {
             // KEIN dynamischer Import mehr! Wir nutzen die global bereitstehende Funktion:
             const route = await planRoute(
-                {
-                    lat: NAVIS_ROUTE.start.lat,
-                    lon: NAVIS_ROUTE.start.lon
-                },
-                {
-                    lat: NAVIS_ROUTE.ziel.lat,
-                    lon: NAVIS_ROUTE.ziel.lon
-                },
-                {
-                    schnellste: profile === "fast",
-                    wellenVermeiden: profile === "comfort"
-                }
-            );
+				{
+					lat: NAVIS_ROUTE.start.lat,
+					lon: NAVIS_ROUTE.start.lon
+				},
+				{
+					lat: NAVIS_ROUTE.ziel.lat,
+					lon: NAVIS_ROUTE.ziel.lon
+				},
+				{
+					profile: profile
+				}
+			);
             
             console.log("=== 🏁 NAVIS ENGINE: ROUTE BERECHNET ===");
             console.log("Anzahl berechneter Wegpunkte:", route.length);
@@ -404,21 +421,6 @@ window.triggerNavisRouting = function () {
 
 console.log("NAVIS: Nach triggerNavisRouting");
 console.log(window.triggerNavisRouting);
-
-
-// Funktion zum Umschalten zwischen Groß (ausgeklappt) und Klein (eingeklappt)
-function toggleRoutingPanel() {
-    const panel = document.getElementById("navis-routing-panel");
-    const btn = document.getElementById("routing-pin-toggle");
-    
-    if (panel.classList.contains("collapsed")) {
-        panel.classList.remove("collapsed");
-        btn.innerText = "⤡"; // Icon ändert sich zu "Verkleinern"
-    } else {
-        panel.classList.add("collapsed");
-        btn.innerText = "⤢"; // Icon ändert sich zu "Vergrößern"
-    }
-}
 
 /**
  * A*-Routenplaner für das ESP32-Segelboot-Projekt
@@ -509,27 +511,125 @@ async function fetchPolarData() {
     }
 }
 
-async function checkCollision(lat, lon) {
-    const tileX = Math.floor(lon);
-    const tileY = Math.floor(lat);
-    const cacheKey = `${tileX}_${tileY}`;
-    if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
-    try {
-        const response = await fetch(`tiles_nav/${tileX}_${tileY}.json`);
-        const tileData = await response.json();
-        tileCache.set(cacheKey, tileData.isLand);
-        return tileData.isLand;
-    } catch (e) {
-        tileCache.set(cacheKey, false);
-        return false; 
+async function getTileType(lat, lon) {
+    const TILE_SPAN_LOCAL = 0.256; 
+    const tileX = Math.floor(lon / TILE_SPAN_LOCAL);
+    const tileY = Math.floor(lat / TILE_SPAN_LOCAL);
+    const cacheKey = `t_${tileX}_${tileY}`;
+
+    let tileData = null;
+
+    // RAM-Cache Abfrage
+    if (tileCache.has(cacheKey)) {
+        tileData = tileCache.get(cacheKey);
+    } else {
+        try {
+            const response = await fetch(`tiles_nav/${cacheKey}.nav.gz`);
+            if (!response.ok) {
+                tileCache.set(cacheKey, 0); // 404 = Kachel existiert nicht im Python-Skript = Offene See
+                return 0;
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            const decompressed = pako.ungzip(new Uint8Array(arrayBuffer));
+            const dataView = new DataView(decompressed.buffer);
+            
+            const gridSizeX = dataView.getUint16(4, false);
+            const minLon = dataView.getFloat32(8, false);
+            const minLat = dataView.getFloat32(12, false);
+            const maxLon = dataView.getFloat32(16, false);
+            const maxLat = dataView.getFloat32(20, false);
+            const matrixBytes = decompressed.subarray(28);
+            
+            tileData = {
+                gridSize: gridSizeX,
+                minLon, minLat, maxLon, maxLat,
+                matrix: matrixBytes
+            };
+            tileCache.set(cacheKey, tileData);
+            
+        } catch (e) {
+            console.error(`Fehler beim Entpacken von Kachel ${cacheKey}:`, e);
+            tileCache.set(cacheKey, 0); // Fallback bei Defekt: Offene See
+            return 0;
+        }
     }
+
+    // Wenn als reine offene See gecacht
+    if (tileData === 0) return 0;
+
+    const size = tileData.gridSize;
+    const pctX = (lon - tileData.minLon) / (tileData.maxLon - tileData.minLon);
+    const pctY = (lat - tileData.minLat) / (tileData.maxLat - tileData.minLat);
+    
+    const pixelX = Math.floor(pctX * size);
+    const pixelY = (size - 1) - Math.floor(pctY * size); // Rasterio-Y-Spiegelung
+    
+    const clampedX = Math.max(0, Math.min(size - 1, pixelX));
+    const clampedY = Math.max(0, Math.min(size - 1, pixelY));
+    
+    const arrayIndex = (clampedY * size) + clampedX;
+    
+    // Liefert garantiert: 0 = See, 1 = Küste, 2 = Land
+    return tileData.matrix[arrayIndex];
 }
 
 function getWeatherData(hoursAhead, lat, lon) {
+    // 1. Raum-Komponente: Kachel-ID berechnen (Gitter-Maßstab TILE_SPAN = 0.256°)
+    const TILE_SPAN_LOCAL = 0.256; 
+    const tileX = Math.floor(lon / TILE_SPAN_LOCAL);
+    const tileY = Math.floor(lat / TILE_SPAN_LOCAL);
+    const tileKey = `t_${tileX}_${tileY}`;
+
+    // 2. Zeit- und Raum-Komponente aus deiner wettersystem.js abfragen (falls geladen)
     if (typeof wetterDaten !== 'undefined' && wetterDaten[hoursAhead]) {
-        return wetterDaten[hoursAhead]; 
+        const hourlyData = wetterDaten[hoursAhead];
+        if (hourlyData[tileKey]) return hourlyData[tileKey];
+        if (hourlyData.tiles && hourlyData.tiles[tileKey]) return hourlyData.tiles[tileKey];
     }
-    return { windDir: 270, windSpeed: 14, waveHeight: 0.6, currentDir: 45, currentSpeed: 1.0 };
+
+    // 3. ECHTES 4D-GEZEITEN- & WETTER-FALLBACK (Für lokalen Test im Browser)
+    // Wind- und Wellenfronten (Wandernd im Raum und in der Zeit)
+    const wavePhase = (tileX * 0.5) + (tileY * 0.3) - (hoursAhead * 0.1);
+    const windSpeedCalc = 12 + Math.sin(wavePhase) * 6; // Wind pendelt zw. 6 und 18 Knoten
+    const windDirBase = 240 + (hoursAhead * 0.5) + (tileX * 2) % 40;
+    const waveHeightCalc = 0.2 + (windSpeedCalc * 0.06);
+
+    // --- ECHTE 4D-GEZEITEN-LOGIK (EBBE & FLUT SIMULATION) ---
+    // Ein voller Gezeitenzyklus (M2-Tide) dauert ca. 12.42 Stunden.
+    const TIDE_PERIOD = 12.42;
+    
+    // Die Phase der Tide verschiebt sich geografisch (Flutwelle läuft zeitversetzt durchs Revier)
+    // Wir simulieren hier eine Flutwelle, die von Westen (niedriges tileX) nach Osten wandert.
+    const geoPhaseShift = tileX * 0.6 + tileY * 0.2;
+    const currentTidePhase = ((hoursAhead + geoPhaseShift) % TIDE_PERIOD) / TIDE_PERIOD * 2 * Math.PI;
+
+    // Basis-Strömungsrichtung im Revier (z.B. Elbe/Fahrwasser-Achse Ost-West: 90° / 270°)
+    const mainChannelAxis = 90; 
+    
+    // Sinus-Welle steuert das Ebbe- und Flutstrom-Verhalten (-1.0 bis +1.0)
+    const tideFactor = Math.sin(currentTidePhase);
+    
+    let currentDirCalc = mainChannelAxis;
+    if (tideFactor < 0) {
+        // Wenn der Faktor negativ ist, kentert der Strom und läuft in die Gegenrichtung (Ebbe)
+        currentDirCalc = (mainChannelAxis + 180) % 360;
+    }
+
+    // Strömungsgeschwindigkeit pulsiert mit dem Tidenstrom (maximal im Gezeitenstrom, Nullpunkt beim Stillwasser)
+    // An engen Stellen (simuliert durch tileY-Modul) wird der Strom physisch beschleunigt
+    const maxCurrentInRegion = 1.2 + (tileY % 2) * 0.8; // Bis zu 2.0 Knoten Strom!
+    const currentSpeedCalc = Math.abs(tideFactor) * maxCurrentInRegion;
+
+    return {
+        windDir: (windDirBase + 360) % 360,
+        windSpeed: Math.max(2, windSpeedCalc),
+        waveHeight: Math.max(0.1, waveHeightCalc),
+        
+        // KRITIK-FIX: Strömung schwenkt alle 6.2 Stunden um und ist extrem ortsabhängig!
+        currentDir: currentDirCalc,
+        currentSpeed: currentSpeedCalc
+    };
 }
 
 // NAUTISCHE MATHEMATIK FIX: Doppelte Variablen-Deklaration entfernt
@@ -590,22 +690,26 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
 }
 
 // --- 4. A* CORE ENGINE ---
-async function planRoute(start, ziel, optionen = { schnellste: true, wellenVermeiden: false }) {
+// =========================================================================
+// NAVIS A* SEGEL-ROUTER KERN (PROFIL- & WELLEN-VEKTOR ENGAGED)
+// =========================================================================
+
+// --- 4. A* CORE ENGINE (ECHTES 4D-ROUTING MIT ZEIT-RAUM-SCHLÜSSEL) ---
+// --- 4. A* CORE ENGINE (ECHTES 4D-ROUTING MIT GETTILETYPE) ---
+async function planRoute(start, ziel, optionen = { profile: "fastest" }) {
     const polar = await fetchPolarData();
     const openHeap = new MinHeap();
-    const openMap = new Map(); // Speicher- und Verlaufs-Kontrolle
+    const openMap = new Map(); 
     const closedSet = new Set();
-    const goalRadiusNM = 0.5; // Robustes Ankommen am Ziel
+    const goalRadiusNM = 0.5; 
     const stepSize = 0.01; 
     
-    // Geographische Anpassung der Schrittweite (Längengrade verjüngen sich zum Pol)
     const cosLat = Math.cos(start.lat * Math.PI / 180);
-    const stepSizeLon = stepSize / Math.max(0.1, cosLat); // Minimiert geografische Verzerrung
+    const stepSizeLon = stepSize / Math.max(0.1, cosLat); 
     
     const rHalfLat = stepSize * 0.4142;
     const rHalfLon = stepSizeLon * 0.4142;
 
-    // KORREKTUR: Tippfehler 'rHalfHalfLon' wurde zu 'rHalfLon' bereinigt
     const directions = [
         {dLat: stepSize, dLon: 0}, {dLat: -stepSize, dLon: 0}, {dLat: 0, dLon: stepSizeLon}, {dLat: 0, dLon: -stepSizeLon},
         {dLat: stepSize, dLon: stepSizeLon}, {dLat: -stepSize, dLon: -stepSizeLon}, {dLat: stepSize, dLon: -stepSizeLon}, {dLat: -stepSize, dLon: stepSizeLon},
@@ -615,37 +719,53 @@ async function planRoute(start, ziel, optionen = { schnellste: true, wellenVerme
     
     const startNode = {
         lat: start.lat, lon: start.lon,
-        g: 0, f: calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon) / 5,
+        g: 0, 
+        cost_g: 0, 
+        f: calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon) / 5,
         parent: null
     };
     
-    openHeap.insert(startNode);
-    openMap.set(`${start.lat.toFixed(4)},${start.lon.toFixed(4)}`, startNode.g);
-
-    while (openHeap.size() > 0) {
-        let current = openHeap.extractMin();
-        const currentKey = `${current.lat.toFixed(4)},${current.lon.toFixed(4)}`;
-        if (closedSet.has(currentKey)) continue;
-        closedSet.add(currentKey);
+    const startKey4D = `${start.lat.toFixed(4)},${start.lon.toFixed(4)},0`;
+	openHeap.insert(startNode);
+	openMap.set(startKey4D, startNode.cost_g);
+	let iterations = 0;
+	while (openHeap.size() > 0) {
+    iterations++;
+    if (iterations % 1000 === 0) {
+        console.log(
+            "🔍 NAVIS A*",
+            "Iter:", iterations,
+            "Open:", openHeap.size(),
+            "Closed:", closedSet.size,
+            "TileCache:", tileCache.size
+        );
+    }
+    let current = openHeap.extractMin();
+    const currentHoursAhead = Math.min(Math.floor(current.g), 71); // Variante B: Hält Frame 71 fest
+        
+        const currentKey4D = `${current.lat.toFixed(2)},${current.lon.toFixed(2)},${currentHoursAhead}`;
+        
+        if (closedSet.has(currentKey4D)) continue;
+        closedSet.add(currentKey4D);
         
         if (calculateDistance(current.lat, current.lon, ziel.lat, ziel.lon) <= goalRadiusNM) {
             return reconstructPath(current);
         }
         
-        const currentHoursAhead = Math.min(Math.floor(current.g), 71);
         const weather = getWeatherData(currentHoursAhead, current.lat, current.lon);
         const optimalUpwindTWA = getCachedOptimalUpwindTWA(polar, weather.windSpeed);
         
         for (let dir of directions) {
             let neighborLat = current.lat + dir.dLat;
             let neighborLon = current.lon + dir.dLon;
-            const neighborKey = `${neighborLat.toFixed(4)},${neighborLon.toFixed(4)}`;
             
-            if (closedSet.has(neighborKey)) continue;
-            if (await checkCollision(neighborLat, neighborLon)) continue;
+            // KORREKTUR: Nutze getTileType(). 2 ist Land und wird rigoros blockiert.
+            const tileValue = await getTileType(neighborLat, neighborLon);
+            if (tileValue === 2) continue; 
             
             const dist = calculateDistance(current.lat, current.lon, neighborLat, neighborLon);
             const heading = calculateBearing(current.lat, current.lon, neighborLat, neighborLon);
+            
             let twa = (heading - weather.windDir + 360) % 360;
             if (twa > 180) twa = 360 - twa; 
             
@@ -655,37 +775,105 @@ async function planRoute(start, ziel, optionen = { schnellste: true, wellenVerme
                 boatSpeed = boatSpeed * penalty;
             }
             
+            // Vektor-Kompensation (Strömung & Welle)
             const headingRad = heading * Math.PI / 180;
             const currentRad = weather.currentDir * Math.PI / 180;
             const boatX = boatSpeed * Math.sin(headingRad);
             const boatY = boatSpeed * Math.cos(headingRad);
             const streamX = weather.currentSpeed * Math.sin(currentRad);
             const streamY = weather.currentSpeed * Math.cos(currentRad);
-            const speedOverGround = Math.sqrt((boatX + streamX) ** 2 + (boatY + streamY) ** 2);
-            const effectiveSpeed = Math.max(0.1, speedOverGround);
+            let speedOverGround = Math.sqrt((boatX + streamX) ** 2 + (boatY + streamY) ** 2);
             
-            let travelTime = dist / effectiveSpeed;
-            let cost = travelTime;
-            if (optionen.wellenVermeiden && weather.waveHeight > 0.8) {
-                cost += travelTime * (weather.waveHeight * 0.4); 
+            let waveEncounterAngle = (heading - weather.windDir + 360) % 360;
+            if (waveEncounterAngle > 180) waveEncounterAngle = 360 - waveEncounterAngle;
+            const waveCos = Math.cos(waveEncounterAngle * Math.PI / 180);
+            
+            let waveFactor = 1.0;
+            if (waveCos > 0) {
+                waveFactor = Math.max(0.4, 1.0 - (waveCos * weather.waveHeight * 0.4));
+            } else {
+                waveFactor = Math.min(1.5, 1.0 + (Math.abs(waveCos) * weather.waveHeight * 0.15));
             }
-            let tentative_g = current.g + cost;
+            speedOverGround = speedOverGround * waveFactor;
             
-            const existingG = openMap.get(neighborKey);
-            if (existingG === undefined || tentative_g < existingG) {
+            const effectiveSpeed = Math.max(0.1, speedOverGround);
+            let travelTime = dist / effectiveSpeed; 
+            let cost = travelTime;
+
+            // Profile gewichten (Basiert jetzt fehlerfrei auf numerischen tileValues)
+            const profile = optionen.profile || "fastest";
+            
+            if (profile === "comfort") {
+                if (weather.waveHeight > 0.6) cost += travelTime * (weather.waveHeight * 0.4);
+                if (twa < 55) cost += travelTime * 0.4;
+                const parentHeading = current.parent ? calculateBearing(current.parent.lat, current.parent.lon, current.lat, current.lon) : heading;
+                const headingChange = Math.abs((heading - parentHeading + 180) % 360 - 180);
+                if (headingChange > 20) cost += 0.15;
+            }
+            else if (profile === "safest") {
+                if (weather.waveHeight > 1.0) cost += travelTime * (Math.pow(weather.waveHeight, 2) * 2.0);
+                if (weather.windSpeed > 16) cost += travelTime * ((weather.windSpeed - 16) * 0.5);
+            }
+            else if (profile === "eco") {
+                const currentEffect = effectiveSpeed - boatSpeed;
+                if (currentEffect < 0) cost += Math.abs(currentEffect) * 0.5;
+                else cost -= currentEffect * 0.12;
+                if (weather.windSpeed < 4.5) cost += travelTime * 1.5;
+            }
+            else if (profile === "avoid_wind") {
+                if (weather.windSpeed > 14) cost += travelTime * ((weather.windSpeed - 14) * 0.4);
+            }
+            else if (profile === "avoid_waves") {
+                if (weather.waveHeight > 0.4) cost += travelTime * (weather.waveHeight * 1.2);
+            }
+            // KORREKTUR: tileValue === 0 (See) wird nun präzise bestraft, um Küstennähe (1) zu erzwingen
+            else if (profile === "coastal") {
+                if (tileValue === 0) {
+                    cost += travelTime * 2.0; 
+                }
+            }
+
+            let tentative_g = current.g + travelTime;
+            let tentative_cost_g = current.cost_g + cost; 
+            
+            const neighborHoursAhead = Math.min(Math.floor(tentative_g), 71);
+            const neighborKey4D = `${neighborLat.toFixed(2)},${neighborLon.toFixed(2)},${neighborHoursAhead}`;
+            
+            if (closedSet.has(neighborKey4D)) continue;
+            
+            const existingCostG = openMap.get(neighborKey4D);
+            
+            if (existingCostG === undefined || tentative_cost_g < existingCostG) {
                 const h = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / Math.max(3, boatSpeed);
                 const newNode = {
                     lat: neighborLat, lon: neighborLon,
-                    g: tentative_g, f: tentative_g + h,
+                    g: tentative_g,       
+                    cost_g: tentative_cost_g, 
+                    f: tentative_cost_g + h,
                     parent: current
                 };
                 openHeap.insert(newNode);
-                openMap.set(neighborKey, tentative_g);
+                openMap.set(neighborKey4D, tentative_cost_g);
             }
         }
     }
     return []; 
 }
+
+// --- 5. INTERFACE PANELS CONTROL ---
+function toggleRoutingPanel() {
+    const panel = document.getElementById("navis-routing-panel");
+    const btn = document.getElementById("routing-pin-toggle");
+    if (!panel || !btn) return;
+    if (panel.classList.contains("collapsed")) {
+        panel.classList.remove("collapsed");
+        btn.innerText = "⤡"; 
+    } else {
+        panel.classList.add("collapsed");
+        btn.innerText = "⤢"; 
+    }
+}
+window.toggleRoutingPanel = toggleRoutingPanel;
 
 function reconstructPath(node) {
     let path = [];
