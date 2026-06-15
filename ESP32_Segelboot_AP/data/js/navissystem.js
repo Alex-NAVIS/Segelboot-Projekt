@@ -692,11 +692,19 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
 // --- 4. A* CORE ENGINE ---
 // =========================================================================
 // NAVIS A* SEGEL-ROUTER KERN (PROFIL- & WELLEN-VEKTOR ENGAGED)
+// --- 4. A* CORE ENGINE (HIGH-PERFORMANCE 4D-GRID MIT KURSGLÄTTUNG) ---
 // =========================================================================
+// --- 4. A* CORE ENGINE (MIT DYNAMISCHEN DEBUG-SCHALTERALEN FÜR WIND, WELLE, STRÖMUNG) ---
+async function planRoute(start, ziel, optionen = {}) {
+    // Central Debug-Schaltzentrale aus den Optionen auslesen (Standard: alles aktiv = true)
+    const cfg = {
+        wind: optionen.windAktiv !== undefined ? optionen.windAktiv : true,
+        welle: optionen.welleAktiv !== undefined ? optionen.welleAktiv : false,
+        stroemung: optionen.stroemungAktiv !== undefined ? optionen.stroemungAktiv : false,
+        kursMalus: optionen.kursMalusAktiv !== undefined ? optionen.kursMalusAktiv : false,
+        xteKorridor: optionen.xteAktiv !== undefined ? optionen.xteAktiv : false
+    };
 
-// --- 4. A* CORE ENGINE (ECHTES 4D-ROUTING MIT ZEIT-RAUM-SCHLÜSSEL) ---
-// --- 4. A* CORE ENGINE (ECHTES 4D-ROUTING MIT GETTILETYPE) ---
-async function planRoute(start, ziel, optionen = { profile: "fastest" }) {
     const polar = await fetchPolarData();
     const openHeap = new MinHeap();
     const openMap = new Map(); 
@@ -707,15 +715,16 @@ async function planRoute(start, ziel, optionen = { profile: "fastest" }) {
     const cosLat = Math.cos(start.lat * Math.PI / 180);
     const stepSizeLon = stepSize / Math.max(0.1, cosLat); 
     
-    const rHalfLat = stepSize * 0.4142;
-    const rHalfLon = stepSizeLon * 0.4142;
-
-    const directions = [
-        {dLat: stepSize, dLon: 0}, {dLat: -stepSize, dLon: 0}, {dLat: 0, dLon: stepSizeLon}, {dLat: 0, dLon: -stepSizeLon},
-        {dLat: stepSize, dLon: stepSizeLon}, {dLat: -stepSize, dLon: -stepSizeLon}, {dLat: stepSize, dLon: -stepSizeLon}, {dLat: -stepSize, dLon: stepSizeLon},
-        {dLat: stepSize, dLon: rHalfLon}, {dLat: stepSize, dLon: -rHalfLon}, {dLat: -stepSize, dLon: rHalfLon}, {dLat: -stepSize, dLon: -rHalfLon},
-        {dLat: rHalfLat, dLon: stepSizeLon}, {dLat: rHalfLat, dLon: -stepSizeLon}, {dLat: -rHalfLat, dLon: stepSizeLon}, {dLat: -rHalfLat, dLon: -stepSizeLon}
-    ];
+    // 128 High-Res Richtungen generieren
+    const NUM_DIRECTIONS = 128;
+    const directions = [];
+    for (let i = 0; i < NUM_DIRECTIONS; i++) {
+        const angleRad = (i * 2 * Math.PI) / NUM_DIRECTIONS;
+        directions.push({
+            dLat: stepSize * Math.cos(angleRad),
+            dLon: stepSizeLon * Math.sin(angleRad)
+        });
+    }
     
     const startNode = {
         lat: start.lat, lon: start.lon,
@@ -725,31 +734,31 @@ async function planRoute(start, ziel, optionen = { profile: "fastest" }) {
         parent: null
     };
     
-    const startKey4D = `${start.lat.toFixed(4)},${start.lon.toFixed(4)},0`;
-	openHeap.insert(startNode);
-	openMap.set(startKey4D, startNode.cost_g);
-	let iterations = 0;
-	while (openHeap.size() > 0) {
-    iterations++;
-    if (iterations % 1000 === 0) {
-        console.log(
-            "🔍 NAVIS A*",
-            "Iter:", iterations,
-            "Open:", openHeap.size(),
-            "Closed:", closedSet.size,
-            "TileCache:", tileCache.size
-        );
-    }
-    let current = openHeap.extractMin();
-    const currentHoursAhead = Math.min(Math.floor(current.g), 71); // Variante B: Hält Frame 71 fest
+    const startGridLat = Math.round(start.lat / stepSize);
+    const startGridLon = Math.round(start.lon / stepSizeLon);
+    const startKey4D = `${startGridLat},${startGridLon},0`;
+    
+    openHeap.insert(startNode);
+    openMap.set(startKey4D, startNode.cost_g);
+
+    while (openHeap.size() > 0) {
+        let current = openHeap.extractMin();
+        const currentHoursAhead = Math.min(Math.floor(current.g), 71); 
         
-        const currentKey4D = `${current.lat.toFixed(2)},${current.lon.toFixed(2)},${currentHoursAhead}`;
+        const currentGridLat = Math.round(current.lat / stepSize);
+        const currentGridLon = Math.round(current.lon / stepSizeLon);
+        const currentKey4D = `${currentGridLat},${currentGridLon},${currentHoursAhead}`;
         
         if (closedSet.has(currentKey4D)) continue;
         closedSet.add(currentKey4D);
         
         if (calculateDistance(current.lat, current.lon, ziel.lat, ziel.lon) <= goalRadiusNM) {
             return reconstructPath(current);
+        }
+        
+        let incomingBearing = null;
+        if (current.parent) {
+            incomingBearing = calculateBearing(current.parent.lat, current.parent.lon, current.lat, current.lon);
         }
         
         const weather = getWeatherData(currentHoursAhead, current.lat, current.lon);
@@ -759,92 +768,124 @@ async function planRoute(start, ziel, optionen = { profile: "fastest" }) {
             let neighborLat = current.lat + dir.dLat;
             let neighborLon = current.lon + dir.dLon;
             
-            // KORREKTUR: Nutze getTileType(). 2 ist Land und wird rigoros blockiert.
             const tileValue = await getTileType(neighborLat, neighborLon);
             if (tileValue === 2) continue; 
             
             const dist = calculateDistance(current.lat, current.lon, neighborLat, neighborLon);
             const heading = calculateBearing(current.lat, current.lon, neighborLat, neighborLon);
             
-            let twa = (heading - weather.windDir + 360) % 360;
-            if (twa > 180) twa = 360 - twa; 
-            
-            let boatSpeed = getBoatSpeedInterpolated(polar, twa, weather.windSpeed);
-            if (twa < optimalUpwindTWA) {
-                const penalty = Math.pow(twa / optimalUpwindTWA, 3); 
-                boatSpeed = boatSpeed * penalty;
+            // --- SCHALTER 1: WIND & POLAR-PHYSIK ---
+            let boatSpeed = 4.5; // Konstante Marschfahrt, falls Wind abgeschaltet ist
+            if (cfg.wind) {
+                let twa = (heading - weather.windDir + 360) % 360;
+                if (twa > 180) twa = 360 - twa; 
+                
+                boatSpeed = getBoatSpeedInterpolated(polar, twa, weather.windSpeed);
+                if (twa < optimalUpwindTWA) {
+                    const penalty = Math.pow(twa / optimalUpwindTWA, 3); 
+                    boatSpeed = boatSpeed * penalty;
+                }
             }
             
-            // Vektor-Kompensation (Strömung & Welle)
-            const headingRad = heading * Math.PI / 180;
-            const currentRad = weather.currentDir * Math.PI / 180;
-            const boatX = boatSpeed * Math.sin(headingRad);
-            const boatY = boatSpeed * Math.cos(headingRad);
-            const streamX = weather.currentSpeed * Math.sin(currentRad);
-            const streamY = weather.currentSpeed * Math.cos(currentRad);
+            // --- SCHALTER 2: STRÖMUNGS-VEKTOR ---
+            let boatX = boatSpeed * Math.sin(heading * Math.PI / 180);
+            let boatY = boatSpeed * Math.cos(heading * Math.PI / 180);
+            let streamX = 0;
+            let streamY = 0;
+            
+            if (cfg.stroemung) {
+                const currentRad = weather.currentDir * Math.PI / 180;
+                streamX = weather.currentSpeed * Math.sin(currentRad);
+                streamY = weather.currentSpeed * Math.cos(currentRad);
+            }
             let speedOverGround = Math.sqrt((boatX + streamX) ** 2 + (boatY + streamY) ** 2);
             
-            let waveEncounterAngle = (heading - weather.windDir + 360) % 360;
-            if (waveEncounterAngle > 180) waveEncounterAngle = 360 - waveEncounterAngle;
-            const waveCos = Math.cos(waveEncounterAngle * Math.PI / 180);
-            
-            let waveFactor = 1.0;
-            if (waveCos > 0) {
-                waveFactor = Math.max(0.4, 1.0 - (waveCos * weather.waveHeight * 0.4));
-            } else {
-                waveFactor = Math.min(1.5, 1.0 + (Math.abs(waveCos) * weather.waveHeight * 0.15));
+            // --- SCHALTER 3: SEEGANGS-RICHTUNGSVEKTOR (WELLE) ---
+            if (cfg.welle) {
+                let waveEncounterAngle = (heading - weather.windDir + 360) % 360;
+                if (waveEncounterAngle > 180) waveEncounterAngle = 360 - waveEncounterAngle;
+                const waveCos = Math.cos(waveEncounterAngle * Math.PI / 180);
+                
+                let waveFactor = 1.0;
+                if (waveCos > 0) {
+                    waveFactor = Math.max(0.4, 1.0 - (waveCos * weather.waveHeight * 0.4));
+                } else {
+                    waveFactor = Math.min(1.5, 1.0 + (Math.abs(waveCos) * weather.waveHeight * 0.15));
+                }
+                speedOverGround = speedOverGround * waveFactor;
             }
-            speedOverGround = speedOverGround * waveFactor;
             
             const effectiveSpeed = Math.max(0.1, speedOverGround);
             let travelTime = dist / effectiveSpeed; 
             let cost = travelTime;
 
-            // Profile gewichten (Basiert jetzt fehlerfrei auf numerischen tileValues)
-            const profile = optionen.profile || "fastest";
-            
-            if (profile === "comfort") {
-                if (weather.waveHeight > 0.6) cost += travelTime * (weather.waveHeight * 0.4);
-                if (twa < 55) cost += travelTime * 0.4;
-                const parentHeading = current.parent ? calculateBearing(current.parent.lat, current.parent.lon, current.lat, current.lon) : heading;
-                const headingChange = Math.abs((heading - parentHeading + 180) % 360 - 180);
-                if (headingChange > 20) cost += 0.15;
-            }
-            else if (profile === "safest") {
-                if (weather.waveHeight > 1.0) cost += travelTime * (Math.pow(weather.waveHeight, 2) * 2.0);
-                if (weather.windSpeed > 16) cost += travelTime * ((weather.windSpeed - 16) * 0.5);
-            }
-            else if (profile === "eco") {
-                const currentEffect = effectiveSpeed - boatSpeed;
-                if (currentEffect < 0) cost += Math.abs(currentEffect) * 0.5;
-                else cost -= currentEffect * 0.12;
-                if (weather.windSpeed < 4.5) cost += travelTime * 1.5;
-            }
-            else if (profile === "avoid_wind") {
-                if (weather.windSpeed > 14) cost += travelTime * ((weather.windSpeed - 14) * 0.4);
-            }
-            else if (profile === "avoid_waves") {
-                if (weather.waveHeight > 0.4) cost += travelTime * (weather.waveHeight * 1.2);
-            }
-            // KORREKTUR: tileValue === 0 (See) wird nun präzise bestraft, um Küstennähe (1) zu erzwingen
-            else if (profile === "coastal") {
-                if (tileValue === 0) {
-                    cost += travelTime * 2.0; 
+            // --- SCHALTER 4: RIGIDER KURSWECHSEL-MALUS ---
+            if (cfg.kursMalus && incomingBearing !== null) {
+                let headingChange = Math.abs(heading - incomingBearing);
+                if (headingChange > 180) headingChange = 360 - headingChange;
+                
+                if (headingChange > 5.0) { 
+                    cost += 0.0333; // Wende kostet 2 Minuten virtuelle Strafzeit
                 }
             }
 
-            let tentative_g = current.g + travelTime;
+            // --- SCHALTER 5: CROSS-TRACK-ERROR (XTE Korridor) ---
+            if (cfg.xteKorridor) {
+                const distStartToTarget = calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon);
+                if (distStartToTarget > 0.3) {
+                    const distStartToNeighbor = calculateDistance(start.lat, start.lon, neighborLat, neighborLon);
+                    const bearingStartToTarget = calculateBearing(start.lat, start.lon, ziel.lat, ziel.lon);
+                    const bearingStartToNeighbor = calculateBearing(start.lat, start.lon, neighborLat, neighborLon);
+                    
+                    let angleDiff = Math.abs(bearingStartToNeighbor - bearingStartToTarget);
+                    if (angleDiff > 180) angleDiff = 360 - angleDiff;
+                    
+                    const crossTrackErrorNM = distStartToNeighbor * Math.sin(angleDiff * Math.PI / 180);
+                    const maxAllowedCrosstrackNM = 1.0; 
+                    
+                    if (crossTrackErrorNM > maxAllowedCrosstrackNM) {
+                        const xteExcess = crossTrackErrorNM - maxAllowedCrosstrackNM;
+                        cost += travelTime * Math.pow(xteExcess, 2) * 4.0; 
+                    }
+                }
+            }
+
+            // Profile gewichten (Bedingungen greifen nur, wenn die Sensoren/Werte aktiv geschaltet sind)
+            const profile = optionen.profile || "fastest";
+            if (profile === "comfort" && cfg.wind && cfg.welle) {
+                let twa = (heading - weather.windDir + 360) % 360;
+                if (twa > 180) twa = 360 - twa;
+                if (weather.waveHeight > 0.6) cost += travelTime * (weather.waveHeight * 0.4);
+                if (twa < 55) cost += travelTime * 0.4;
+            }
+            else if (profile === "safest" && cfg.wind && cfg.welle) {
+                if (weather.waveHeight > 1.0) cost += travelTime * (Math.pow(weather.waveHeight, 2) * 2.0);
+                if (weather.windSpeed > 16) cost += travelTime * ((weather.windSpeed - 16) * 0.5);
+            }
+            else if (profile === "eco" && cfg.stroemung) {
+                const currentEffect = effectiveSpeed - boatSpeed;
+                if (currentEffect < 0) cost += Math.abs(currentEffect) * 0.5;
+                else cost -= currentEffect * 0.12;
+            }
+            else if (profile === "coastal") {
+                if (tileValue === 0) cost += travelTime * 2.0;
+            }
+
+            let tentative_g = current.g + travelTime;      
             let tentative_cost_g = current.cost_g + cost; 
             
             const neighborHoursAhead = Math.min(Math.floor(tentative_g), 71);
-            const neighborKey4D = `${neighborLat.toFixed(2)},${neighborLon.toFixed(2)},${neighborHoursAhead}`;
+            
+            const neighborGridLat = Math.round(neighborLat / stepSize);
+            const neighborGridLon = Math.round(neighborLon / stepSizeLon);
+            const neighborKey4D = `${neighborGridLat},${neighborGridLon},${neighborHoursAhead}`;
             
             if (closedSet.has(neighborKey4D)) continue;
             
             const existingCostG = openMap.get(neighborKey4D);
             
             if (existingCostG === undefined || tentative_cost_g < existingCostG) {
-                const h = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / Math.max(3, boatSpeed);
+                const h = (calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / Math.max(3, boatSpeed)) * 1.2;
                 const newNode = {
                     lat: neighborLat, lon: neighborLon,
                     g: tentative_g,       
@@ -859,6 +900,10 @@ async function planRoute(start, ziel, optionen = { profile: "fastest" }) {
     }
     return []; 
 }
+
+
+
+
 
 // --- 5. INTERFACE PANELS CONTROL ---
 function toggleRoutingPanel() {
