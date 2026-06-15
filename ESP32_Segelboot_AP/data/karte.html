@@ -347,6 +347,7 @@
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet/navis-tilelayer.js"></script>
 <script src="leaflet/leaflet-velocity.min.js"></script>
+<script src="js/pako.min.js"></script>
 
 <!-- NAVIS Module -->
 <script>
@@ -1227,49 +1228,59 @@ function updateRangeCircles() {
     }
 }
 
+let navisRouteLayer = null;
+
+function drawNavisRoute(route) {
+    if (!route || route.length === 0) {
+        alert("Keine Route gefunden");
+        return;
+    }
+    const latlngs = route.map(p => [p.lat, p.lon]);
+    if (navisRouteLayer) {
+        map.removeLayer(navisRouteLayer);
+    }
+    navisRouteLayer = L.polyline(latlngs, {
+        color: '#00ff88',
+        weight: 4,
+        opacity: 0.9
+    }).addTo(map);
+    map.fitBounds(navisRouteLayer.getBounds());
+}
+let navisCalculatedRoute = null;
+
+function drawCalculatedRoute(route) {
+
+    if (!route || route.length === 0) {
+        alert("Keine Route gefunden");
+        return;
+    }
+
+    const coords = route.map(p => [p.lat, p.lon]);
+
+    if (navisCalculatedRoute) {
+        map.removeLayer(navisCalculatedRoute);
+    }
+
+    navisCalculatedRoute = L.polyline(coords, {
+        color: '#00ff88',
+        weight: 4,
+        opacity: 1
+    }).addTo(map);
+
+    console.log(
+        `✅ Route gezeichnet (${route.length} Punkte)`
+    );
+
+}
+
 
 /* ------------------------------
    End
    ------------------------------ */
 </script>
-
 <script src="js/wegpunktlist.js"></script>
 <script src="js/wettersystem.js"></script>
 <script src="js/navissystem.js"></script>
-
-<script type="module">
-    import { planRoute } from './routing.js';
-
-    // Beispiel-Trigger (z.B. bei Klick auf "Route berechnen" Button)
-    async function triggerRouting() {
-        // Start und Ziel aus deinem Navissystem extrahieren
-        const startPoint = { lat: 54.1, lon: 11.5 }; // Beispielkoordinaten Ostsee
-        const endPoint = { lat: 54.4, lon: 12.0 };
-        
-        // Einstellungen aus navissystem.js holen
-        const optionen = { 
-            schnellste: true, 
-            wellenVermeiden: true 
-        };
-
-        console.log("Starte A* Routenberechnung...");
-        const route = await planRoute(startPoint, endPoint, optionen);
-        
-        if(route.length > 0) {
-            console.log("Route erfolgreich berechnet! Wegpunkte:", route);
-            
-            // Hier Route in Leaflet-Karte zeichnen
-            const latLngs = route.map(p => [p.lat, p.lon]);
-            let polyline = L.polyline(latLngs, {color: 'red', weight: 4}).addTo(map);
-            map.fitBounds(polyline.getBounds());
-        } else {
-            alert("Es konnte keine Route berechnet werden (Land im Weg oder Reichweite überschritten).");
-        }
-    }
-    
-    // Event-Listener an deinen Button hängen
-    document.getElementById('calcRouteBtn').addEventListener('click', triggerRouting);
-</script>
 
 </body>
 </html>
