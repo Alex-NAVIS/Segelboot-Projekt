@@ -3,23 +3,13 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
+	<link rel="stylesheet" href="style.css">
     <title>Karte — NAVIS Marine Dashboard</title>
     <!-- Lokale Leaflet Dateien -->
     <link rel="stylesheet" href="leaflet/leaflet.css">
     <style>
 		/* 🎨 NAVIS DESIGN SYSTEM */
 		:root{ --navis-bg: rgba(0,43,58,0.65); --navis-bg-light: rgba(0,43,58,0.55); --navis-border: rgba(0,255,255,0.25); --navis-shadow: 0 4px 20px rgba(0,0,0,0.5); --navis-title: #00ffff; --navis-label: #00ffaa; --navis-text: #ffffff; --navis-info: #8ab4f8; --navis-input-bg: #003d52; --navis-input-border: #007a99; --navis-radius: 10px; --navis-font: "Segoe UI", Roboto, Arial, sans-serif; --navis-font-title: 14px; --navis-font-label: 12px; --navis-font-text: 12px; --navis-font-small: 11px; }
-
-		/* 📺 GRUNDLAYOUT */
-		body{ margin:0; background:#1c1f26; color:#fff; height:100vh; display:flex; flex-direction:column; align-items:center; font-family:var(--navis-font); transition:background 0.6s, color 0.6s, filter 0.6s; }
-
-        /* 🟦 GRUNDLAYOUT */
-        body { margin:0; background:#1c1f26; color:#fff; height:100vh; display:flex; flex-direction:column; align-items:center; font-family:"Segoe UI",Roboto,Arial,sans-serif; transition:background 0.6s,color 0.6s,filter 0.6s; }
-
-        /* 🟨 NAVBAR */
-        #navbar { display:flex; justify-content:center; gap:8px; background:#002b3a; padding:4px 0; border-bottom:1px solid #005566; width:100%; transition:background 0.6s,border 0.6s; }
-        .navbtn { background:#003d52; color:#00ffff; border:1px solid #007a99; border-radius:5px; padding:3px 10px; text-decoration:none; font-size:0.9em; font-weight:bold; transition:background 0.6s,color 0.6s,border 0.6s; }
-        .navbtn:hover { background:#00b8d4; color:#001a26; }
 
         /* 🟩 PANEL UND KARTE */
         .panel { width:98vw; background:#2a2f38; border-radius:12px; position:relative; margin-top:6px; box-shadow:0 8px 28px rgba(0,0,0,0.6); display:flex; flex-direction:column; align-items:stretch; transition:background 0.6s,box-shadow 0.6s; }
@@ -124,20 +114,42 @@
 		.leaflet-popup-content-wrapper{ background:var(--navis-bg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--navis-border); border-radius:var(--navis-radius); box-shadow:var(--navis-shadow); color:var(--navis-text); font-family:var(--navis-font); }
 		.leaflet-popup-tip{ background:var(--navis-bg); border:1px solid var(--navis-border); }
 		.leaflet-popup-content{ margin:10px; color:var(--navis-text); font-size:var(--navis-font-small); }
-
-
    </style>
     
 </head>
 <body>
-<div id="navbar">
-    <a href="index.html" class="navbtn">Dashboard</a>
-    <a href="tide.html" class="navbtn">Tide</a>
-    <a href="autopilot.html" class="navbtn">Autopilot</a>
-    <a href="kompass.html" class="navbtn">Kompass</a>
-    <a href="horizont.html" class="navbtn">Horizont</a>
-    <a href="system_settings.html" class="navbtn">System-Settings</a>
-</div>
+	<nav id="navbar">
+		<div id="wsStatus">
+			<div id="wsLed"></div>
+			<span>WS</span>
+		</div>
+		<a href="index.html" class="navbtn" data-i18n="nav.map">Dashboard</a>
+		<a href="kompass.html" class="navbtn" data-i18n="nav.compass">Kompass</a>
+		<a href="horizont.html" class="navbtn" data-i18n="nav.horizon">Horizont</a>
+		<a href="autopilot.html" class="navbtn" data-i18n="nav.autopilot">Autopilot</a>
+		<a href="Alarm.html" class="navbtn" data-i18n="nav.monitoring">Überwachung</a>
+		<a href="logbuch.html" class="navbtn" data-i18n="nav.logbook">Logbuch</a>
+		<a href="system_settings.html" class="navbtn" data-i18n="nav.sys_settings">System</a>
+		
+		<div style="padding-left: 5px;">
+			<select id="langSelect" onchange="changeLanguage(this.value)">
+				<!-- Standard-Sprachen -->
+				<option value="de" data-i18n="index_txt_10">Deutsch</option>
+				<option value="en" data-i18n="index_txt_11">English</option>
+				<option value="fr" data-i18n="index_txt_12">Français</option>
+				<option value="it" data-i18n="index_txt_13">Italiano</option>
+				<option value="es" data-i18n="index_txt_43">Español</option>
+				<option value="da" data-i18n="index_txt_44">Dansk</option>
+				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
+				<option value="no" data-i18n="index_txt_46">Norsk</option>
+				<option value="sv" data-i18n="index_txt_47">Svenska</option>
+				<option value="ru" data-i18n="index_txt_48">Русский</option>
+				<option value="pl" data-i18n="index_txt_49">Polski</option>
+				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
+				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
+			</select>
+		</div>
+	</nav>
 <div class="panel">
     <div id="map"></div>
     <div id="waypointListContainer">
@@ -1224,5 +1236,40 @@ function updateRangeCircles() {
 <script src="js/wegpunktlist.js"></script>
 <script src="js/wettersystem.js"></script>
 <script src="js/navissystem.js"></script>
+
+<script type="module">
+    import { planRoute } from './routing.js';
+
+    // Beispiel-Trigger (z.B. bei Klick auf "Route berechnen" Button)
+    async function triggerRouting() {
+        // Start und Ziel aus deinem Navissystem extrahieren
+        const startPoint = { lat: 54.1, lon: 11.5 }; // Beispielkoordinaten Ostsee
+        const endPoint = { lat: 54.4, lon: 12.0 };
+        
+        // Einstellungen aus navissystem.js holen
+        const optionen = { 
+            schnellste: true, 
+            wellenVermeiden: true 
+        };
+
+        console.log("Starte A* Routenberechnung...");
+        const route = await planRoute(startPoint, endPoint, optionen);
+        
+        if(route.length > 0) {
+            console.log("Route erfolgreich berechnet! Wegpunkte:", route);
+            
+            // Hier Route in Leaflet-Karte zeichnen
+            const latLngs = route.map(p => [p.lat, p.lon]);
+            let polyline = L.polyline(latLngs, {color: 'red', weight: 4}).addTo(map);
+            map.fitBounds(polyline.getBounds());
+        } else {
+            alert("Es konnte keine Route berechnet werden (Land im Weg oder Reichweite überschritten).");
+        }
+    }
+    
+    // Event-Listener an deinen Button hängen
+    document.getElementById('calcRouteBtn').addEventListener('click', triggerRouting);
+</script>
+
 </body>
 </html>
