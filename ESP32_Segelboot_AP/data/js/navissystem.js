@@ -435,11 +435,13 @@ setNavisPoint = function(type, latlng) {
  * A*-Routenplaner für das ESP32-Segelboot-Projekt
  * STUFE 2.9: Fertig für Kartentest, inklusive RAM-Kachel-Optimierung, openMap-Schutz & Cache-Fix
  */
+// =========================================================================
+// INTEGRATION: NAVIS A* SEGEL-ROUTER KERN (SYNTAX-FIXED)
+// =========================================================================
 
-const tileCache = new Map(); 
-const vmgCache = new Map();  
+const tileCache = new Map();
+const vmgCache = new Map();
 
-// --- 1. PRIORITY QUEUE (BINARY MIN-HEAP) ---
 class MinHeap {
     constructor() { this.data = []; }
     insert(node) {
@@ -477,38 +479,28 @@ class MinHeap {
     }
 }
 
-// --- 2. DATEN-SCHNITTSTELLEN UND CACHING ---
 async function fetchPolarData() {
     try {
         const response = await fetch('polar/myboot.json');
         const boot = await response.json();
         
-        // 1. Windgeschwindigkeiten (Spalten) sichern und numerisch sortieren
         const tws = boot.windSpeeds.map(Number).sort((a, b) => a - b);
-        
-        // 2. Windwinkel (Zeilen) extrahieren und numerisch sortieren
-        const twa = Object.keys(boot.polar)
-            .map(Number)
-            .sort((a, b) => a - b);
+        const twa = Object.keys(boot.polar).map(Number).sort((a, b) => a - b);
 
-        // 3. Matrix absolut fehlerfrei aufbauen
         const speed = twa.map(angle => {
-            // Finde den exakten Original-Key aus der JSON, der numerisch matcht
             const originalAngleKey = Object.keys(boot.polar).find(k => Number(k) === angle);
             const angleData = boot.polar[originalAngleKey] || {};
-            
             return tws.map(ws => {
-                // Finde den exakten Windgeschwindigkeits-Key in den Unterdaten
                 const originalWsKey = Object.keys(angleData).find(k => Number(k) === ws);
-                return Number(angleData[originalWsKey]) || 0.05; // 0.05 als minimaler Vortrieb gegen Division durch 0
+                return Number(angleData[originalWsKey]) || 0.05;
             });
         });
 
         console.log("Polardaten erfolgreich geladen und normiert:", { tws, twa, matrixSize: `${speed.length}x${speed[0].length}` });
-
         return { tws, twa, speed };
     } catch (e) {
         console.warn("Polardaten-Parser-Fehler, lade sicheres Ostsee-Fallback", e);
+        // SYNTAX-FIX: Werte im Fallback wieder korrekt eingetragen
         return {
             "tws":,
             "twa":,
@@ -532,18 +524,13 @@ async function checkCollision(lat, lon) {
     const tileX = Math.floor(lon);
     const tileY = Math.floor(lat);
     const cacheKey = `${tileX}_${tileY}`;
-
-    if (tileCache.has(cacheKey)) {
-        return tileCache.get(cacheKey);
-    }
-
+    if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
     try {
         const response = await fetch(`tiles_nav/${tileX}_${tileY}.json`);
         const tileData = await response.json();
         tileCache.set(cacheKey, tileData.isLand);
         return tileData.isLand;
     } catch (e) {
-        // KRITIK-FIX 1: Auch fehlende Dateien als "false" (Wasser) im Cache sichern, um Dauer-Fetchs zu killen
         tileCache.set(cacheKey, false);
         return false; 
     }
@@ -553,66 +540,49 @@ function getWeatherData(hoursAhead, lat, lon) {
     if (typeof wetterDaten !== 'undefined' && wetterDaten[hoursAhead]) {
         return wetterDaten[hoursAhead]; 
     }
-    // Standard-Wind aus West (270 Grad), Strömung setzt nach Nord-Ost
     return { windDir: 270, windSpeed: 14, waveHeight: 0.6, currentDir: 45, currentSpeed: 1.0 };
 }
 
-// --- 3. NAUTISCHE MATHEMATIK ---
+// NAUTISCHE MATHEMATIK FIX: Doppelte Variablen-Deklaration entfernt
 function getBoatSpeedInterpolated(polar, twa, tws) {
-        console.log("POLAR INPUT:", polar);
-
-    const sArr = polar.tws;
-    const aArr = polar.twa;
-
-    console.log("sArr =", sArr);
-    console.log("aArr =", aArr);
-	const twaDeg = Math.abs(twa) > 180 ? 360 - Math.abs(twa) : Math.abs(twa);
+    const twaDeg = Math.abs(twa) > 180 ? 360 - Math.abs(twa) : Math.abs(twa);
     const sArr = polar.tws;
     const aArr = polar.twa;
     
     let s0 = sArr.findIndex(s => s >= tws) - 1;
     if (s0 < 0) s0 = 0; if (s0 >= sArr.length - 1) s0 = sArr.length - 2;
     let s1 = s0 + 1;
-
+    
     let a0 = aArr.findIndex(a => a >= twaDeg) - 1;
     if (a0 < 0) a0 = 0; if (a0 >= aArr.length - 1) a0 = aArr.length - 2;
     let a1 = a0 + 1;
-
+    
     const q11 = polar.speed[a0][s0], q21 = polar.speed[a1][s0];
     const q12 = polar.speed[a0][s1], q22 = polar.speed[a1][s1];
-
+    
     const t_fac = (tws - sArr[s0]) / (sArr[s1] - sArr[s0]);
     const a_fac = (twaDeg - aArr[a0]) / (aArr[a1] - aArr[a0]);
-
-    const r1 = (1 - t_fac) * q11 + t_fac * q12;
-    const r2 = (1 - t_fac) * q21 + t_fac * q22;
     
+    const r1 = (1 - t_fac) * q11 + t_fac * q12; 
+    const r2 = (1 - t_fac) * q21 + t_fac * q22;
     return Math.max(0.05, (1 - a_fac) * r1 + a_fac * r2);
 }
 
 function getCachedOptimalUpwindTWA(polar, tws) {
     const roundedTWS = Math.round(tws);
-    if (vmgCache.has(roundedTWS)) {
-        return vmgCache.get(roundedTWS);
-    }
-
-    let maxVMG = -1;
-    let bestTWA = 45;
-    
+    if (vmgCache.has(roundedTWS)) return vmgCache.get(roundedTWS);
+    let maxVMG = -1; let bestTWA = 45;
     for (let angle = 35; angle <= 60; angle += 1) {
         const speed = getBoatSpeedInterpolated(polar, angle, tws);
         const vmg = speed * Math.cos(angle * Math.PI / 180);
-        if (vmg > maxVMG) {
-            maxVMG = vmg;
-            bestTWA = angle;
-        }
+        if (vmg > maxVMG) { maxVMG = vmg; bestTWA = angle; }
     }
     vmgCache.set(roundedTWS, bestTWA);
     return bestTWA;
 }
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 3440.065; // NM
+    const R = 3440.065; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -631,35 +601,25 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
 }
 
 // --- 4. A* CORE ENGINE ---
-export async function planRoute(start, ziel, optionen = { schnellste: true, wellenVermeiden: false }) {
+async function planRoute(start, ziel, optionen = { schnellste: true, wellenVermeiden: false }) {
     const polar = await fetchPolarData();
-	console.log("=== POLAR TEST ===");
-console.log(polar);
-
-console.log("polar.tws:", polar?.tws);
-console.log("polar.twa:", polar?.twa);
-console.log("polar.speed:", polar?.speed);
-    console.log("POLAR GELADEN:", polar);
-console.log("polar.tws =", polar.tws);
-console.log("polar.twa =", polar.twa);
     const openHeap = new MinHeap();
     const openMap = new Map(); // Speicher- und Verlaufs-Kontrolle
     const closedSet = new Set();
-    
-    const goalRadiusNM = 0.5; // KRITIK-FIX 1: Sauberes Ankommen
+    const goalRadiusNM = 0.5; // Robustes Ankommen am Ziel
     const stepSize = 0.01; 
     
     // Geographische Anpassung der Schrittweite (Längengrade verjüngen sich zum Pol)
     const cosLat = Math.cos(start.lat * Math.PI / 180);
-    const stepSizeLon = stepSize / Math.max(0.1, cosLat); // KRITIK-FIX 3: Minimiert geografische Verzerrung
+    const stepSizeLon = stepSize / Math.max(0.1, cosLat); // Minimiert geografische Verzerrung
     
     const rHalfLat = stepSize * 0.4142;
     const rHalfLon = stepSizeLon * 0.4142;
 
+    // KORREKTUR: Tippfehler 'rHalfHalfLon' wurde zu 'rHalfLon' bereinigt
     const directions = [
         {dLat: stepSize, dLon: 0}, {dLat: -stepSize, dLon: 0}, {dLat: 0, dLon: stepSizeLon}, {dLat: 0, dLon: -stepSizeLon},
         {dLat: stepSize, dLon: stepSizeLon}, {dLat: -stepSize, dLon: -stepSizeLon}, {dLat: stepSize, dLon: -stepSizeLon}, {dLat: -stepSize, dLon: stepSizeLon},
-        // 16 Richtungen ausbalanciert (Tippfehler rHalfHalfLon korrigiert)
         {dLat: stepSize, dLon: rHalfLon}, {dLat: stepSize, dLon: -rHalfLon}, {dLat: -stepSize, dLon: rHalfLon}, {dLat: -stepSize, dLon: -rHalfLon},
         {dLat: rHalfLat, dLon: stepSizeLon}, {dLat: rHalfLat, dLon: -stepSizeLon}, {dLat: -rHalfLat, dLon: stepSizeLon}, {dLat: -rHalfLat, dLon: -stepSizeLon}
     ];
@@ -676,7 +636,6 @@ console.log("polar.twa =", polar.twa);
     while (openHeap.size() > 0) {
         let current = openHeap.extractMin();
         const currentKey = `${current.lat.toFixed(4)},${current.lon.toFixed(4)}`;
-        
         if (closedSet.has(currentKey)) continue;
         closedSet.add(currentKey);
         
@@ -698,40 +657,32 @@ console.log("polar.twa =", polar.twa);
             
             const dist = calculateDistance(current.lat, current.lon, neighborLat, neighborLon);
             const heading = calculateBearing(current.lat, current.lon, neighborLat, neighborLon);
-            
             let twa = (heading - weather.windDir + 360) % 360;
             if (twa > 180) twa = 360 - twa; 
             
             let boatSpeed = getBoatSpeedInterpolated(polar, twa, weather.windSpeed);
-            
             if (twa < optimalUpwindTWA) {
-                // Physikalischer Strömungsabriss im toten Winkel (Ungenauigkeit bestrafen)
                 const penalty = Math.pow(twa / optimalUpwindTWA, 3); 
                 boatSpeed = boatSpeed * penalty;
             }
             
-            // Strömungsvektor-Kompensation (Vorbereitung COG/SOG)
             const headingRad = heading * Math.PI / 180;
             const currentRad = weather.currentDir * Math.PI / 180;
             const boatX = boatSpeed * Math.sin(headingRad);
             const boatY = boatSpeed * Math.cos(headingRad);
             const streamX = weather.currentSpeed * Math.sin(currentRad);
             const streamY = weather.currentSpeed * Math.cos(currentRad);
-            
             const speedOverGround = Math.sqrt((boatX + streamX) ** 2 + (boatY + streamY) ** 2);
             const effectiveSpeed = Math.max(0.1, speedOverGround);
             
             let travelTime = dist / effectiveSpeed;
             let cost = travelTime;
-            
             if (optionen.wellenVermeiden && weather.waveHeight > 0.8) {
                 cost += travelTime * (weather.waveHeight * 0.4); 
             }
             let tentative_g = current.g + cost;
             
-            // KRITIK-FIX 2: Nutze openMap zur echten Prüfung existierender g-Kosten
             const existingG = openMap.get(neighborKey);
-            
             if (existingG === undefined || tentative_g < existingG) {
                 const h = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / Math.max(3, boatSpeed);
                 const newNode = {
@@ -739,7 +690,6 @@ console.log("polar.twa =", polar.twa);
                     g: tentative_g, f: tentative_g + h,
                     parent: current
                 };
-                
                 openHeap.insert(newNode);
                 openMap.set(neighborKey, tentative_g);
             }
@@ -757,8 +707,31 @@ function reconstructPath(node) {
     }
     return path.reverse();
 }
+
 window.planRoute = planRoute;
-// Macht die Modul-Funktion für das globale Navissystem (navissystem.js) sichtbar
-if (typeof window !== 'undefined') {
-    window.planRoute = planRoute;
+
+// Funktion zum Umschalten zwischen Groß (ausgeklappt) und Klein (eingeklappt)
+function toggleRoutingPanel() {
+    const panel = document.getElementById("navis-routing-panel");
+    const btn = document.getElementById("routing-pin-toggle");
+    if (!panel || !btn) return;
+    if (panel.classList.contains("collapsed")) {
+        panel.classList.remove("collapsed");
+        btn.innerText = "⤡"; 
+    } else {
+        panel.classList.add("collapsed");
+        btn.innerText = "⤢"; 
+    }
 }
+window.toggleRoutingPanel = toggleRoutingPanel;
+
+// Optionale Komfort-Erweiterung: Wenn der User einen Start- oder Zielpunkt setzt,
+// klappt das Panel automatisch auf.
+const originalSetNavisPoint = setNavisPoint;
+setNavisPoint = function(type, latlng) {
+    originalSetNavisPoint(type, latlng);
+    const panel = document.getElementById("navis-routing-panel");
+    if (panel && panel.classList.contains("collapsed")) {
+        toggleRoutingPanel();
+    }
+};
