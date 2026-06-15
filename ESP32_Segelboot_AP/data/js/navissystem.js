@@ -420,17 +420,6 @@ function toggleRoutingPanel() {
     }
 }
 
-// Optionale Komfort-Erweiterung: Wenn der User einen Start- oder Zielpunkt setzt,
-// klappt das Panel automatisch auf, damit er sieht, was passiert.
-const originalSetNavisPoint = setNavisPoint;
-setNavisPoint = function(type, latlng) {
-    originalSetNavisPoint(type, latlng);
-    const panel = document.getElementById("navis-routing-panel");
-    if (panel.classList.contains("collapsed")) {
-        toggleRoutingPanel();
-    }
-};
-
 /**
  * A*-Routenplaner für das ESP32-Segelboot-Projekt
  * STUFE 2.9: Fertig für Kartentest, inklusive RAM-Kachel-Optimierung, openMap-Schutz & Cache-Fix
@@ -502,8 +491,8 @@ async function fetchPolarData() {
         console.warn("Polardaten-Parser-Fehler, lade sicheres Ostsee-Fallback", e);
         // SYNTAX-FIX: Werte im Fallback wieder korrekt eingetragen
         return {
-            "tws":,
-            "twa":,
+            "tws": [4, 6, 8, 10, 12, 14, 16, 20],
+            "twa": [0, 30, 45, 60, 75, 90, 110, 130, 150, 180],
             "speed": [
                 [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
                 [1.2, 2.1, 3.1, 4.0, 4.4, 4.6, 4.7, 4.8],
@@ -710,20 +699,6 @@ function reconstructPath(node) {
 
 window.planRoute = planRoute;
 
-// Funktion zum Umschalten zwischen Groß (ausgeklappt) und Klein (eingeklappt)
-function toggleRoutingPanel() {
-    const panel = document.getElementById("navis-routing-panel");
-    const btn = document.getElementById("routing-pin-toggle");
-    if (!panel || !btn) return;
-    if (panel.classList.contains("collapsed")) {
-        panel.classList.remove("collapsed");
-        btn.innerText = "⤡"; 
-    } else {
-        panel.classList.add("collapsed");
-        btn.innerText = "⤢"; 
-    }
-}
-window.toggleRoutingPanel = toggleRoutingPanel;
 
 // Optionale Komfort-Erweiterung: Wenn der User einen Start- oder Zielpunkt setzt,
 // klappt das Panel automatisch auf.
