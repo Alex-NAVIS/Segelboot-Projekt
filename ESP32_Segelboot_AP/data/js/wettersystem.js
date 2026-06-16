@@ -292,9 +292,8 @@ function interpolateDirection(d00, d10, d01, d11, xFactor, yFactor) {
     dir = (dir + 360) % 360;
     return dir;
 }
-
 /**
- * Kernfunktion: Berechnet aus einer Maus-Koordinate (Lat/Lng) den nächstgelegenen 
+ * Kernfunktion: Berechnet aus einer Maus-Koordinate (Lat/Lng) den nächstgelegenen
  * Datenpunkt aus dem JSON-Raster und aktualisiert die Cockpit-Info-Bar.
  * Hochpräzise Info-Bar mit bilinearer Interpolation (Glättung zwischen den Rasterpunkten)
  */
@@ -305,17 +304,17 @@ function updateInfoBarAtLatLng(latlng) {
     const frame = activeWeatherData.frames[currentHourIdx];
     
     // 1. Bounding-Box Prüfung
-	if (latlng.lat > meta.la1 || latlng.lat < meta.la2 || latlng.lng < meta.lo1 || latlng.lng > meta.lo2) {
-		document.getElementById('info-wind').innerText = "-- kn / --°";
-		document.getElementById('info-wave-h').innerText = "-- m";
-		document.getElementById('info-wave-d').innerText = "--°";
-		document.getElementById('info-wave-p').innerText = "-- s";
+    if (latlng.lat > meta.la1 || latlng.lat < meta.la2 || latlng.lng < meta.lo1 || latlng.lng > meta.lo2) {
+        document.getElementById('info-wind').innerText = "-- kn / --°";
+        document.getElementById('info-wave-h').innerText = "-- m";
+        document.getElementById('info-wave-d').innerText = "--°";
+        document.getElementById('info-wave-p').innerText = "-- s";
 
-		document.getElementById('current-speed').innerText = "-- kn";
-		document.getElementById('current-direction').innerText = "--°";
-		document.getElementById('tide-height').innerText = "-- m";
-		return;
-	}
+        document.getElementById('current-speed').innerText = "-- kn";
+        document.getElementById('current-direction').innerText = "--°";
+        document.getElementById('tide-height').innerText = "-- m (--)";
+        return;
+    }
     
     // 2. Errechne die genaue Position im Gitter als Fließkommazahl (wichtig für die Glättung!)
     const latPos = (meta.la1 - latlng.lat) / meta.dy;
@@ -334,18 +333,28 @@ function updateInfoBarAtLatLng(latlng) {
     // Hilfsfunktion: Berechnet den linearen 1D-Array-Index im JSON
     const getIdx = (x, y) => (y * meta.nx) + x;
     
+    // Lokale Hilfsfunktion für die bilineare Wasserstand-Interpolation beliebiger Frames
+    const getInterpolatedTideForFrame = (targetFrame) => {
+        if (!targetFrame || !targetFrame.tide_height) return 0;
+        const h00 = targetFrame.tide_height[getIdx(x0, y0)] || 0;
+        const h10 = targetFrame.tide_height[getIdx(x1, y0)] || 0;
+        const h01 = targetFrame.tide_height[getIdx(x0, y1)] || 0;
+        const h11 = targetFrame.tide_height[getIdx(x1, y1)] || 0;
+        return (1 - yFactor) * ((1 - xFactor) * h00 + xFactor * h10) + yFactor * ((1 - xFactor) * h01 + xFactor * h11);
+    };
+    
     // 3. Bilineare Interpolation für die U-Komponente des Windes
-	const u00 = frame.wind_u?.[getIdx(x0, y0)] ?? 0;
-	const u10 = frame.wind_u?.[getIdx(x1, y0)] ?? 0;
-	const u01 = frame.wind_u?.[getIdx(x0, y1)] ?? 0;
-	const u11 = frame.wind_u?.[getIdx(x1, y1)] ?? 0;
+    const u00 = frame.wind_u?.[getIdx(x0, y0)] ?? 0;
+    const u10 = frame.wind_u?.[getIdx(x1, y0)] ?? 0;
+    const u01 = frame.wind_u?.[getIdx(x0, y1)] ?? 0;
+    const u11 = frame.wind_u?.[getIdx(x1, y1)] ?? 0;
     const u_interpolated = (1 - yFactor) * ((1 - xFactor) * u00 + xFactor * u10) + yFactor * ((1 - xFactor) * u01 + xFactor * u11);
     
     // 4. Bilineare Interpolation für die V-Komponente des Windes
     const v00 = frame.wind_v?.[getIdx(x0, y0)] ?? 0;
-	const v10 = frame.wind_v?.[getIdx(x1, y0)] ?? 0;
-	const v01 = frame.wind_v?.[getIdx(x0, y1)] ?? 0;
-	const v11 = frame.wind_v?.[getIdx(x1, y1)] ?? 0;
+    const v10 = frame.wind_v?.[getIdx(x1, y0)] ?? 0;
+    const v01 = frame.wind_v?.[getIdx(x0, y1)] ?? 0;
+    const v11 = frame.wind_v?.[getIdx(x1, y1)] ?? 0;
     const v_interpolated = (1 - yFactor) * ((1 - xFactor) * v00 + xFactor * v10) + yFactor * ((1 - xFactor) * v01 + xFactor * v11);
     
     // 5. Bilineare Interpolation für die Wellenhöhe
@@ -354,124 +363,110 @@ function updateInfoBarAtLatLng(latlng) {
     const wh01 = (frame.wave_height ? frame.wave_height[getIdx(x0, y1)] : 0) || 0;
     const wh11 = (frame.wave_height ? frame.wave_height[getIdx(x1, y1)] : 0) || 0;
     const waveH_interpolated = (1 - yFactor) * ((1 - xFactor) * wh00 + xFactor * wh10) + yFactor * ((1 - xFactor) * wh01 + xFactor * wh11);
-    // Bilineare Interpolation Wellenrichtung
-	const wd00 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y0)] : 0) || 0;
-	const wd10 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y0)] : 0) || 0;
-	const wd01 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y1)] : 0) || 0;
-	const wd11 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y1)] : 0) || 0;
-
-	const waveD_interpolated = interpolateDirection(
-		wd00,
-		wd10,
-		wd01,
-		wd11,
-		xFactor,
-		yFactor
-	);
-
-	// Bilineare Interpolation Wellenperiode
-	const wp00 = (frame.wave_period ? frame.wave_period[getIdx(x0, y0)] : 0) || 0;
-	const wp10 = (frame.wave_period ? frame.wave_period[getIdx(x1, y0)] : 0) || 0;
-	const wp01 = (frame.wave_period ? frame.wave_period[getIdx(x0, y1)] : 0) || 0;
-	const wp11 = (frame.wave_period ? frame.wave_period[getIdx(x1, y1)] : 0) || 0;
-
-	const waveP_interpolated =
-		(1 - yFactor) * ((1 - xFactor) * wp00 + xFactor * wp10) +
-		yFactor * ((1 - xFactor) * wp01 + xFactor * wp11);
-		
     
+    // Bilineare Interpolation Wellenrichtung
+    const wd00 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y0)] : 0) || 0;
+    const wd10 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y0)] : 0) || 0;
+    const wd01 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y1)] : 0) || 0;
+    const wd11 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y1)] : 0) || 0;
+
+    const waveD_interpolated = interpolateDirection(
+        wd00,
+        wd10,
+        wd01,
+        wd11,
+        xFactor,
+        yFactor
+    );
+
+    // Bilineare Interpolation Wellenperiode
+    const wp00 = (frame.wave_period ? frame.wave_period[getIdx(x0, y0)] : 0) || 0;
+    const wp10 = (frame.wave_period ? frame.wave_period[getIdx(x1, y0)] : 0) || 0;
+    const wp01 = (frame.wave_period ? frame.wave_period[getIdx(x0, y1)] : 0) || 0;
+    const wp11 = (frame.wave_period ? frame.wave_period[getIdx(x1, y1)] : 0) || 0;
+
+    const waveP_interpolated =
+        (1 - yFactor) * ((1 - xFactor) * wp00 + xFactor * wp10) +
+        yFactor * ((1 - xFactor) * wp01 + xFactor * wp11);
+        
     // 7. Ausgabe ins Cockpit-Display
-// --------------------------------------------------
-// Strömung interpolieren
-// --------------------------------------------------
+    // --------------------------------------------------
+    // Strömung interpolieren
+    // --------------------------------------------------
 
-const cu00 = (frame.current_u ? frame.current_u[getIdx(x0, y0)] : 0) || 0;
-const cu10 = (frame.current_u ? frame.current_u[getIdx(x1, y0)] : 0) || 0;
-const cu01 = (frame.current_u ? frame.current_u[getIdx(x0, y1)] : 0) || 0;
-const cu11 = (frame.current_u ? frame.current_u[getIdx(x1, y1)] : 0) || 0;
+    const cu00 = (frame.current_u ? frame.current_u[getIdx(x0, y0)] : 0) || 0;
+    const cu10 = (frame.current_u ? frame.current_u[getIdx(x1, y0)] : 0) || 0;
+    const cu01 = (frame.current_u ? frame.current_u[getIdx(x0, y1)] : 0) || 0;
+    const cu11 = (frame.current_u ? frame.current_u[getIdx(x1, y1)] : 0) || 0;
 
-const currentU =
-    (1 - yFactor) * ((1 - xFactor) * cu00 + xFactor * cu10) +
-    yFactor * ((1 - xFactor) * cu01 + xFactor * cu11);
+    const currentU =
+        (1 - yFactor) * ((1 - xFactor) * cu00 + xFactor * cu10) +
+        yFactor * ((1 - xFactor) * cu01 + xFactor * cu11);
 
-const cv00 = (frame.current_v ? frame.current_v[getIdx(x0, y0)] : 0) || 0;
-const cv10 = (frame.current_v ? frame.current_v[getIdx(x1, y0)] : 0) || 0;
-const cv01 = (frame.current_v ? frame.current_v[getIdx(x0, y1)] : 0) || 0;
-const cv11 = (frame.current_v ? frame.current_v[getIdx(x1, y1)] : 0) || 0;
+    const cv00 = (frame.current_v ? frame.current_v[getIdx(x0, y0)] : 0) || 0;
+    const cv10 = (frame.current_v ? frame.current_v[getIdx(x1, y0)] : 0) || 0;
+    const cv01 = (frame.current_v ? frame.current_v[getIdx(x0, y1)] : 0) || 0;
+    const cv11 = (frame.current_v ? frame.current_v[getIdx(x1, y1)] : 0) || 0;
 
-const currentV =
-    (1 - yFactor) * ((1 - xFactor) * cv00 + xFactor * cv10) +
-    yFactor * ((1 - xFactor) * cv01 + xFactor * cv11);
+    const currentV =
+        (1 - yFactor) * ((1 - xFactor) * cv00 + xFactor * cv10) +
+        yFactor * ((1 - xFactor) * cv01 + xFactor * cv11);
 
-// --------------------------------------------------
-// Wasserstand interpolieren
-// --------------------------------------------------
+    // --------------------------------------------------
+    // Wasserstand interpolieren
+    // --------------------------------------------------
+    const tideInterpolated = getInterpolatedTideForFrame(frame);
+	
+    // --------------------------------------------------
+    // Wasserstand Tendenz-Berechnung (Davor / Danach abgleichen)
+    // --------------------------------------------------
+    let tendencyText = "gleichbleibend";
+    const tolerance = 0.005; // 0.5 cm Toleranz gegen mathematisches Rauschen
 
-const th00 = (frame.tide_height ? frame.tide_height[getIdx(x0, y0)] : 0) || 0;
-const th10 = (frame.tide_height ? frame.tide_height[getIdx(x1, y0)] : 0) || 0;
-const th01 = (frame.tide_height ? frame.tide_height[getIdx(x0, y1)] : 0) || 0;
-const th11 = (frame.tide_height ? frame.tide_height[getIdx(x1, y1)] : 0) || 0;
+    if (currentHourIdx > 0) {
+        // Normalfall und letzter Wert: Abgleich mit der Stunde davor
+        const prevTide = getInterpolatedTideForFrame(activeWeatherData.frames[currentHourIdx - 1]);
+        if (tideInterpolated - prevTide > tolerance) tendencyText = "auflaufend";
+        else if (prevTide - tideInterpolated > tolerance) tendencyText = "ablaufend";
+    } else if (activeWeatherData.frames.length > 1) {
+        // Erster Wert (Index 0): Abgleich mit der Stunde danach (Stunde +1)
+        const nextTide = getInterpolatedTideForFrame(activeWeatherData.frames[currentHourIdx + 1]);
+        if (nextTide - tideInterpolated > tolerance) tendencyText = "auflaufend";
+        else if (tideInterpolated - nextTide > tolerance) tendencyText = "ablaufend";
+    }
 
-const tideInterpolated =
-    (1 - yFactor) * ((1 - xFactor) * th00 + xFactor * th10) +
-    yFactor * ((1 - xFactor) * th01 + xFactor * th11);
+    // --------------------------------------------------
+    // Wind
+    // --------------------------------------------------
+    const speedMS = Math.sqrt(u_interpolated * u_interpolated + v_interpolated * v_interpolated);
+    const speedKnots = Math.round(speedMS * 1.94384);
+    let angleRad = Math.atan2(v_interpolated, u_interpolated);
+    let angleDeg = angleRad * (180 / Math.PI);
+    let windDirectionDeg = ((Math.round(270 - angleDeg) % 360) + 360) % 360;
+    if (windDirectionDeg === 0 && speedKnots > 0) {
+        windDirectionDeg = 360;
+    }
 
-// --------------------------------------------------
-// Wind
-// --------------------------------------------------
+    // --------------------------------------------------
+    // Strömung
+    // --------------------------------------------------
+    const currentKnots = Math.sqrt(currentU * currentU + currentV * currentV);
+    let currentAngle = Math.atan2(currentU, currentV) * 180 / Math.PI;
+    currentAngle = ((currentAngle % 360) + 360) % 360;
 
-const speedMS = Math.sqrt(
-    u_interpolated * u_interpolated +
-    v_interpolated * v_interpolated
-);
-
-const speedKnots = Math.round(speedMS * 1.94384);
-
-let angleRad = Math.atan2(v_interpolated, u_interpolated);
-let angleDeg = angleRad * (180 / Math.PI);
-
-let windDirectionDeg = ((Math.round(270 - angleDeg) % 360) + 360) % 360;
-
-if (windDirectionDeg === 0 && speedKnots > 0) {
-    windDirectionDeg = 360;
+    // --------------------------------------------------
+    // Ausgabe
+    // --------------------------------------------------
+    document.getElementById('info-wind').innerText = `${speedKnots} kn / ${windDirectionDeg}°`;
+    document.getElementById('info-wave-h').innerText = waveH_interpolated.toFixed(1) + " m";
+    document.getElementById('info-wave-d').innerText = Math.round(waveD_interpolated) + "°";
+    document.getElementById('info-wave-p').innerText = waveP_interpolated.toFixed(1) + " s";
+    document.getElementById('current-speed').innerText = `${currentKnots.toFixed(1)} kn`;
+    document.getElementById('current-direction').innerText = `${Math.round(currentAngle)}°`;
+    document.getElementById('tide-height').innerText = `${tideInterpolated.toFixed(2)} m (${tendencyText})`;
 }
 
-// --------------------------------------------------
-// Strömung
-// --------------------------------------------------
 
-const currentKnots = Math.sqrt(
-    currentU * currentU +
-    currentV * currentV
-);
-
-let currentAngle =
-    Math.atan2(currentU, currentV) *
-    180 / Math.PI;
-
-currentAngle = ((currentAngle % 360) + 360) % 360;
-
-// --------------------------------------------------
-// Ausgabe
-// --------------------------------------------------
-
-document.getElementById('info-wind').innerText = `${speedKnots} kn / ${windDirectionDeg}°`;
-
-document.getElementById('info-wave-h').innerText = waveH_interpolated.toFixed(1) + " m";
-
-document.getElementById('info-wave-d').innerText = Math.round(waveD_interpolated) + "°";
-
-document.getElementById('info-wave-p').innerText = waveP_interpolated.toFixed(1) + " s";
-
-document.getElementById('current-speed').innerText =
-    `${currentKnots.toFixed(1)} kn`;
-
-document.getElementById('current-direction').innerText =
-    `${Math.round(currentAngle)}°`;
-
-document.getElementById('tide-height').innerText =
-    `${tideInterpolated.toFixed(2)} m`;
-}
 
 // --------------------------------------------------
 // NAVIS Wetter-System Initialisierung
