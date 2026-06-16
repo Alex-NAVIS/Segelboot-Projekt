@@ -265,10 +265,33 @@ function updateWeatherFrame(hourIdx) {
     }
 
     // Trigger ein fiktives Maus-Event auf der aktuellen Kartenmitte
-    updateInfoBarAtLatLng(map.getCenter());
+    if (typeof map !== 'undefined') {
+		updateInfoBarAtLatLng(map.getCenter());
+	}
 }
 
-
+function interpolateDirection(d00, d10, d01, d11, xFactor, yFactor) {
+    const toRad = d => d * Math.PI / 180;
+    const sx00 = Math.sin(toRad(d00));
+    const sx10 = Math.sin(toRad(d10));
+    const sx01 = Math.sin(toRad(d01));
+    const sx11 = Math.sin(toRad(d11));
+    const cx00 = Math.cos(toRad(d00));
+    const cx10 = Math.cos(toRad(d10));
+    const cx01 = Math.cos(toRad(d01));
+    const cx11 = Math.cos(toRad(d11));
+    const sinInterp =
+        (1 - yFactor) * ((1 - xFactor) * sx00 + xFactor * sx10) +
+        yFactor * ((1 - xFactor) * sx01 + xFactor * sx11);
+    const cosInterp =
+        (1 - yFactor) * ((1 - xFactor) * cx00 + xFactor * cx10) +
+        yFactor * ((1 - xFactor) * cx01 + xFactor * cx11);
+    let dir =
+        Math.atan2(sinInterp, cosInterp) *
+        180 / Math.PI;
+    dir = (dir + 360) % 360;
+    return dir;
+}
 
 /**
  * Kernfunktion: Berechnet aus einer Maus-Koordinate (Lat/Lng) den nächstgelegenen 
@@ -312,17 +335,17 @@ function updateInfoBarAtLatLng(latlng) {
     const getIdx = (x, y) => (y * meta.nx) + x;
     
     // 3. Bilineare Interpolation für die U-Komponente des Windes
-    const u00 = frame.wind_u[getIdx(x0, y0)] || 0;
-    const u10 = frame.wind_u[getIdx(x1, y0)] || 0;
-    const u01 = frame.wind_u[getIdx(x0, y1)] || 0;
-    const u11 = frame.wind_u[getIdx(x1, y1)] || 0;
+	const u00 = frame.wind_u?.[getIdx(x0, y0)] ?? 0;
+	const u10 = frame.wind_u?.[getIdx(x1, y0)] ?? 0;
+	const u01 = frame.wind_u?.[getIdx(x0, y1)] ?? 0;
+	const u11 = frame.wind_u?.[getIdx(x1, y1)] ?? 0;
     const u_interpolated = (1 - yFactor) * ((1 - xFactor) * u00 + xFactor * u10) + yFactor * ((1 - xFactor) * u01 + xFactor * u11);
     
     // 4. Bilineare Interpolation für die V-Komponente des Windes
-    const v00 = frame.wind_v[getIdx(x0, y0)] || 0;
-    const v10 = frame.wind_v[getIdx(x1, y0)] || 0;
-    const v01 = frame.wind_v[getIdx(x0, y1)] || 0;
-    const v11 = frame.wind_v[getIdx(x1, y1)] || 0;
+    const v00 = frame.wind_v?.[getIdx(x0, y0)] ?? 0;
+	const v10 = frame.wind_v?.[getIdx(x1, y0)] ?? 0;
+	const v01 = frame.wind_v?.[getIdx(x0, y1)] ?? 0;
+	const v11 = frame.wind_v?.[getIdx(x1, y1)] ?? 0;
     const v_interpolated = (1 - yFactor) * ((1 - xFactor) * v00 + xFactor * v10) + yFactor * ((1 - xFactor) * v01 + xFactor * v11);
     
     // 5. Bilineare Interpolation für die Wellenhöhe
@@ -332,15 +355,19 @@ function updateInfoBarAtLatLng(latlng) {
     const wh11 = (frame.wave_height ? frame.wave_height[getIdx(x1, y1)] : 0) || 0;
     const waveH_interpolated = (1 - yFactor) * ((1 - xFactor) * wh00 + xFactor * wh10) + yFactor * ((1 - xFactor) * wh01 + xFactor * wh11);
     // Bilineare Interpolation Wellenrichtung
-	// Bilineare Interpolation Wellenrichtung
 	const wd00 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y0)] : 0) || 0;
 	const wd10 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y0)] : 0) || 0;
 	const wd01 = (frame.wave_direction ? frame.wave_direction[getIdx(x0, y1)] : 0) || 0;
 	const wd11 = (frame.wave_direction ? frame.wave_direction[getIdx(x1, y1)] : 0) || 0;
 
-	const waveD_interpolated =
-		(1 - yFactor) * ((1 - xFactor) * wd00 + xFactor * wd10) +
-		yFactor * ((1 - xFactor) * wd01 + xFactor * wd11);
+	const waveD_interpolated = interpolateDirection(
+		wd00,
+		wd10,
+		wd01,
+		wd11,
+		xFactor,
+		yFactor
+	);
 
 	// Bilineare Interpolation Wellenperiode
 	const wp00 = (frame.wave_period ? frame.wave_period[getIdx(x0, y0)] : 0) || 0;
@@ -403,8 +430,7 @@ const speedKnots = Math.round(speedMS * 1.94384);
 let angleRad = Math.atan2(v_interpolated, u_interpolated);
 let angleDeg = angleRad * (180 / Math.PI);
 
-let windDirectionDeg =
-    Math.round(270 - angleDeg) % 360;
+let windDirectionDeg = ((Math.round(270 - angleDeg) % 360) + 360) % 360;
 
 if (windDirectionDeg === 0 && speedKnots > 0) {
     windDirectionDeg = 360;
@@ -423,8 +449,7 @@ let currentAngle =
     Math.atan2(currentU, currentV) *
     180 / Math.PI;
 
-currentAngle =
-    (currentAngle + 360) % 360;
+currentAngle = ((currentAngle % 360) + 360) % 360;
 
 // --------------------------------------------------
 // Ausgabe
@@ -448,14 +473,56 @@ document.getElementById('tide-height').innerText =
     `${tideInterpolated.toFixed(2)} m`;
 }
 
+// --------------------------------------------------
+// NAVIS Wetter-System Initialisierung
+// --------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+    // Wetterdateien laden
+    setTimeout(initNavisWeather, 500);
+    // ----------------------------------
+    // Leaflet Maus- und Touchsteuerung
+    // ----------------------------------
+    if (typeof map !== 'undefined') {
 
+        map.on('mousemove', (e) => {
+            updateInfoBarAtLatLng(e.latlng);
+        });
+        map.on('click', (e) => {
+            updateInfoBarAtLatLng(e.latlng);
+        });
+    }
+
+    // ----------------------------------
+    // Layer-Umschaltung
+    // ----------------------------------
+    const cbWind = document.getElementById('show-wind-layer');
+    const cbCurrent = document.getElementById('show-current-layer');
+
+    if (cbWind) {
+        cbWind.addEventListener('change', () => {
+            updateWeatherFrame(currentHourIdx);
+        });
+    }
+
+    if (cbCurrent) {
+        cbCurrent.addEventListener('change', () => {
+            updateWeatherFrame(currentHourIdx);
+        });
+    }
+});
 
 /**
  * 4. Wettersystem komplett zurücksetzen
  */
 function resetWeatherLayers() {
-    if (currentWindLayer) map.removeLayer(currentWindLayer);
-    if (currentCurrentLayer) map.removeLayer(currentCurrentLayer); // Fix: Säubert Strömung mit
+	if (typeof map !== 'undefined') {
+		if (currentWindLayer && map.hasLayer(currentWindLayer)) {
+			map.removeLayer(currentWindLayer);
+		}
+		if (currentCurrentLayer && map.hasLayer(currentCurrentLayer)) {
+			map.removeLayer(currentCurrentLayer);
+		}
+	}
     currentWindLayer = null; currentCurrentLayer = null;
     activeWeatherData = null;
     
@@ -467,38 +534,6 @@ function resetWeatherLayers() {
     if (document.getElementById('weather-file-select')) document.getElementById('weather-file-select').value = "";
 }
 
-// Handler im DOMContentLoaded registrieren und Leaflet Maus-Lauscher koppeln
-document.addEventListener("DOMContentLoaded", () => {
-    setTimeout(() => {
-        initNavisWeather();
-        
-        // Registriert den globalen Maus-Lauscher auf der Leaflet-Karte
-        if (typeof map !== 'undefined') {
-            map.on('mousemove', function(e) {
-                updateInfoBarAtLatLng(e.latlng);
-            });
-            
-            // Für Touchscreens (iPad/Tablet): Tippen auf die Karte aktualisiert die Werte ebenfalls
-            map.on('click', function(e) {
-                updateInfoBarAtLatLng(e.latlng);
-            });
-        }
-    }, 500);
-});
-
-// Registriere das Live-Umschalten beim Anklicken der Checkboxen
-document.addEventListener("DOMContentLoaded", () => {
-    const cbWind = document.getElementById('show-wind-layer');
-    const cbCurrent = document.getElementById('show-current-layer');
-    
-    if (cbWind) cbWind.addEventListener('change', () => updateWeatherFrame(currentHourIdx));
-    if (cbCurrent) cbCurrent.addEventListener('change', () => updateWeatherFrame(currentHourIdx));
-});
-
-// Handler im DOMContentLoaded registrieren
-document.addEventListener("DOMContentLoaded", () => {
-    setTimeout(initNavisWeather, 500);
-});
 
 function toggleWeatherPanel() {
 
