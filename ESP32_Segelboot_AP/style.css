@@ -1,0 +1,139 @@
+/* ==========================================================================
+   0. DESIGN SYSTEM & VARIABLE DEFINITIONS
+   ========================================================================== */
+:root {
+  --bg-main: #001a26;
+  --bg-panel: #002b3a;
+  --bg-input: #001f2b;
+  --border: #00aacc;
+  --border-dark: #005566;
+  --border-muted: #004455;
+  --accent: #00e5ff;
+  --accent2: #00ffff;
+  --accent-muted: #00bcd4;
+  --button: #0088aa;
+  --button-hover: #00aacc;
+  --text: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+/* ==========================================================================
+   1. GLOBAL STRUCTURE (body & header)
+   ========================================================================== */
+body { 
+  background: var(--bg-main); 
+  color: #00e6e6; 
+  font-family: "Segoe UI", Arial, sans-serif; 
+  margin: 0; 
+  padding: 0 0 20px 0; 
+  overflow-x: hidden; 
+  text-align: center; 
+  line-height: 1.4; 
+}
+
+header { 
+  position: relative; 
+  background: var(--bg-panel); 
+  color: var(--accent2); 
+  padding: 15px; 
+  font-size: 1.6em; 
+  font-weight: bold; 
+  border-bottom: 2px solid var(--border-dark); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  gap: 15px; 
+}
+
+/* ==========================================================================
+   2. WEBSOCKET-STATUS & LED (Als reguläres Nav-Element angepasst)
+   ========================================================================== */
+#wsStatus { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  font-size: 0.85em; 
+  font-weight: bold;
+  color: var(--accent2);
+  background-color: #001f2b; /* Gleicher dunkler Hintergrund wie andere Boxen */
+  border: 1px solid #005566;
+  border-radius: 5px;
+  padding: 4px 10px;
+}
+
+#wsLed { 
+  width: 12px; 
+  height: 12px; 
+  border-radius: 50%; 
+  background: #ff3333; 
+  box-shadow: 0 0 6px rgba(255, 0, 0, 0.8); 
+  display: inline-block;
+}
+
+/* ==========================================================================
+   3. NAVIGATION BAR & LANGUAGE SELECT
+   ========================================================================== */
+#navbar { 
+	display: flex; 
+	flex-wrap: wrap; 
+	justify-content: center; 
+	gap: 8px; 
+	background-color: #002b3a; 
+	padding: 10px 5px; 
+	border-bottom: 1px solid #005566; 
+}
+		
+
+.navbtn { 
+  background: #003d52; 
+  color: var(--accent2); 
+  border: 1px solid #007a99; 
+  border-radius: 5px; 
+  padding: 4px 10px; 
+  text-decoration: none; 
+  font-size: 0.85em; 
+  font-weight: bold; 
+}
+
+.navbtn:hover, .navbtn.active { 
+  background: #00b8d4; 
+  color: var(--bg-main); 
+  border-color: #00e6e6;
+  box-shadow: 0 0 8px rgba(0, 230, 230, 0.4);
+}
+
+.lang-select-container { 
+  margin-left: 10px; 
+}
+
+#langSelect { 
+  background: #003d52; 
+  color: var(--accent2); 
+  border: 1px solid #007a99; 
+  border-radius: 5px; 
+  padding: 4px; 
+  font-size: 0.85em; 
+  font-weight: bold; 
+  cursor: pointer; 
+  outline: none;
+}
+
+#langSelect option { 
+  background: var(--bg-main); 
+  color: var(--accent2); 
+}
+
+/* ==========================================================================
+   4. GLOBAL FOOTER
+   ========================================================================== */
+footer { 
+  margin: 30px 0 20px 0; 
+  padding-top: 10px; 
+  border-top: 1px solid var(--border-dark); 
+  color: #00b8d4; 
+  font-size: 0.85em; 
+  text-align: center; 
+  opacity: 0.9; 
+  line-height: 1.4; 
+}
