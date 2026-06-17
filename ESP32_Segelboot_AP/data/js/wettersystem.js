@@ -7,11 +7,37 @@ let currentHourIdx = 0;       // Speichert global die aktuell eingestellte Slide
 let currentWindLayer = null;  // Referenz auf die aktuell animierten Windfäden
 let currentCurrentLayer = null; // Referenz auf die aktuell animierten Strömungsfäden
 
-/**
- * 1. Initialisierung beim Laden der Seite
- * Erkennt automatisch PC- oder Boot-Betrieb und scannt das Verzeichnis
- * vollautomatisch nach ALLEN verfügbaren JSON-Wetterdateien.
- */
+/* =========================================================================
+ * NETZWERK-KOMPONENTEN: INIT NAVIS WEATHER (REVIER-DATEIAUSWAHL & BOX-SCAN)
+ * =========================================================================
+ * ZWECK: Initialisiert das Dropdown-Auswahlmenü ('select') für die verfügbaren
+ * Wetter- und Revierdateien. Unterscheidet dabei intelligent zwischen einer
+ * lokalen Entwicklungsumgebung und dem echten Bordbetrieb auf See.
+ * 
+ * DIE ZWEI BETRIEBSMODI IM DETAIL:
+ * 
+ * 1. 🖥 LOKALER PC-SERVER-MODUS (Dynamischer Ordner-Scan)
+ *    - Wird aktiv, wenn der Hostname 'localhost' oder '127.0.0.1' lautet.
+ *    - Ruft das Verzeichnis 'Wetter/' ab. Der lokale Server (z. B. Python) liefert 
+ *      daraufhin ein HTML-Inhaltsverzeichnis (Directory Listing) zurück.
+ *    - Nutzt den 'DOMParser', um das HTML asynchron zu parsen und alle Hyperlinks 
+ *      ('<a>') zu extrahieren. Filterspezifisch werden nur '.json'-Dateien erfasst.
+ *    - Text-Formatierung: Bereinigt die Dateinamen von Präfixen ("wind_") und 
+ *      Unterstrichen, um über eine Capitalize-Schleife saubere, lesbare Menü-Einträge 
+ *      (z. B. "Ostsee Kiel") zu generieren.
+ * 
+ * 2. ⛵ BORD-BETRIEB / ESP32-MODUS (LittleFS-Index-Auslesung)
+ *    - Greift im regulären Schiffsbetrieb über das WLAN-Bordnetz des ESP32-Mikrocontrollers.
+ *    - Lädt eine statische Indexdatei '/Wetter/index.json'. Ein angehängter Zeitstempel 
+ *      ('?t=Date.now()') erzwingt den Abruf direkt aus dem Flash-Speicher ohne Browser-Cache.
+ *    - Iteriert durch das JSON-Array und bindet die Pfade ('f.file') und Reviernamen 
+ *      ('f.label') direkt als Optionen in das Auswahlmenü ein.
+ * 
+ * FEHLERBEHANDLUNG (ROBUSTNESS):
+ * Beide Zweige besitzen separate Catch-Blöcke, die bei fehlenden Berechtigungen, 
+ * Netzwerkunterbrechungen oder einer fehlerhaften Index-Datei das Dropdown-Menü 
+ * mit einer klaren visuellen Rückmeldung ("Keine JSONs" / "Fehler Scan") sichern.
+ * ========================================================================= */
 function initNavisWeather() {
     const select = document.getElementById('weather-file-select');
     if (!select) return;
@@ -77,9 +103,30 @@ function initNavisWeather() {
     }
 }
 
-/**
- * 2. Wetterdaten laden
- */
+/* =========================================================================
+ * NETZWERK-KOMPONENTEN: LOAD NEW WEATHER DATA (WETTERDATEN-LOADER & SLIDER-SET)
+ * =========================================================================
+ * ZWECK: Lädt eine neue, strukturierte Wetter- und GRIB-Datendatei asynchron 
+ * vom Server, initialisiert die Steuerungselemente der Zeitachse (Slider) und 
+ * rendert sofort den ersten verfügbaren Wetter-Frame (Zeitschritt 0).
+ * 
+ * CORE-FUNKTIONEN IM DETAIL:
+ * 1. Sperr- & Schutzlogik (UI-Schutz):
+ *    - Wird keine gültige Datei-URL übergeben, löscht 'resetWeatherLayers()' alle Layer.
+ *    - Deaktiviert den Zeitschieberegler ('slider.disabled = true') während des Ladevorgangs,
+ *      um unvollständige Eingaben oder Abfrage-Konflikte zu unterbinden.
+ * 2. Smarter Cache-Buster (Umgebungs-Erkennung):
+ *    - Prüft über das Protokoll ('file:') oder den Hostnamen, ob die App lokal läuft (PC).
+ *    - Fügt im echten Bordbetrieb (WLAN/HTTP) einen zeitbasierten Parameter ('?t=Date.now()') 
+ *      an, um veraltete Cache-Versionen im Browser zu umgehen und frische Borddaten zu erzwingen.
+ * 3. Dynamische GUI-Skalierung (Responsive Slider):
+ *    - Schreibt die JSON-Antwort nach erfolgreichem Parsing in die globale Variable 'activeWeatherData'.
+ *    - Passt die physische Länge des Sliders dynamisch an die aktuelle Höhe des Navigations-
+ *      Panels ('containerHeight * 0.45') an, um Layout-Brüche im Cockpit zu verhindern.
+ * 4. Error-Handling & Fallback:
+ *    Ein Catch-Block fängt fehlerhafte HTTP-Statuscodes oder korrupte JSON-Dateien ab, 
+ *    gibt eine detaillierte Fehlermeldung aus und setzt alle Wetter-Visualisierungen sicher zurück.
+ * ========================================================================= */
 function loadNewWeatherData(fileUrl) {
     const slider = document.getElementById('weather-slider');
     const infoBar = document.getElementById('weather-info-bar');
@@ -124,9 +171,37 @@ function loadNewWeatherData(fileUrl) {
             resetWeatherLayers();
         });
 }
-/**
- * 3. Slider-Bewegung verarbeiten & Wetter-Frames rendern (Wind & Strömung)
- */
+
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: UPDATE WEATHER FRAME (DYNAMISCHE STRÖMUNG- & WIND-ANIMATION)
+ * =========================================================================
+ * ZWECK: Aktualisiert die animierten Strömungs- und Windkarten-Layer (Partikelströme) 
+ * auf der Karte basierend auf dem gewählten Zeitschritt (Stunden-Index) eines GRIB-Sliders.
+ * Berechnet parallel die realen Vorhersage-Uhrzeiten und stößt das Cockpit-Update an.
+ * 
+ * CORE-FUNKTIONEN IM DETAIL:
+ * 1. Zeit- und UI-Synchronisation:
+ *    - Sichert den aktuellen 'hourIdx' global für die Positions-Mausabfrage.
+ *    - Schreibt die relative Vorhersagezeit (z. B. "+3 h") in das Panel.
+ *    - Berechnet aus dem Basiszeitstempel ('meta.created') und dem Slider-Versatz die 
+ *      reale meteorologische Uhrzeit und formatiert sie landesspezifisch ('de-DE').
+ * 2. Ressourcen- und Layer-Bereinigung:
+ *    - Entfernt vor dem Neuzeichnen existierende Instanzen des Wind- und Strömungslayers 
+ *      ('currentWindLayer' / 'currentCurrentLayer') restlos von der Leaflet-Karte.
+ * 3. Farbskalen-Generator ('generateScale'):
+ *    - Erzeugt über eine lineare RGB-Farbkanalinpolation (Gradientenberechnung) 
+ *    - Generiert aus wenigen Anker-Farbpunkten eine hochauflösende 60-stufige Farbskala, 
+ *      die über Bit-Shifting (`<< 16`, `<< 8`) in Hex-Farbcodes für die Partikeldarstellung umgerechnet wird.
+ * 4. Partikel-Animation (Leaflet Velocity Layer):
+ *    - Formatiert die GRIB-Rasterdaten (U/V-Komponenten) in das standardisierte JSON-Format.
+ *    - Wind-Visualisierung: Nutzt ein energetisches Farbspektrum (Blau-Grün-Gelb-Rot) bis 18 m/s.
+ *    - Strömungs-Visualisierung: Nutzt ein nachtsichtschonendes, maritimes Blauspektrum (Tiefblau 
+ *      bis leuchtendes Cyan) mit höherer Linienstärke (3px) und längerer Lebensdauer (300 Frames).
+ * 
+ * COCKPIT-KOPPLUNG:
+ * Simuliert am Ende einen Klick auf die aktuelle Kartenmitte ('map.getCenter()'), um die textuelle 
+ * Infobar des Cockpits sofort an den neu geladenen Zeitschritt anzupassen.
+ * ========================================================================= */
 function updateWeatherFrame(hourIdx) {
     hourIdx = parseInt(hourIdx, 10);
     currentHourIdx = hourIdx; // Stunde global sichern für den Maus-Lauscher
@@ -270,6 +345,30 @@ function updateWeatherFrame(hourIdx) {
 	}
 }
 
+/* =========================================================================
+ * NAVIGATIONS-MATHEMATIK: INTERPOLATE DIRECTION (SPHÄRISCHE WINKELGLÄTTUNG)
+ * =========================================================================
+ * ZWECK: Berechnet die bilineare Interpolation von Richtungs- und Winkelangaben 
+ * (z. B. Wellen- oder Windrichtung) für Koordinaten, die zwischen den vier 
+ * Eckpunkten einer GRIB-Rasterzelle liegen.
+ * 
+ * DAS MATHEMATISCHE SPROUNG-PROBLEM BEI WINKELN:
+ * Eine einfache lineare Interpolation führt bei Winkeln nahe dem Nord-Sprung 
+ * (z. B. zwischen 350° und 10°) zu fatalen Fehlern, da der mathematische Mittelwert 
+ * (350+10)/2 = 180° (Süden) statt der korrekten 0° (Norden) betragen würde.
+ * 
+ * LÖSUNGSVERFAHREN (VEKTORIELLE ZERLEGUNG):
+ * 1. Komponenten-Zerlegung: Transformiert die vier Eckwinkel (d00 bis d11) über 
+ *    'Math.sin' und 'Math.cos' in ihre rechtwinkligen X- und Y-Vektorkomponenten 
+ *    im Radiantbereich ('toRad').
+ * 2. Getrennte Interpolation: Berechnet die gewichteten Werte für den Sinus- 
+ *    ('sinInterp') und Kosinus-Anteil ('cosInterp') separat anhand der Abstände 
+ *    'xFactor' und 'yFactor' (0.0 bis 1.0) zur Zellecke.
+ * 3. Winkel-Rückgewinnung: Setzt die gemittelten Komponenten mittels 'Math.atan2' 
+ *    wieder zu einem resultierenden Winkel zusammen und konvertiert diesen in Grad.
+ * 4. Kompass-Normierung: Der Ausdruck '(dir + 360) % 360' bereinigt negative Gradwerte 
+ *    und normiert das Endergebnis stabil in den nautischen Kompasskreis von 0.0° bis 359.9°.
+ * ========================================================================= */
 function interpolateDirection(d00, d10, d01, d11, xFactor, yFactor) {
     const toRad = d => d * Math.PI / 180;
     const sx00 = Math.sin(toRad(d00));
@@ -292,11 +391,29 @@ function interpolateDirection(d00, d10, d01, d11, xFactor, yFactor) {
     dir = (dir + 360) % 360;
     return dir;
 }
-/**
- * Kernfunktion: Berechnet aus einer Maus-Koordinate (Lat/Lng) den nächstgelegenen
- * Datenpunkt aus dem JSON-Raster und aktualisiert die Cockpit-Info-Bar.
- * Hochpräzise Info-Bar mit bilinearer Interpolation (Glättung zwischen den Rasterpunkten)
- */
+
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: COCKPIT-AUSGABE (VEKTORRECHNUNG & DOM-UPDATE)
+ * =========================================================================
+ * ZWECK: Berechnet aus den interpolierten meteorologischen und hydrographischen 
+ * Rasterwerten die finalen, seemännischen Maßeinheiten und schreibt diese 
+ * direkt in die HTML-Anzeigeelemente des Bord-Cockpits.
+ * 
+ * MATHEMATISCHE VEKTOR- UND EINHEITEN-KONVERTIERUNG:
+ * 1. Windgeschwindigkeit: Berechnet den Betrag des Windvektors (Satz des Pythagoras) 
+ *    aus den U/V-Komponenten in m/s und rechnet diesen per Faktor 1.94384 in Knoten (kn) um.
+ * 2. Windrichtung: Wandelt den mathematischen Vektorwinkel via 'Math.atan2' und 
+ *    '270 - angleDeg' in das klassische nautische System um (Woher kommt der Wind? 0°-360°).
+ * 3. Strömungs-Vektor: Bestimmt die Stromgeschwindigkeit ebenfalls als Vektorlänge 
+ *    und berechnet die Stromrichtung (Wohin setzt der Strom? Modulo-normiert auf 0°-360°).
+ * 
+ * UI-RENDER-PROZESS (DOM-MANIPULATION):
+ * Aktualisiert dedizierte HTML-Textknoten ('innerText') mit formatierten Strings:
+ * - Windstärke & Richtung (z. B. "12 kn / 240°")
+ * - Wellenparameter (Höhe in 'm' auf 1 Stelle, Richtung in '°', Periode in 's' auf 1 Stelle)
+ * - Strömungsdaten (Geschwindigkeit in 'kn' auf 1 Stelle, Richtung in '°')
+ * - Gezeiten (Wasserstandshöhe in 'm' auf 2 Stellen genau inklusive der Tendenztext-Injektion)
+ * ========================================================================= */
 function updateInfoBarAtLatLng(latlng) {
     if (!activeWeatherData || !activeWeatherData.frames) return;
     
@@ -412,28 +529,48 @@ function updateInfoBarAtLatLng(latlng) {
         (1 - yFactor) * ((1 - xFactor) * cv00 + xFactor * cv10) +
         yFactor * ((1 - xFactor) * cv01 + xFactor * cv11);
 
-    // --------------------------------------------------
-    // Wasserstand interpolieren
-    // --------------------------------------------------
-    const tideInterpolated = getInterpolatedTideForFrame(frame);
-	
-    // --------------------------------------------------
-    // Wasserstand Tendenz-Berechnung (Davor / Danach abgleichen)
-    // --------------------------------------------------
-    let tendencyText = "gleichbleibend";
-    const tolerance = 0.005; // 0.5 cm Toleranz gegen mathematisches Rauschen
+	// --------------------------------------------------
+	// Wasserstand interpolieren
+	// --------------------------------------------------
+	const th00 = (frame.tide_height ? frame.tide_height[getIdx(x0, y0)] : 0) || 0;
+	const th10 = (frame.tide_height ? frame.tide_height[getIdx(x1, y0)] : 0) || 0;
+	const th01 = (frame.tide_height ? frame.tide_height[getIdx(x0, y1)] : 0) || 0;
+	const th11 = (frame.tide_height ? frame.tide_height[getIdx(x1, y1)] : 0) || 0;
 
-    if (currentHourIdx > 0) {
-        // Normalfall und letzter Wert: Abgleich mit der Stunde davor
-        const prevTide = getInterpolatedTideForFrame(activeWeatherData.frames[currentHourIdx - 1]);
-        if (tideInterpolated - prevTide > tolerance) tendencyText = "auflaufend";
-        else if (prevTide - tideInterpolated > tolerance) tendencyText = "ablaufend";
-    } else if (activeWeatherData.frames.length > 1) {
-        // Erster Wert (Index 0): Abgleich mit der Stunde danach (Stunde +1)
-        const nextTide = getInterpolatedTideForFrame(activeWeatherData.frames[currentHourIdx + 1]);
-        if (nextTide - tideInterpolated > tolerance) tendencyText = "auflaufend";
-        else if (tideInterpolated - nextTide > tolerance) tendencyText = "ablaufend";
-    }
+	const tideInterpolated =
+		(1 - yFactor) * ((1 - xFactor) * th00 + xFactor * th10) +
+		yFactor * ((1 - xFactor) * th01 + xFactor * th11);
+
+	// --------------------------------------------------
+	// Wasserstand Tendenz-Berechnung (Davor / Danach abgleichen)
+	// --------------------------------------------------
+	let tendencyText = "gleichbleibend";
+
+	// Lokale Ermittlung des Vergleichswerts
+	let compareTide = tideInterpolated;
+	if (currentHourIdx > 0) {
+		const prevFrame = activeWeatherData.frames[currentHourIdx - 1];
+		if (prevFrame && prevFrame.tide_height) {
+			const p00 = prevFrame.tide_height[getIdx(x0, y0)] || 0;
+			const p10 = prevFrame.tide_height[getIdx(x1, y0)] || 0;
+			const p01 = prevFrame.tide_height[getIdx(x0, y1)] || 0;
+			const p11 = prevFrame.tide_height[getIdx(x1, y1)] || 0;
+			compareTide = (1 - yFactor) * ((1 - xFactor) * p00 + xFactor * p10) + yFactor * ((1 - xFactor) * p01 + xFactor * p11);
+			if (tideInterpolated > compareTide) tendencyText = "auflaufend";
+			if (tideInterpolated < compareTide) tendencyText = "ablaufend";
+		}
+	} else if (activeWeatherData.frames.length > 1) {
+		const nextFrame = activeWeatherData.frames[currentHourIdx + 1];
+		if (nextFrame && nextFrame.tide_height) {
+			const n00 = nextFrame.tide_height[getIdx(x0, y0)] || 0;
+			const n10 = nextFrame.tide_height[getIdx(x1, y0)] || 0;
+			const n01 = nextFrame.tide_height[getIdx(x0, y1)] || 0;
+			const n11 = nextFrame.tide_height[getIdx(x1, y1)] || 0;
+			compareTide = (1 - yFactor) * ((1 - xFactor) * n00 + xFactor * n10) + yFactor * ((1 - xFactor) * n01 + xFactor * n11);
+			if (compareTide > tideInterpolated) tendencyText = "auflaufend";
+			if (compareTide < tideInterpolated) tendencyText = "ablaufend";
+		}
+	}
 
     // --------------------------------------------------
     // Wind
@@ -466,11 +603,29 @@ function updateInfoBarAtLatLng(latlng) {
     document.getElementById('tide-height').innerText = `${tideInterpolated.toFixed(2)} m (${tendencyText})`;
 }
 
-
-
-// --------------------------------------------------
-// NAVIS Wetter-System Initialisierung
-// --------------------------------------------------
+/* =========================================================================
+ * UI-EVENT-HANDLER: DOM CONTENT LOADED (SYSTEM-INITIALISIERUNG & MAP EVENTS)
+ * =========================================================================
+ * ZWECK: Zentraler Einstiegspunkt der Anwendung nach dem vollständigen Laden 
+ * des HTML-Dokuments. Initialisiert die Wetterdaten-Struktur, bindet dynamische 
+ * Karten-Abfragen und koppelt die Steuerelemente der Layer-Umschaltung.
+ * 
+ * CORE-FUNKTIONEN IM DETAIL:
+ * 1. Asynchroner Start (Verzögerter Datei-Scan):
+ *    Triggert 'initNavisWeather()' über ein 'setTimeout' mit 500 Millisekunden 
+ *    Verzögerung. Dies entlastet den Haupt-Thread beim Seitenaufbau und stellt sicher, 
+ *    dass alle DOM-Auswahlelemente (Dropdowns) stabil gerendert und ansprechbar sind.
+ * 2. Echtzeit-Positionsabfrage (Maus- & Touch-Lauscher):
+ *    - Validiert die sichere Existenz des Leaflet-Kartenobjekts ('map'), um Fehler zu vermeiden.
+ *    - 'mousemove' & 'click': Bindet Event-Listener an die Karte, die bei jeder 
+ *      Cursor-Bewegung oder Touch-Eingabe die geografischen Koordinaten ('e.latlng') abgreifen 
+ *      und sofort an die GRIB-Wetterinterpolations-Funktion 'updateInfoBarAtLatLng()' übergeben.
+ * 3. Interaktive Layer-Steuerung (GRIB-Neuzeichnung):
+ *    - Greift auf die Checkboxen für die Wind- ('cbWind') und Strömungsanzeige ('cbCurrent') zu.
+ *    - Registriert 'change'-Event-Listener auf beiden Elementen. Sobald die Crew einen Layer 
+ *      ein- oder ausblendet, wird 'updateWeatherFrame()' mit dem global gesicherten Zeitschritt 
+ *      ('currentHourIdx') aufgerufen, um das visuelle Kartenbild im Cockpit sofort zu aktualisieren.
+ * ========================================================================= */
 document.addEventListener("DOMContentLoaded", () => {
     // Wetterdateien laden
     setTimeout(initNavisWeather, 500);
@@ -506,9 +661,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-/**
- * 4. Wettersystem komplett zurücksetzen
- */
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: RESET WEATHER LAYERS (SYSTEM-RESET & CLEANUP)
+ * =========================================================================
+ * ZWECK: Setzt alle meteorologischen Kartenebenen, GRIB-Datenstrukturen im Arbeitsspeicher
+ * und die zugehörigen Steuerungselemente der Benutzeroberfläche vollständig zurück.
+ * Dient als Sicherheitsnetz bei Ladefehlern oder zum sauberen Deaktivieren der Wetteranzeige.
+ * 
+ * CORE-FUNKTIONEN IM DETAIL:
+ * 1. Karten-Bereinigung (Layer-Cleanup):
+ *    - Überprüft die Existenz des Leaflet-Kartenobjekts ('map').
+ *    - Validiert über 'map.hasLayer()', ob die Partikel-Animationen für Wind und Strömung
+ *      aktiv auf der Karte gezeichnet sind, und entfernt diese sicher, um Speicherlecks zu verhindern.
+ * 2. Status- und RAM-Reset:
+ *    - Überschreibt die globalen Layer-Instanzen mit 'null'.
+ *    - Löscht das aktive GRIB-Datenobjekt ('activeWeatherData = null') aus dem RAM,
+ *      um veraltete Datenstände im nachfolgenden Systemzyklus auszuschließen.
+ * 3. UI-Komponenten-Rückstellung:
+ *    - Slider-Sperre: Deaktiviert den Zeitschieberegler ('disabled = true') und nullt den Wert.
+ *    - Text-Reset: Setzt das relative Stunden-Label im Control-Panel zurück auf "+0h".
+ *    - Sichtbarkeits-Steuerung: Blendet die Cockpit-Informationsleiste ('weather-info-bar') 
+ *      vollständig aus ('display = none').
+ *    - Dropdown-Reset: Setzt das Revier-Auswahlmenü auf die neutrale Startposition zurück.
+ * ========================================================================= */
 function resetWeatherLayers() {
 	if (typeof map !== 'undefined') {
 		if (currentWindLayer && map.hasLayer(currentWindLayer)) {
@@ -529,26 +704,35 @@ function resetWeatherLayers() {
     if (document.getElementById('weather-file-select')) document.getElementById('weather-file-select').value = "";
 }
 
-
+/* =========================================================================
+ * UI-EVENT-HANDLER: TOGGLE WEATHER PANEL (WETTER-PANEL MINIMIEREN/MAXIMIEREN)
+ * =========================================================================
+ * ZWECK: Schaltet die Sichtbarkeit des seitlichen Wetter-Bedienpanels 
+ * ('navis-weather-panel') per Knopfdruck um. Erlaubt es dem Skipper, das Panel 
+ * bei Bedarf einzuklappen, um mehr freie Kartenfläche (Sichtfeld) zu gewinnen.
+ * 
+ * FUNKTIONSWEISE UND CSS-KOPPLUNG:
+ * 1. Status-Abfrage: Prüft mittels 'classList.contains("collapsed")', ob das 
+ *    Panel aktuell im minimierten Zustand konfiguriert ist.
+ * 2. Ausklapp-Vorgang (If-Zweig): 
+ *    - Entfernt die CSS-Klasse 'collapsed'. Das Panel fährt (typischerweise über 
+ *      CSS-Transitions gesteuert) weich in die volle Breite aus.
+ *    - Ändert das Symbol des Buttons ('btn') auf die diagonal nach innen zeigenden 
+ *      Pfeile ("⤡"), um visuell die Aktion zum erneuten Verkleinern zu signalisieren.
+ * 3. Einklapp-Vorgang (Else-Zweig):
+ *    - Fügt die CSS-Klasse 'collapsed' hinzu, wodurch das Panel auf der Oberfläche 
+ *      ausgeblendet oder an den Bildschirmrand geschoben wird.
+ *    - Ändert das Button-Symbol spiegelverkehrt auf die diagonal nach außen zeigenden 
+ *      Expansions-Pfeile ("⤢").
+ * ========================================================================= */
 function toggleWeatherPanel() {
-
-    const panel =
-        document.getElementById("navis-weather-panel");
-
-    const btn =
-        document.getElementById("weather-pin-toggle");
-
+    const panel = document.getElementById("navis-weather-panel");
+    const btn = document.getElementById("weather-pin-toggle");
     if (panel.classList.contains("collapsed")) {
-
         panel.classList.remove("collapsed");
-
         btn.innerText = "⤡";
-
     } else {
-
         panel.classList.add("collapsed");
-
         btn.innerText = "⤢";
-
     }
 }

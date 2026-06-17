@@ -44,6 +44,15 @@
         body.night-mode button { background:rgba(255,100,50,0.08); color:#ffb199; box-shadow:0 0 10px rgba(255,80,40,0.2); }
         body.night-mode button:hover { background:rgba(255,100,50,0.2); }
 
+		/* 🟪 WAYPOINT LISTE & TABELLEN */
+		#waypointListContainer { position:absolute; bottom:-100%; left:0; width:95%; max-height:40vh; background:rgba(0,0,0,0.85); color:white; overflow-y:auto; transition:bottom 0.4s ease; z-index:9999; backdrop-filter:blur(6px); padding:10px; }
+		#waypointListContainer.visible { bottom:0; }
+		#waypointTable { width:100%; border-collapse:collapse; }
+		#waypointTable th, #waypointTable td { padding:4px 8px; border-bottom:1px solid #003040; text-align:center; white-space:nowrap; }
+		#waypointTable th { background:rgba(0,80,100,0.6); position:sticky; top:0; }
+		#waypointTable button { padding:3px 6px; background:#006680; border-radius:5px; color:#fff; border:none; cursor:pointer; }
+		#waypointTable button:hover { background:#00b0c0; }
+		
 		/* ⛅ WETTER & ROUTING BOX STANDARD PANEL */
 		.navis-panel{ background:var(--navis-bg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--navis-border); border-radius:var(--navis-radius); box-shadow:var(--navis-shadow); color:var(--navis-text); font-family:var(--navis-font); box-sizing:border-box; }
 
@@ -245,7 +254,7 @@
 			</div>
 			<div class="weather-row">
 				<span class="weather-label">Wasserst.:</span>
-				<span id="tide-height" class="weather-value">-- m</span>
+				<span id="tide-height" class="weather-value">-- m (--)</span> 
 			</div>
 			<div class="weather-divider"></div>
 			<div class="weather-layer-controls">
@@ -289,11 +298,16 @@
 			</div>
 
 			<div class="routing-section">
-				<label>📅 Abfahrtszeit</label>
+				<label>📅 Abfahrtszeit (UTC)</label>
 				<input
 					type="datetime-local"
 					id="routing-departure-time"
 					class="navis-input">
+				<div id="routing-localtime-display"
+					 class="routing-meta"
+					 style="margin-top:6px;font-size:11px;">
+					Lokale Zeit: -
+				</div>
 			</div>
 			<div class="routing-section">
 				<label>❓ Welches Routing-Ziel hast du?</label>
@@ -355,8 +369,6 @@
    Konfiguration / global state
    ------------------------------ */
 const DATA_URL = '/data.json';
-const POLL_INTERVAL_MS = 1000;
-const GPS_UNGENAUIGKEIT = 15;
 
 let demoMode = false;
 let followMode = false;
@@ -390,7 +402,7 @@ const markerTypes = [
 let routeMode = false;
 
 const state = {
-  gps_lat: 53.39675,
+  gps_lat: 54.59675,
   gps_lon: 10.42105,
   gps_speed: 0,
   gps_kurs: 315,
@@ -435,10 +447,35 @@ layerOSM.addTo(map);
 
 
 
-/* ------------------------------
-   Grid, CoordBox, Geodesy etc.
-   (unverändert aus deinem Code)
-   ------------------------------ */
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: ADD LAT-LON GRID (KARTEN-GRAVUR / GEOGRAFISCHES RASTER)
+ * =========================================================================
+ * ZWECK: Zeichnet ein dynamisches, geografisches Koordinatennetz (Breiten- und 
+ * Längengrade) auf die Leaflet-Karte. Der Abstand orientiert sich an nautischen 
+ * Seemeilen, um dem Skipper die klassische Distanz- und Positionsabschätzung 
+ * wie auf einer Seekarte zu ermöglichen.
+ * 
+ * BERECHNUNG DER GITTER-ABSTÄNDE (SM ZU GRAD):
+ * - Umrechnung: Nutzt die nautische Definition, dass eine Bogenminute auf dem 
+ *   Meridian exakt einer Seemeile entspricht. Daher wird der Parameter 'stepSm' 
+ *   durch 60 geteilt, um die Schrittweite ('step') in Dezimalgrad zu konvertieren.
+ * - Ausschnitts-Optimierung: Berechnet über 'map.getBounds()' die exakten Grenzen 
+ *   des aktuellen Sichtfelds und rundet diese auf die Gitter-Schrittweite ab/auf, 
+ *   damit Linien nur im sichtbaren Bereich generiert werden.
+ * 
+ * DYNAMISCHE STRUKTUR- UND FARBANPASSUNG:
+ * 1. Zoom-Sperre: Unterhalb von Zoom-Stufe 8 ('minZoomToShow') wird das Raster komplett 
+ *    ausgeblendet und gelöscht, um eine optische Überladung der Karte zu verhindern.
+ * 2. Sichtbarkeits-Skalierung (Opacity): Je tiefer der Benutzer in die Karte hineinzoomt, 
+ *    desto deutlicher und deckender (von 0.2 bis maximal 0.8) werden die Linien gezeichnet.
+ * 3. Helligkeits-Skalierung (Color): Die Linienfarbe verdunkelt sich bei höherem Zoom 
+ *    automatisch von einem hellen Grau zu einem kontrastreichen Anthrazit/Schwarz.
+ * 
+ * RENDERING-PROZESS:
+ * Bereinigt bei jedem Aufruf (z. B. beim Verschieben oder Zoomen der Karte) das alte 
+ * Linien-Array 'window.gridLines' restlos aus dem Speicher und zeichnet die vertikalen 
+ * (Meridiane) sowie horizontalen (Parallelkreise) Polylines nicht-interaktiv neu.
+ * ========================================================================= */
 function addLatLonGrid(map, stepSm = 1) {
   const minZoomToShow = 8; // Raster erscheint schon ab Zoom 8
   const bounds = map.getBounds();
@@ -502,6 +539,31 @@ coordBox.onAdd = function(map) {
 };
 coordBox.addTo(map);
 
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: TO DMS (KOORDINATEN-FORMATIERUNG / SEEMÄNNISCHE ANZEIGE)
+ * =========================================================================
+ * ZWECK: Konvertiert dezimale Koordinaten (Dezimalgrad) in das klassische, 
+ * in der Seefahrt gebräuchliche Format aus Grad, Minuten, Sekunden und der 
+ * dazugehörigen Himmelsrichtung (DMS - Degrees, Minutes, Seconds).
+ * 
+ * MATHEMATISCHE UMRECHNUNG:
+ * 1. Grad (deg): Extrahiert den ganzzahligen Anteil des Absolutwerts.
+ * 2. Minuten (min): Multipliziert den verbleibenden Nachkomma-Anteil mit 60 und
+ *    schneidet diesen für die vollen Minuten ab ('Math.floor').
+ * 3. Sekunden (sec): Multipliziert den verbleibenden Rest der Minuten erneut mit 60 
+ *    und rundet das Ergebnis über 'toFixed(1)' stabil auf eine Nachkommastelle.
+ * 
+ * ERMITTLUNG DER HEMISPHÄRE (HEMI):
+ * Basierend auf dem Parameter 'type' ('lat' für Breitengrad, 'lon' für Längengrad) 
+ * und dem Vorzeichen des Eingangswertes wird die korrekte Hemisphäre bestimmt:
+ * - Breitengrad (lat): Positiv = Norden ("N"), Negativ = Süden ("S").
+ * - Längengrad (lon): Positiv = Osten ("E"), Negativ = Westen ("W").
+ * 
+ * ERGEBNIS:
+ * Liefert einen sauber formatierten Navigations-String (z. B. "54°12'34.5\" N"), 
+ * der direkt für Logbucheinträge, Funkmeldungen (DSC) oder die Anzeige im UI 
+ * genutzt werden kann.
+ * ========================================================================= */
 function toDMS(value, type) {
   const abs = Math.abs(value);
   const deg = Math.floor(abs);
@@ -511,11 +573,13 @@ function toDMS(value, type) {
   const hemi = type === 'lat' ? (value >= 0 ? "N" : "S") : (value >= 0 ? "E" : "W");
   return `${deg}°${min}'${sec}" ${hemi}`;
 }
+
 map.on("mousemove", (e) => {
   const lat = e.latlng.lat, lon = e.latlng.lng;
   const container = coordBox.getContainer();
   if (container) container.innerHTML = `${toDMS(lat,"lat")} &nbsp;&nbsp; ${toDMS(lon,"lon")}<br>${lat.toFixed(6)}, ${lon.toFixed(6)}`;
 });
+
 map.getContainer().addEventListener("mouseleave", () => { const c = coordBox.getContainer(); if (c) c.innerHTML = "—"; });
 
 layerOSM.on('tileerror', () => { if (!map.hasLayer(layerOSM)) map.addLayer(layerOSM); });
@@ -531,10 +595,36 @@ const courseLine = L.polyline([], { color:'#ff0000', weight:2, opacity:0.9 }).ad
 const headingLineCompass = L.polyline([], { color:'#ff3333', weight:2, opacity:0.9 }).addTo(map);
 const headingLineGPS     = L.polyline([], { color:'#d6b600', weight:2, opacity:0.9 }).addTo(map);
 const headingLineWind    = L.polyline([], { color:'#00cc66', weight:2, opacity:0.9 }).addTo(map);
-
 const legendEl = document.getElementById('legend');
 const waypointInfo = document.getElementById('waypointInfo');
 
+/* =========================================================================
+ * NAVIGATIONS-MATHEMATIK: DESTINATION POINT (KURS- UND DISTANZRRECHNUNG)
+ * =========================================================================
+ * ZWECK: Berechnet die geografischen Zielkoordinaten (Breiten- und Längengrad) 
+ * ausgehend von einer Startposition, einem bestimmten wahren Kurs (Peilung) 
+ * und einer zurückgelegten Distanz.
+ * 
+ * MATHEMATISCHES VERFAHREN:
+ * Die Funktion implementiert die klassischen Formeln der Großkreisnavigation 
+ * (Orthodrome) auf einer idealen Erdkugel. Sie berücksichtigt die Erdkrümmung 
+ * exakt und ist im Gegensatz zu flachen Berechnungen (Rhumb-Line) auch auf 
+ * langen Distanzen und in hohen Breitengraden präzise.
+ * 
+ * SCHRITT-FÜR-SCHRITT-BERECHNUNG:
+ * 1. Erdradius (R): Definiert die Kugel mit einem mittleren Erdradius von 6.371.000 Metern.
+ * 2. Skalierung (δ): Konvertiert die übergebene Distanz in Metern in einen Bogenmaß-Winkel (Radiant).
+ * 3. Radiant-Konvertierung: Wandelt Start-Breitengrad (φ1), Start-Längengrad (λ1) und 
+ *    den Kurs (θ) von Gradmaß in Radiant um.
+ * 4. Breitengrad-Berechnung (φ2): Ermittelt den neuen Breitengrad mittels sphärischem Sinussatz.
+ * 5. Längengrad-Berechnung (λ2): Berechnet den neuen Längengrad über die 'Math.atan2'-Funktion, 
+ *    welche den Quadranten der Kursrichtung mathematisch korrekt bestimmt.
+ * 
+ * RÜCKGABEWERT:
+ * Liefert ein numerisches Array mit den Zielkoordinaten im Dezimalgradformat: 
+ * [Ziel-Lat, Ziel-Lon]. Perfekt geeignet für das direkte Zeichnen von Folge-Wegpunkten, 
+ * Peillinien oder Maßringen in Leaflet.
+ * ========================================================================= */
 function destinationPoint(lat, lon, bearing, dist) {
   const R = 6371000;
   const δ = dist / R;
@@ -546,6 +636,33 @@ function destinationPoint(lat, lon, bearing, dist) {
                              Math.cos(δ)-Math.sin(φ1)*Math.sin(φ2));
   return [φ2*180/Math.PI, λ2*180/Math.PI];
 }
+
+/* =========================================================================
+ * NAVIGATIONS-MATHEMATIK: BEARING AND DISTANCE (ORTHODROMISCHE PEILUNG & ENTFERNUNG)
+ * =========================================================================
+ * ZWECK: Berechnet den exakten Anfangskurs (wahr Peilung) und die kürzeste Distanz
+ * (Großkreis-Entfernung / Orthodrome) auf der Erdkugel zwischen zwei beliebigen
+ * geografischen Koordinaten.
+ * 
+ * MATHEMATISCHES VERFAHREN:
+ * Die Funktion nutzt sphärische Trigonometrie auf Basis eines mittleren Erdradius
+ * von 6.371.000 Metern (R). Sie ist im Gegensatz zur ebenen Geometrie auch über große
+ * Distanzen hinweg absolut präzise, da sie die Erdkrümmung voll berücksichtigt.
+ * 
+ * SCHRITT-FÜR-SCHRITT-BERECHNUNG:
+ * 1. Radiant-Konvertierung: Transformiert alle Eingabewerte (Breitengrade φ1, φ2 und
+ *    die Längengraddifferenz Δλ) von Dezimalgrad in das mathematische Bogenmaß.
+ * 2. Kursberechnung (brng): Bestimmt über die kartesischen Komponenten x und y den
+ *    Anfangskurs mittels 'Math.atan2'. Der Ausdruck '+ 360) % 360' normiert das 
+ *    Ergebnis zuverlässig in den navigatorischen Kompasskreis von 0.0° bis 359.9°.
+ * 3. Distanzberechnung (d): Ermittelt den sphärischen Abstand über den Arkuskosinus-
+ *    Satz und multipliziert diesen mit dem Erdradius, um das Ergebnis exakt in Metern 
+ *    auszugeben.
+ * 
+ * RÜCKGABEWERT:
+ * Liefert ein JavaScript-Objekt mit zwei zentralen Navigationswerten zurück:
+ * - { bearing: [Kurs in Grad], distance: [Entfernung in Metern] }
+ * ========================================================================= */
 function bearingAndDistance(lat1,lon1,lat2,lon2) {
   const R = 6371000;
   const φ1 = lat1 * Math.PI/180;
@@ -565,9 +682,32 @@ let waypointMarker = null;
 
 let waypointLine = null; // Globale Variable für die Linie
 
-// Icon-Funktion für offline Marker (Raute)
+/* =========================================================================
+ * UI-RENDERER: CREATE DIAMOND ICON (DYNAMISCHE KARTEN-MARKER)
+ * =========================================================================
+ * ZWECK: Generiert ein anpassbares, leichtgewichtiges Leaflet-Icon ('L.divIcon')
+ * auf reiner HTML/CSS-Basis. Unterstützt sowohl geometrische Rauten-Symbole 
+ * (Diamonds) als auch Text- oder Emoji-basierte Kartenmarkierungen.
+ * 
+ * DESIGN-ZWEIGE IM DETAIL (TERNÄRER OPERATOR):
+ * 1. Text-/Emoji-Modus (iconText vorhanden):
+ *    Erzeugt einen flexiblen Container (Flexbox), der ein übergebenes Symbol oder 
+ *    Textzeichen (z. B. ein Hafen- oder Warn-Emoji) exakt zentriert und im 
+ *    Verhältnis zur übergebenen Pixelgröße ('size') skaliert.
+ * 2. Geometrischer Rauten-Modus (iconText leer):
+ *    Erzeugt ein quadratisches HTML-Element mit der gewählten Hintergrundfarbe 
+ *    ('color'). Durch die CSS-Anweisung 'transform: rotate(45deg)' wird das Quadrat 
+ *    auf die Spitze gestellt (Raute) und für eine klare Sichtbarkeit auf der Karte 
+ *    mit einem weißen Rahmen versehen.
+ * 
+ * POSITIONIERUNG UND ANKER-LOGIK:
+ * - Leaflet-Integration: Die CSS-Klasse 'diamond-marker' erlaubt nachträgliche 
+ *   Stylings via Stylesheet. 
+ * - Pixelgenaue Zentrierung: Über die mathematische Zuweisung 'iconAnchor: [size/2, size/2]' 
+ *   wird der physikalische Klick- und Verankerungspunkt des Markers exakt in die 
+ *   Mitte des Symbols gelegt. Das verhindert ein "Wandern" des Icons beim Zoomen.
+ * ========================================================================= */
 function createDiamondIcon(color = 'red', size = 16, iconText = "") {
-
   const content = iconText
     ? `<div style="
         width:${size}px;
@@ -592,13 +732,41 @@ function createDiamondIcon(color = 'red', size = 16, iconText = "") {
   });
 }
 
+/* =========================================================================
+ * UI-EVENT-HANDLER: MAP CLICK INTERACTION (DYNAMISCHE KARTEN-KLICKS)
+ * =========================================================================
+ * ZWECK: Zentraler Event-Listener für Klicks auf der Leaflet-Karte. Verarbeitet
+ * die Eingaben des Skippers je nach aktuell aktivem Interaktionsmodus ('currentMode').
+ * 
+ * DIE DREI INTERAKTIONSZWEIGE IM DETAIL:
+ * 
+ * 1. 📝 MARKER-MODUS (Freies Platzieren von Info-Markern)
+ *    - Erzeugt ein dynamisches HTML-Formular in einem Leaflet-Popup am Klickort.
+ *    - Bietet eine Radio-Button-Auswahl vordefinierter Markertypen ('markerTypes')
+ *      und ein Textfeld für individuelle Beschreibungen.
+ *    - Nach Bestätigung (OK) wird ein neuer, per Drag-and-Drop verschiebbarer 
+ *      Marker mit individuellem Diamant-Icon platziert.
+ *    - Ein Rechtsklick (contextmenu) auf den Marker öffnet einen Löschdialog.
+ * 
+ * 2. 🧭 PEIL-MODUS (Einzelzielansteuerung / Go-To)
+ *    - Bereinigt beim Klick sofort ein eventuell vorhandenes altes Peilziel samt 
+ *      zugehöriger Peillinie von der Karte.
+ *    - Berechnet über 'bearingAndDistance()' Kurs (BRG) und Distanz (DTG) in
+ *      Seemeilen von der aktuellen Bootsposition zum geklickten Punkt.
+ *    - Zeichnet einen roten Zielmarker samt Infofenster sowie eine gestrichelte,
+ *      rote Peillinie zur visuellen Kurskontrolle.
+ * 
+ * 3. 🧭 ROUTE-MODUS (Manueller Routenbau)
+ *    - Fügt die geklickten Koordinaten direkt den globalen Routen-Arrays hinzu.
+ *    - Platziert einen verschiebbaren, blauen Wegpunkt-Marker auf der Karte.
+ *    - Drag-Event: Aktualisiert beim Verschieben des Markers die Route in Echtzeit.
+ *    - Rechtsklick-Event: Entfernt den Wegpunkt über 'removeWaypoint()' aus der Route.
+ * ========================================================================= */
 map.on('click', e => {
-
   // ================================
   // 📝 MARKER MODUS (nur hier Popup!)
   // ================================
   if (currentMode === "marker") {
-
     let html = `<div style="font-family:Arial;font-size:14px;min-width:220px;">`;
     html += `<b>Marker Typ wählen</b><br><br>`;
 
@@ -743,9 +911,34 @@ map.on('click', e => {
   }
 });
 
-/* ------------------------------
-   Marker-Tooltip (WP#, Kurs/Distanz)
-   ------------------------------ */
+/* =========================================================================
+ * UI-RENDERER: UPDATE MARKER TOOLTIP (WEG_PUNKT-BESCHRIFTUNG)
+ * =========================================================================
+ * ZWECK: Berechnet die navigationsrelevanten Daten für ein spezifisches Teilstück
+ * (Leg) der Route und bindet diese als permanent sichtbaren Text-Tooltip direkt
+ * an den entsprechenden Wegpunkt-Marker auf der Karte.
+ * 
+ * DYNAMISCHE REFERENZPUNKT-ERMITTLUNG:
+ * - Erster Wegpunkt (idx === 0): Setzt die aktuelle GPS-Position des Bootes 
+ *   ('state.gps_lat/lon') als mathematischen Startpunkt an.
+ * - Folge-Wegpunkte (idx > 0): Greift auf die Koordinaten des jeweils direkt 
+ *   davor gelagerten Wegpunkts ('routePoints[idx - 1]') zurück.
+ * 
+ * BERECHNUNG UND FORMATIERUNG:
+ * 1. Teilstrecken-Analyse: Die Funktion 'bearingAndDistance()' ermittelt die 
+ *    orthodromische Peilung (Kurs) und den exakten Abstand in Metern zum aktuellen Punkt.
+ * 2. Tooltip-Injektion ('bindTooltip'): Überschreibt den alten Tooltip und formatiert
+ *    den neuen String seemännisch:
+ *    - 'WP[Nummer]': Fortlaufende Nummerierung des Wegpunkts (1-basiert über 'idx + 1').
+ *    - '[Grad]°': Zu steuernder Kurs auf eine Nachkommastelle gerundet.
+ *    - '[Seemeilen] sm': Distanz des aktuellen Abschnitts, umgerechnet in Seemeilen (Meter / 1852).
+ * 
+ * VISUELLE POSITIONIERUNG:
+ * - Sichtbarkeit: Durch die Option 'permanent: true' bleibt die Beschriftung ohne 
+ *   Mauskontakt dauerhaft auf der Karte lesbar.
+ * - Versatz ('offset'): Verschiebt den Text um 15 Pixel nach oben, damit das eigentliche 
+ *   Diamant-Icon des Markers niemals vom Text verdeckt wird.
+ * ========================================================================= */
 function updateMarkerTooltip(marker, idx) {
   const p = routePoints[idx];
   const prev = idx === 0 ? { lat: state.gps_lat, lng: state.gps_lon } : routePoints[idx - 1];
@@ -753,9 +946,31 @@ function updateMarkerTooltip(marker, idx) {
   marker.bindTooltip(`WP${idx+1}\n${bearing.toFixed(1)}° / ${(distance/1852).toFixed(2)} sm`, { permanent: true, offset: [0, -15] });
 }
 
-/* ------------------------------
-   Route aktualisieren
-   ------------------------------ */
+/* =========================================================================
+ * UI- UND ROUTEN-LOGIK: UPDATE ROUTE DISPLAY (ROUTEN-RENDERING & DISTANZ-LOGIK)
+ * =========================================================================
+ * ZWECK: Zeichnet den gesamten Verlauf der geplanten Navigationsroute auf der 
+ * Karte neu, nummeriert die Wegpunkte durch und berechnet die Gesamtdistanz 
+ * ab der aktuellen Bootsposition.
+ * 
+ * RENDERING-PROZESS UND DYNAMISCHER STARTPUNKT:
+ * 1. Layer-Bereinigung: Entfernt die bestehende Hauptlinie ('routeLine') sicher 
+ *    von der Karte, um eine Überlagerung alter Routenverläufe zu verhindern.
+ * 2. Echtzeit-Einspeisung: Verknüpft die aktuelle GPS-Position des Schiffs 
+ *    ('state.gps_lat/lon') dynamisch als ersten Punkt mit der Liste der geplanten 
+ *    Wegpunkte ('routePoints'). Die Polylinie startet somit immer am Boot.
+ * 3. Tooltip-Update: Durchläuft das gesamte Marker-Array, um die Beschriftungen, 
+ *    Nummerierungen und ETA-Daten über 'updateMarkerTooltip()' neu zu indizieren.
+ * 
+ * NAUTISCHE KURS- UND DISTANZBERECHNUNG:
+ * - Koppelnavigation: Berechnet im 'routeMode' über eine iterative Schleife die 
+ *   Teilstrecken (Legs) von Wegpunkt zu Wegpunkt mittels 'bearingAndDistance()'.
+ * - Kumulierung: Addiert die Einzelstrecken zur 'totalDistance' auf. Der Meter-Wert 
+ *   wird durch 1852 geteilt, um die Gesamtlänge der Route in Seemeilen (sm) mit zwei 
+ *   Nachkommastellen im Info-Feld 'waypointInfo' auszugeben.
+ * - Seitenleisten-Synchronisation: Triggert 'updateWaypointList()', um die textuelle 
+ *   Wegpunkt-Tabelle der Crew-Anzeige auf den neuesten Stand zu bringen.
+ * ========================================================================= */
 function updateRouteDisplay() {
   // Linie entfernen, falls vorhanden
   if (routeLine) { 
@@ -788,9 +1003,31 @@ function updateRouteDisplay() {
   updateWaypointList();
 }
 
-/* ------------------------------
-   Wegpunkt entfernen (zentral)
-   ------------------------------ */
+/* =========================================================================
+ * UI- UND ROUTEN-LOGIK: REMOVE WAYPOINT (WEG_PUNKT LÖSCHEN)
+ * =========================================================================
+ * ZWECK: Entfernt einen spezifischen Wegpunkt anhand seines Index vollständig
+ * aus der aktiven Routenplanung, bereinigt die Kartenanzeige und stößt das
+ * Neuzeichnen der verbleibenden Segmente an.
+ * 
+ * CORE-FUNKTIONEN UND SPEICHER-BEREINIGUNG:
+ * 1. Sicherheits-Schranke (Index-Validierung): Überprüft, ob der übergebene Index
+ *    'idx' innerhalb des gültigen Bereichs des Arrays liegt. Verhindert Laufzeitfehler,
+ *    falls versucht wird, nicht existierende Wegpunkte anzusprechen.
+ * 2. Visuelle Bereinigung: Entfernt den zugehörigen Leaflet-Marker über 'map.removeLayer()'
+ *    sicher von der Benutzeroberfläche. Ein Try-Catch-Block fängt Eventualitäten ab,
+ *    falls der Marker im DOM bereits fehlt.
+ * 3. Array-Schnitt ('splice'): Löscht das Element zeitgleich aus beiden synchronisierten 
+ *    Kern-Datenstrukturen – sowohl aus der Marker-Referenzliste ('routeMarkers') 
+ *    als auch aus der reinen Koordinatenliste ('routePoints').
+ * 
+ * UI-AKTUALISIERUNG:
+ * Triggert unmittelbar nach dem Löschen zwei zentrale Update-Routinen:
+ * - 'updateRouteDisplay()': Berechnet den Verlauf der Haupt-Routenlinie auf der 
+ *   Karte neu und glättet den Übergang vom vorherigen zum nachfolgenden Wegpunkt.
+ * - 'updateWaypointList()': Aktualisiert die textuelle Wegpunkt-Tabelle im Seitenmenü,
+ *   damit Nummern, Distanzen und ETA-Zeiten sofort neu durchnummeriert werden.
+ * ========================================================================= */
 function removeWaypoint(idx) {
   if (idx < 0 || idx >= routePoints.length) return;
 
@@ -858,10 +1095,28 @@ setInterval(() => {
     updateRangeCircles();
 }, 2000);
 
-
-/* ------------------------------
-   Live data fetch (unverändert)
-   ------------------------------ */
+/* =========================================================================
+ * NETZWERK-KOMPONENTEN: FETCH LIVE DATA (TELEMETRIE-FALLBACK / POLLING)
+ * =========================================================================
+ * ZWECK: Ruft per HTTP-Polling die aktuellen Bordsensordaten asynchron vom Server 
+ * ab. Dient entweder als Hauptdatenquelle oder als robustes Fallback, falls die 
+ * permanente WebSocket-Verbindung nicht zur Verfügung steht.
+ * 
+ * CORE-FUNKTIONEN UND VALIDIERUNG:
+ * 1. HTTP-Abruf (Cache-Busting): Holt die JSON-Daten von 'DATA_URL'. Der Header
+ *    'cache: "no-store"' garantiert den direkten Zugriff auf die echten Live-Werte.
+ * 2. Datentyp-Sicherung: Prüft jedes relevante Sensorfeld vor der Zuweisung auf 
+ *    seine Existenz im JSON-Objekt und konvertiert es mittels 'Number()' in eine 
+ *    Gleitkommazahl für nachfolgende navigatorische Berechnungen.
+ * 3. Sensor-Mapping & Fallback: Schreibt alle validen Werte in das globale 
+ *    'target'-Objekt. Fehlt im Datensatz der berechnete, wahre Wind, wird automatisch 
+ *    der gemessene (scheinbare) Wind ('winddir_gemessen') als Ausweichwert genutzt.
+ * 
+ * DEMO- UND ERROR-HANDLING:
+ * Der leere Catch-Block fängt Netzwerkfehler oder Serverausfälle lautlos ab. Schlägt 
+ * der Fetch fehl, stürzt die App nicht ab, sondern verbleibt im Offline- oder Demo-Modus, 
+ * wobei die bestehenden 'target'-Werte einfach eingefroren werden.
+ * ========================================================================= */
 async function fetchLiveData(){
   try {
     const res = await fetch(DATA_URL, { cache:'no-store' });
@@ -880,12 +1135,28 @@ async function fetchLiveData(){
   }
 }
 
-// ==========================================================
-// GPS-Track vom ESP32 Ringspeicher laden
-// ----------------------------------------------------------
-// Fordert den aktuellen Inhalt des ESP32 Track-Ringspeichers
-// als JSON an und erzeugt daraus die Karten-Tracklinie.
-// ==========================================================
+/* =========================================================================
+ * NETZWERK-KOMPONENTEN: LOAD TRACK HISTORY (LOGBUCH-SPUR LADEN)
+ * =========================================================================
+ * ZWECK: Lädt die historisch aufgezeichnete Fahrspur (Track/Kielwasser) des
+ * Bootes asynchron vom Server und zeichnet diese als zusammenhängende Linie 
+ * auf der Leaflet-Karte ein.
+ * 
+ * DATENABRUF UND API-VALIDIERUNG:
+ * 1. HTTP-Fetch (Asynchron): Ruft die Route '/track' via 'await' ab. Die Option 
+ *    'cache: "no-store"' erzwingt den Abruf frischer Daten und umgeht den Browser-Cache.
+ * 2. Status-Kontrolle: Löst bei Serverfehlern (z. B. HTTP 404 oder 500) sofort eine 
+ *    Fehlermeldung aus, die im Catch-Block abgefangen wird.
+ * 3. Daten-Bereinigung: Setzt das bestehende Array 'trackPoints' zurück (Länge = 0) 
+ *    und validiert bei jedem Datenpunkt strikt, ob Breiten- und Längengrad als 
+ *    valide Nummern vorliegen, um Render-Fehler in Leaflet zu verhindern.
+ * 
+ * RENDERING-PROZESS:
+ * - Layer-Bereinigung: Entfernt die alte Polylinie ('liveTrackLine') sicher von der 
+ *   Karte, falls diese bereits existiert, um Speicherlecks und Linien-Überlagerungen zu vermeiden.
+ * - Neuzeichnen: Erzeugt eine neue, dünne Polylinie in Cyan ("#00ffff") mit leichter 
+ *   Transparenz, fügt sie der Karte hinzu und speichert die Referenz für zukünftige Updates.
+ * ========================================================================= */
 async function loadTrackHistory() {
     try {
         const res = await fetch("/track", {
@@ -922,10 +1193,30 @@ async function loadTrackHistory() {
 }
 
 
-// ------------------------------
-// WebSocket zur kontinuierlichen Datenübertragung vom ESP
-// WebSocket sicher
-// ------------------------------
+/* =========================================================================
+ * NETZWERK-KOMPONENTEN: WEBSOCKET-DATENSTROM & AUTO-RECONNECT
+ * =========================================================================
+ * ZWECK: Baut eine permanente Echtzeit-Datenverbindung (Websocket) zum Server
+ * (z. B. Bordrechner / SignalK) auf, um Telemetrie- und GPS-Daten kontinuierlich
+ * zu empfangen und bei Verbindungsabbrüchen automatisch wieder aufzubauen.
+ * 
+ * CORE-FUNKTIONEN IM DETAIL:
+ * 1. Automatische Wiederverbindung (Auto-Reconnect):
+ *    Bricht die Verbindung ab (onclose), wartet das Skript über 'setTimeout' exakt
+ *    3.000 Millisekunden (definiert in 'WS_RECONNECT_MS') und startet mit 'connectWS()'
+ *    einen neuen Verbindungsversuch.
+ * 2. Daten-Streaming & Parsing (onmessage):
+ *    - Verarbeitet eingehende Servernachrichten als JSON-Objekte.
+ *    - Validiert die Existenz der Telemetriefelder und parst sie via 'Number()' sicher in
+ *      numerische Datentypen, um mathematische Berechnungen im UI-Thread zu gewährleisten.
+ *    - Schreibt die Werte in das globale 'target'-Objekt (für Interpolation/Dämpfung).
+ * 3. Logbuch-Schnittstelle:
+ *    Registriert die gefahrenen Distanz-Seemeilen ("sm") separat und triggert sofort
+ *    die Funktion 'updateLogDisplay()', um den Meilenzähler im UI zu aktualisieren.
+ * 4. Robustes Error-Handling:
+ *    Ein Try-Catch-Block fängt korrupte Datenpakete ab und gibt eine strukturierte Warnung
+ *    in der Konsole aus, ohne dass das gesamte Skript oder die Verbindung abstürzt.
+ * ========================================================================= */
 let ws = null;
 const WS_RECONNECT_MS = 3000;
 
@@ -966,6 +1257,7 @@ function connectWS() {
 // Start WS-Verbindung
 connectWS();
 
+
 // Vorhandenen GPS-Track vom ESP laden
 loadTrackHistory();
 // Alle 5 Minuten Track neu laden
@@ -977,9 +1269,31 @@ setInterval(loadTrackHistory, 300050);
 const centerToggle = document.getElementById('centerToggle');
 const modeRouteBtn = document.getElementById('modeRoute');
 const resetLogBtn = document.getElementById("resetLogBtn");
-// ================================
-// Modus Umschaltung
-// ================================
+
+/* =========================================================================
+ * UI-EVENT-HANDLER: MODE ROUTE BUTTON ONCLICK (MODUS-UMSCHALTER)
+ * =========================================================================
+ * ZWECK: Steuert das zyklische Durchschalten der verschiedenen Interaktions-
+ * Modi auf der Karte per Knopfdruck. Passt die UI-Optik an und schaltet
+ * die globale Systemlogik ('routeMode') entsprechend um.
+ * 
+ * DIE DREI BETRIEBSMODI IM DETAIL:
+ * 1. 📍 Modus Peilung ("bearing"): Aktiviert die klassische Einzelzielansteuerung.
+ *    - Deaktiviert den Routen-Modus ('routeMode = false').
+ *    - Färbt den Button neutral dunkelgrau.
+ * 2. 🧭 Modus Route ("route"): Aktiviert die Navigation entlang einer Mehrpunkt-Route.
+ *    - Schaltet die Routen-Logik scharf ('routeMode = true').
+ *    - Färbt den Button auffällig blau-grün (Cyan).
+ * 3. 📝 Modus Marker ("marker"): Erlaubt das freie Platzieren von Notiz- und Info-Markern.
+ *    - Deaktiviert den Routen-Modus ('routeMode = false').
+ *    - Färbt den Button bernsteinfarben/braun.
+ * 
+ * STATE- UND UI-CLEANUP:
+ * - Rotations-Index: Erhöht 'currentModeIndex' und setzt ihn bei Erreichen des Array-Endes
+ *   ('modes.length') automatisch wieder auf 0 zurück (Modulo-Rotation).
+ * - UI-Reset: Löscht beim Moduswechsel den Inhalt der Wegpunkt-Infobox ('waypointInfo'),
+ *   um veraltete Peildaten des vorherigen Modus sofort auszublenden.
+ * ========================================================================= */
 modeRouteBtn.onclick = () => {
     currentModeIndex++;
 
@@ -1029,11 +1343,27 @@ resetLogBtn.onclick = () => {
         .catch(err => console.error("Reset Fehler:", err));
 };
 
-/* ------------------------------
-   Tag/Nachtmodus
-   ------------------------------ */
+/* =========================================================================
+ * UI-EVENT-HANDLER: NIGHT TOGGLE (TAG- / NACHTMODUS-UMSCHALTER)
+ * =========================================================================
+ * ZWECK: Schaltet die gesamte Benutzeroberfläche der Navigations-App per Klick
+ * zwischen einer tageslichttauglichen und einer nachtsichtschonenden Darstellung um.
+ * 
+ * FUNKTIONSWEISE:
+ * 1. Status-Invertierung: Kehrt bei jedem Klick den booleschen Zustand des globalen 
+ *    Flags 'isNightMode' um (Wechsel von true zu false und umgekehrt).
+ * 2. DOM-Klassensteuerung: Nutzt 'classList.toggle()', um die CSS-Klasse 'night-mode' 
+ *    am 'body'-Element dynamisch hinzuzufügen oder zu entfernen. Über diese CSS-Klasse 
+ *    werden typischerweise Farbschemata (z.B. Abdunklung, rote Instrumentenbeleuchtung) gesteuert.
+ * 3. Button-Text-Injektion: Aktualisiert die Beschriftung des Buttons spiegelverkehrt.
+ *    - Ist der Nachtmodus aktiv, zeigt der Button "Tagmodus" (als Aktion zum Zurückschalten).
+ *    - Ist der Tagmodus aktiv, zeigt der Button "Nachtmodus".
+ * 
+ * EFFEKT:
+ * Schützt die Dunkeladaption der Augen des Skippers bei Nachtfahrten auf See vor 
+ * Blendung durch den Bildschirm.
+ * ========================================================================= */
 let isNightMode = false;
-
 document.getElementById('nightToggle').addEventListener('click', () => {
   isNightMode = !isNightMode;
   document.body.classList.toggle('night-mode', isNightMode);
@@ -1051,9 +1381,28 @@ function updateBoat() {
     updateLegend();
 }
 
-/* ------------------------------
-   Bootsgeometrie
-   ------------------------------ */
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: UPDATE BOAT GEOMETRY (BOOTS-SYMBOL & KARTENNACHFÜHRUNG)
+ * =========================================================================
+ * ZWECK: Zeichnet ein dynamisches, pixel-basiertes Dreieckssymbol für das Boot,
+ * das sich präzise nach dem Kompasskurs ausrichtet, und zentriert optional die Karte.
+ * 
+ * BERECHNUNG DER SCHIFFS-GEOMETRIE:
+ * 1. Pixel-Konstanz: Nutzt 'map.latLngToLayerPoint', um das Symbol unabhängig von der 
+ *    Zoomstufe immer in der exakten Pixelgröße (14px) auf dem Bildschirm darzustellen.
+ * 2. Bug-Spitze (tip): Berechnet die vordere Spitze des Bootes exakt in Richtung des 
+ *    Kompasskurses (konvertiert in Radiant).
+ * 3. Heck-Ecken (left / right): Berechnet das Heck über einen Winkel-Versatz von 
+ *    jeweils 135° (0.75 * PI) nach hinten-außen, leicht skaliert (Faktor 0.6) für eine 
+ *    hydrodynamische Keilform.
+ * 
+ * RENDERING & KARTENSTEUERUNG:
+ * - Layer-Order: Bringt das Boot über 'bringToFront()' immer in den Vordergrund, damit 
+ *   es niemals von Routenlinien oder Messringen verdeckt wird.
+ * - Auto-Follow (Nachführung): Wenn 'followMode' aktiv ist, wird die Karte bei jeder 
+ *   Positionsänderung automatisch, weich ('animate: true') und unter Beibehaltung 
+ *   des aktuellen Zooms auf das Boot zentriert.
+ * ========================================================================= */
 function updateBoatGeometry() {
     const pos = [state.gps_lat, state.gps_lon];
     const pixelSize = 14;
@@ -1078,10 +1427,28 @@ function updateBoatGeometry() {
     }
 }
 
-
-/* ------------------------------
-   Kurs- / Windlinien
-   ------------------------------ */
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: UPDATE HEADING LINES (VORAUSLINIEN)
+ * =========================================================================
+ * ZWECK: Zeichnet und aktualisiert drei dynamische Vektorlinien (Peillinien) 
+ * auf der Karte, die von der aktuellen Bootsposition ausgehen. Dient der 
+ * schnellen visuellen Orientierung für Kurs, Versetzung (Abdrift) und Wind.
+ * 
+ * DIE DREI VEKTOREN IM DETAIL:
+ * 1. Kompass-Vorauslinie (HDG): Projiziert die Bugrichtung des Bootes basierend 
+ *    auf dem Magnetkompass über eine Länge von 40.000 Metern (ca. 21,6 sm) voraus.
+ * 2. GPS-Vorauslinie (COG): Projiziert den tatsächlichen Kurs über Grund (Fahrtrichtung) 
+ *    ebenfalls über 40.000 Meter. Die Lücke zur Kompasslinie zeigt sofort die Abdrift.
+ * 3. Wind-Vektor: Zeigt die Einfallsrichtung des berechneten Windes mit einer 
+ *    halbierten Länge von 20.000 Metern (ca. 10,8 sm) an.
+ * 
+ * BERECHNUNGS- UND UPDATE-LOGIK:
+ * - Berechnung: Nutzt die mathematische Hilfsfunktion 'destinationPoint()', um aus
+ *   der aktuellen GPS-Position, dem jeweiligen Winkel und der Ziel-Distanz in Metern
+ *   die Endkoordinaten der Linien zu ermitteln.
+ * - Rendering: Verschiebt die bestehenden Leaflet-Polylines ('setLatLngs') effizient
+ *   auf die neuen Koordinaten, ohne die Linien bei jeder Bewegung neu erzeugen zu müssen.
+ * ========================================================================= */
 function updateHeadingLines() {
     const pos = [state.gps_lat, state.gps_lon];
     const compassEnd = destinationPoint(state.gps_lat, state.gps_lon, state.kompass, 40000);
@@ -1093,10 +1460,27 @@ function updateHeadingLines() {
     headingLineWind.setLatLngs([pos, windEnd]);
 }
 
-
-/* ------------------------------
-   Waypoint / Peilungsanzeige
-   ------------------------------ */
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: UPDATE WAYPOINT INFO (ZIELANSTEUERUNG / GO-TO)
+ * =========================================================================
+ * ZWECK: Berechnet und zeigt kontinuierlich die Steuerdaten (Peilung und Distanz)
+ * von der aktuellen Bootsposition zu einem manuell gesetzten Einzelwegpunkt an.
+ * 
+ * SPERR-BEDINGUNG (IF-PROMPT):
+ * Die Funktion arbeitet nur im "Einzelziel-Modus". Sie wird blockiert, wenn der
+ * Routen-Modus aktiv ist ('routeMode == true') oder kein Zielmarker existiert.
+ * 
+ * BERECHNUNGS- UND ANZEIGELOGIK:
+ * 1. Mathematische Peilung: Die Hilfsfunktion 'bearingAndDistance()' ermittelt den
+ *    Großkreis-Kurs (orthodromische Peilung) und die Luftlinie in Metern.
+ * 2. Kurs (BRG): Wird in Grad (0°-360°) mit einer Nachkommastelle ausgegeben.
+ * 3. Entfernung (DTG): Der Meter-Wert wird durch 1852 geteilt, um die nautische
+ *    Distanz in Seemeilen (sm) mit zwei Nachkommastellen präzise anzuzeigen.
+ * 
+ * EFFEKT:
+ * Versorgt den Skipper beim freien Navigieren (ohne feste Route) mit klassischen
+ * "Go-To"-Navigationsdaten direkt im Info-Feld 'waypointInfo'.
+ * ========================================================================= */
 function updateWaypointInfo() {
     if (!routeMode && waypointMarker) {
         const { bearing, distance } = bearingAndDistance(
@@ -1113,9 +1497,25 @@ function updateWaypointInfo() {
     }
 }
 
-/* ------------------------------
-   Legende
-   ------------------------------ */
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: UPDATE LEGEND (TELEMETRIE-INFOBOX)
+ * =========================================================================
+ * ZWECK: Aktualisiert die textuelle Legende / Infobox auf der Benutzeroberfläche
+ * mit den aktuellen Echtzeit-Telemetriedaten des Bootes.
+ * 
+ * DARGESTELLTE DATEN (FARBLICH CODIERT):
+ * - 🔴 Kompasskurs (HDG): Zeigt die magnetische oder sensorbasierte Ausrichtung 
+ *      des Bugs (Bugrichtung) auf 1 Nachkommastelle genau.
+ * - 🟡 GPS-Kurs (COG): Zeigt den tatsächlichen Kurs über Grund (Fahrtrichtung) 
+ *      basierend auf den GPS-Positionsänderungen.
+ * - 🟢 Winddaten: Kombiniert die berechnete (wahre/scheinbare) Windrichtung in Grad 
+ *      und die Windgeschwindigkeit in Knoten (kn).
+ * 
+ * FUNKTIONSWEISE:
+ * Überschreibt bei jedem Aufruf effizient den inneren HTML-Inhalt des Elements 'legendEl' 
+ * mittels Template-Strings. Alle Werte werden über 'toFixed(1)' formatiert, um ein 
+ * unruhiges Springen der Zahlenwerte bei schnellen Sensoränderungen zu verhindern.
+ * ========================================================================= */
 function updateLegend() {
     legendEl.innerHTML =
         `🔴 Kompasskurs: ${state.kompass.toFixed(1)}°<br>` +
@@ -1124,9 +1524,27 @@ function updateLegend() {
         `${state.windspeed_berechnet.toFixed(1)} kn`;
 }
 
-/* ------------------------------
-   Reichweitenkreise
-   ------------------------------ */
+/* =========================================================================
+ * NAVIGATIONS-FUNKTION: RANGE CIRCLES (REICHWEITEN-RINGE)
+ * =========================================================================
+ * ZWECK: Generiert und aktualisiert dynamische Radar- / Reichweitenringe auf der
+ * Karte um die aktuelle GPS-Position des Bootes herum. Dient der schnellen,
+ * visuellen Abschätzung von Distanzen und Peilungen in der direkten Umgebung.
+ * 
+ * KOMPONENTEN PRO RING (2 sm / 5 sm / 10 sm):
+ * 1. Hauptkreis: Gestrichelte, farbige Leaflet-Kreise mit ansteigender Farbintensität.
+ * 2. Peil-Ticks & Label: Erzeugt alle 45° radiale Striche inklusive Grad-Anzeige (0°-315°),
+ *    um grobe Peilungen ohne Lineal direkt von der aktuellen Position ablesen zu können.
+ * 3. Tangential-Striche: Markiert die Haupt-Himmelsrichtungen (N, O, S, W) auf den Ringen.
+ * 4. Distanz-Label: Textmarker, die die jeweilige Seemeilen-Distanz direkt am Ring anzeigen.
+ * 
+ * AKTUALISIERUNGS-LOGIK:
+ * - Erstaufruf: Initialisiert alle Arrays im globalen 'window'-Objekt und zeichnet 
+ *   die Geometrien mittels 'destinationPoint()'-Berechnungen komplett neu.
+ * - Folgeaufrufe (Else-Zweig): Verschiebt die existierenden Kreise, Ticks und Label 
+ *   ressourcenschonend auf die neuen GPS-Koordinaten ('state.gps_lat/lon'), statt sie 
+ *   zeitaufwändig zu löschen und neu zu erstellen.
+ * ========================================================================= */
 function updateRangeCircles() {
     const SM_IN_METERS = 1852;
     const radiusCircles = [
@@ -1227,15 +1645,47 @@ function updateRangeCircles() {
         });
     }
 }
+
+/* =========================================================================
+ * NEU: ZIELGEBIET-FILTER (BESCHREIBUNG DER FUNKTION)
+ * =========================================================================
+ * PROBLEM: Gitter- und Isochronen-basierte Routing-Algorithmen erzeugen knapp vor
+ * dem Ziel (oft 1-3 sm) häufig einen unnatürlichen "Knick" oder Haken. Das liegt
+ * daran, dass das mathematische Berechnungsraster dort endet und das Boot gezwungen 
+ * wird, eine letzte minimale Gitter-Korrektur zu fahren, um das Ziel exakt zu treffen.
+ * 
+ * FUNKTIONSWEISE DES FILTERS:
+ * 1. Schalter-Prüfung: Greift nur, wenn 'FILTER_DESTINATION_KINK' auf true steht.
+ * 2. Längen-Check: Benötigt mindestens 3 Punkte (Start, Zwischenpunkt, Ziel), damit 
+ *    niemals Start- oder Zielkoordinaten versehentlich gelöscht werden können.
+ * 3. Distanzmessung: Ermittelt über Leaflets Großkreis-Methode 'distanceTo()' den exakten 
+ *    Abstand zwischen dem echten Ziel (letzter Punkt) und dem vorletzten Wegpunkt.
+ * 4. Seemeilen-Filter: Der Meter-Wert wird durch 1852 geteilt (1 sm = 1852m). Liegt der 
+ *    vorletzte Wegpunkt innerhalb des 2.0 sm Radius zum Ziel, wird er via 'splice()' gelöscht.
+ * 
+ * EFFEKT: 
+ * Der unschöne Haken entfällt. Die Route führt nun auf direktem, geradem Weg vom 
+ * drittletzten Wegpunkt (außerhalb der 2-sm-Zone) hinein in die finale Zielmarkierung.
+ * ========================================================================= */
+// =========================================================================
+// GLOBALE ROUTEN-KONFIGURATION (Simuliert #define)
+// =========================================================================
+const NAVIS_CONFIG = {
+    MANEUVER_THRESHOLD: 10.0,      // Kursänderung in Grad, ab der ein WP erzeugt wird
+    FILTER_DESTINATION_KINK: true, // Entfernt den Knick kurz vor dem Ziel
+    DESTINATION_FILTER_NM: 2.0     // Distanz in Seemeilen für den Zielfilter
+};
+
+// =========================================================================
+// FUNKTION
+// =========================================================================
 function drawCalculatedRoute(route) {
     if (!route || route.length === 0) {
         alert("Keine Route gefunden");
         return;
     }
 
-    // =========================================================================
     // 1. ALTE ROUTE UND MARKER LÖSCHEN
-    // =========================================================================
     routePoints = [];
     routeMarkers.forEach(m => {
         try { map.removeLayer(m); } catch(e) {}
@@ -1252,26 +1702,18 @@ function drawCalculatedRoute(route) {
         window.navisDarkRedLine = null;
     }
 
-    // =========================================================================
     // 2. DUNKELROTE LEITLINIE (ZEIGT DIE ECHTE SPUR DES BOOTES)
-    // =========================================================================
     const rawLatLngs = route.map(p => [p.lat, p.lon]);
     window.navisDarkRedLine = L.polyline(rawLatLngs, {
-        color: '#8B0000',     // Dunkelrot
+        color: '#8B0000',
         weight: 3,            
         opacity: 0.85,
         interactive: false    
     }).addTo(map);
 
-    // =========================================================================
-    // 3. RADIKALER MANÖVER-FILTER (NUR NOCH WENDEN, HALSEN & GROSSE KNICKE)
-    // =========================================================================
+    // 3. RADIKALER MANÖVER-FILTER
     const filteredRoute = [];
-    filteredRoute.push(route[0]); // Startpunkt ist immer WP #1
-
-    // Schwellenwert für echte Manöver: Erst ab 30° Kursänderung wird ein WP erzeugt!
-    // Das blockiert alle kleinen Kurven im Fahrwasser und isoliert nur echte Bugwechsel.
-    const MANEUVER_THRESHOLD = 30.0; 
+    filteredRoute.push(route[0]); 
     
     let currentSegmentStartIdx = 0;
 
@@ -1280,27 +1722,38 @@ function drawCalculatedRoute(route) {
         const pivotPt = route[i];
         const nextPt = route[i + 1];
 
-        // Berechne die Richtung vor dem Punkt und nach dem Punkt
         const bearingBefore = calculateBearing(startPt.lat, startPt.lon, pivotPt.lat, pivotPt.lon);
         const bearingAfter = calculateBearing(pivotPt.lat, pivotPt.lon, nextPt.lat, nextPt.lon);
 
         let deltaBearing = Math.abs(bearingAfter - bearingBefore);
         if (deltaBearing > 180) deltaBearing = 360 - deltaBearing;
 
-        // Hat das Boot gerade gewendet oder halse vollzogen (harter Richtungsknick)?
-        if (deltaBearing > MANEUVER_THRESHOLD) {
+        // NUTZT DIE GLOBALE KONFIGURATION
+        if (deltaBearing > NAVIS_CONFIG.MANEUVER_THRESHOLD) {
             filteredRoute.push(pivotPt);
-            currentSegmentStartIdx = i; // Setze den Referenzpunkt für das nächste gerade Segment
+            currentSegmentStartIdx = i;
         }
     }
 
-    // Zielpunkt als letzten Marker fixieren
     if (filteredRoute[filteredRoute.length - 1] !== route[route.length - 1]) {
         filteredRoute.push(route[route.length - 1]);
     }
 
-    console.log(`🎰 RADIKAL-FILTER EFFEKT: Von ${route.length} Gitterpunkten blieben nur ${filteredRoute.length} echte Manöver-Wegpunkte übrig.`);
+    // NEU: ZIELGEBIET-FILTER
+    if (NAVIS_CONFIG.FILTER_DESTINATION_KINK && filteredRoute.length >= 3) {
+        const targetPt = filteredRoute[filteredRoute.length - 1];
+        const secondLastPt = filteredRoute[filteredRoute.length - 2];
 
+        const distanceMeters = L.latLng(targetPt.lat, targetPt.lon).distanceTo(L.latLng(secondLastPt.lat, secondLastPt.lon));
+        const distanceNM = distanceMeters / 1852;
+
+        // NUTZT DIE GLOBALE KONFIGURATION
+        if (distanceNM <= NAVIS_CONFIG.DESTINATION_FILTER_NM) {
+            filteredRoute.splice(filteredRoute.length - 2, 1);
+            console.log(`🧹 ZIEL-FILTER: Vorletzter Wegpunkt entfernt (${distanceNM.toFixed(2)} sm vorm Ziel).`);
+        }
+    }
+	
     // =========================================================================
     // 4. NUR DIE GEFILTERTEN MANÖVER-MARKER RENDERN
     // =========================================================================
@@ -1315,20 +1768,63 @@ function drawCalculatedRoute(route) {
 
         routeMarkers.push(marker);
 
-        // Tooltip (ETA-Stunden ab Start)
-        const etaText = `WP #${idx + 1} (+${p.timeElapsed.toFixed(1)}h)`;
-        marker.bindTooltip(etaText, { permanent: false, direction: 'top' });
+        // Tooltip mit Navigationsdaten
+		const tooltipText = `
+		<b>🧭 WP #${idx + 1}</b><br>
+		⏱ ETA2: ${(p.timeElapsed ?? p.eta ?? 0).toFixed(2)} h<br>
+		📐 Kurs: ${(p.heading ?? 0).toFixed(0)}°<br>
+		⛵ Boot: ${(p.boatSpeed ?? 0).toFixed(1)} kn<br>
+		🚤 SOG: ${(p.sog ?? 0).toFixed(1)} kn<br>
+		<br>
+		💨 Wind: ${(p.windSpeed ?? 0).toFixed(1)} kn<br>
+		🧭 Windrichtung: ${(p.windDir ?? 0).toFixed(0)}°<br>
+		📏 TWA: ${(p.twa ?? 0).toFixed(0)}°<br>
+		<br>
+		🌊 Welle: ${(p.waveHeight ?? 0).toFixed(1)} m<br>
+		🌊 Wellenwinkel: ${(p.waveAngle ?? 0).toFixed(0)}°<br>
+		<br>
+		🌊 Strömung: ${(p.currentSpeed ?? 0).toFixed(1)} kn<br>
+		🧭 Stromrichtung: ${(p.currentDir ?? 0).toFixed(0)}°
+		`;
+
+		marker.bindTooltip(tooltipText, {
+			permanent: false,
+			direction: 'top',
+			opacity: 0.95
+		});
 
         // Popup für Touchscreen-Geräte
         const popupContent = `
-            <div style="text-align: center; font-family: sans-serif;">
-                <strong>Wegpunkt #${idx + 1}</strong><br>
-                ⏱ Zeit ab Start: ${p.timeElapsed.toFixed(2)} Std.<br>
-                <button onclick="removeWaypoint(${idx})" style="margin-top: 8px; background: #ff2a2a; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
-                    🗑 Löschen
-                </button>
-            </div>
-        `;
+			<div style="text-align: center; font-family: sans-serif;">
+				<strong>Wegpunkt #${idx + 1}</strong><br>
+
+				⏱ ETA: ${(p.timeElapsed ?? p.eta ?? 0).toFixed(2)} h<br>
+				📐 Kurs: ${(p.heading ?? 0).toFixed(0)}°<br>
+				⛵ Polarspeed: ${(p.boatSpeed ?? 0).toFixed(1)} kn<br>
+				🚤 SOG: ${(p.sog ?? 0).toFixed(1)} kn<br>
+				💨 Wind: ${(p.windSpeed ?? 0).toFixed(1)} kn<br>
+				🧭 Windrichtung: ${(p.windDir ?? 0).toFixed(0)}°<br>
+				📏 TWA: ${(p.twa ?? 0).toFixed(0)}°<br>
+				🌊 Welle: ${(p.waveHeight ?? 0).toFixed(1)} m<br>
+				🌊 Wellenwinkel: ${(p.waveAngle ?? 0).toFixed(0)}°<br>
+				🌊 Strömung: ${(p.currentSpeed ?? 0).toFixed(1)} kn<br>
+				🧭 Stromrichtung: ${(p.currentDir ?? 0).toFixed(0)}°<br>
+
+				<button
+					onclick="removeWaypoint(${idx})"
+					style="
+						margin-top:8px;
+						background:#ff2a2a;
+						color:white;
+						border:none;
+						padding:4px 8px;
+						border-radius:4px;
+						cursor:pointer;
+					">
+					🗑 Löschen
+				</button>
+			</div>
+			`;
         marker.bindPopup(popupContent);
 
         marker.on('drag', () => {
@@ -1353,8 +1849,6 @@ function drawCalculatedRoute(route) {
     const bounds = L.latLngBounds(filteredRoute.map(p => [p.lat, p.lon]));
     map.fitBounds(bounds, { padding: [40, 40] });
 }
-
-
 
 /* ------------------------------
    End

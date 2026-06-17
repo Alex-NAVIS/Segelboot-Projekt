@@ -1,83 +1,385 @@
 /* ==========================================================================
-   1. GLOBAL & FONTS (index, system_settings, autopilot, etc.)
+   0. DESIGN SYSTEM & VARIABLE DEFINITIONS
    ========================================================================== */
-body { background: #001a26; color: #00e6e6; font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 0 0 20px 0; overflow-x: hidden; text-align: center; line-height: 1.4; }
-header { position: relative; background-color: #002b3a; color: #00ffff; padding: 15px; font-size: 1.8em; font-weight: bold; border-bottom: 2px solid #005566; display: flex; justify-content: center; align-items: center; gap: 15px; }
-h1 { color: #00bcd4; margin-top: 20px; margin-bottom: 0.5rem; }
-h2 { color: #00bcd4; margin-top: 25px; font-size: 1.2rem; }
-.section-title { color: #00ffff; margin-top: 30px; font-size: 1.4em; border-bottom: 1px solid #007a99; display: inline-block; padding-bottom: 4px; }
-.container { max-width: 1200px; margin: 0 auto; padding: 15px; }
-footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
+:root {
+  --bg-main: #001a26;
+  --bg-panel: #002b3a;
+  --bg-input: #001f2b;
+  --border: #00aacc;
+  --border-dark: #005566;
+  --border-muted: #004455;
+  --accent: #00e5ff;
+  --accent2: #00ffff;
+  --accent-muted: #00bcd4;
+  --button: #0088aa;
+  --button-hover: #00aacc;
+  --text: #ffffff;
+}
+
+* { box-sizing: border-box; }
 
 /* ==========================================================================
-   2. WEBSOCKET-STATUS & CORE INFRASTRUKTUR (index, Alarm, autopilot)
+   1. GLOBAL & FONTS (index, system_settings, autopilot, Alarm, etc.)
    ========================================================================== */
-#wsStatus { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #ccc; z-index: 10; }
-#wsLed { width: 12px; height: 12px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 6px rgba(255,0,0,0.8); }
+body { 
+  background: var(--bg-main); 
+  color: var(--accent); 
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif; 
+  margin: 0; 
+  padding: 0 0 20px 0; 
+  overflow-x: hidden; 
+  text-align: center; 
+  line-height: 1.4; 
+}
+header { 
+  position: relative; 
+  background-color: var(--bg-panel); 
+  color: var(--accent2); 
+  padding: 15px; 
+  font-size: 1.8em; 
+  font-weight: bold; 
+  border-bottom: 2px solid var(--border-dark); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  gap: 15px; 
+}
+h1 { color: var(--accent-muted); margin-top: 20px; margin-bottom: 0.5rem; }
+h2 { color: var(--accent-muted); margin-top: 25px; font-size: 1.2rem; }
+h1, h2, .panel h1, .panel h2 { color: var(--accent2); margin-top: 0; margin-bottom: 15px; }
+
+.section-title { 
+  color: var(--accent2); 
+  margin-top: 30px; 
+  font-size: 1.4em; 
+  border-bottom: 1px solid #007a99; 
+  display: inline-block; 
+  padding-bottom: 4px; 
+}
+.container { max-width: 1200px; margin: 0 auto; padding: 15px; }
+.main { max-width: 720px; margin: 20px auto; padding: 15px; }
+
+footer { 
+  margin: 40px 0 20px 0; 
+  padding-top: 10px; 
+  border-top: 1px solid var(--border-dark); 
+  color: #00b8d4; 
+  font-size: 0.9em; 
+  text-align: center; 
+  opacity: 0.9; 
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   2. WEBSOCKET-STATUS & CORE INFRASTRUKTUR
+   ========================================================================== */
+#wsStatus { 
+  position: absolute; 
+  left: 8px; 
+  top: 50%; 
+  transform: translateY(-50%); 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  font-size: 0.75em; 
+  color: #ccc; 
+  z-index: 10; 
+}
+#wsLed { 
+  width: 12px; 
+  height: 12px; 
+  border-radius: 50%; 
+  background: #ff3333; 
+  box-shadow: 0 0 6px rgba(255,0,0,0.8); 
+}
 
 /* ==========================================================================
    3. KOPF-NAVIGATION & SPRACHAUSWAHL (#navbar)
    ========================================================================== */
-#navbar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
-.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 3px 10px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: 0.2s; }
-.navbtn:hover, .navbtn.active { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
-#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px; font-size: .85em; font-weight: bold; cursor: pointer; outline: none; }
-#langSelect option { background: #001a26; color: #00ffff; }
+#navbar { 
+  display: flex; 
+  flex-wrap: wrap; 
+  justify-content: center; 
+  align-items: center; 
+  gap: 8px; 
+  background-color: var(--bg-panel); 
+  padding: 10px 5px; 
+  border-bottom: 1px solid var(--border-dark); 
+  position: relative;
+}
+.navbtn { 
+  background-color: #003d52; 
+  color: var(--accent2); 
+  border: 1px solid #007a99; 
+  border-radius: 5px; 
+  padding: 5px 12px; 
+  text-decoration: none; 
+  font-size: 0.9em; 
+  font-weight: bold; 
+  transition: all 0.2s ease-in-out; 
+}
+.navbtn:hover, .navbtn.active { 
+  background-color: #00b8d4; 
+  color: var(--bg-main); 
+  border-color: #00e6e6; 
+  box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); 
+}
+.lang-select-container { margin-left: 10px; }
+#langSelect { 
+  background: #003d52; 
+  color: var(--accent2); 
+  border: 1px solid #007a99; 
+  border-radius: 5px; 
+  padding: 4px 8px; 
+  font-size: .85em; 
+  font-weight: bold; 
+  cursor: pointer; 
+  outline: none; 
+}
+#langSelect option { background: var(--bg-main); color: var(--accent2); }
 
 /* ==========================================================================
-   4. LIVE SENSOR DISPLAY BOXEN (index, wetterdaten, tide)
+   4. LIVE SENSOR DISPLAY BOXEN, DASHBOARDS & PANELS
    ========================================================================== */
 .sensor-data { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 20px; }
-.data-box { background-color: #003d52; border: 1px solid #007a99; border-radius: 10px; padding: 10px 15px; width: 220px; box-shadow: 0 0 6px rgba(0,255,255,0.2); }
+.data-box { 
+  background-color: #003d52; 
+  border: 1px solid #007a99; 
+  border-radius: 10px; 
+  padding: 10px 15px; 
+  width: 220px; 
+  box-shadow: 0 0 6px rgba(0,255,255,0.2); 
+}
 .data-title { color: #66ffff; font-weight: bold; font-size: 1em; }
-.data-value { color: #ffffff; font-size: 1.2em; margin-top: 5px; }
+.data-value { color: var(--text); font-size: 1.2em; margin-top: 5px; }
+
+/* Dashboard-Strukturen */
+.dashboard { display: flex; flex-wrap: wrap; gap: 20px; text-align: left; }
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+  flex: 1;
+  min-width: 350px;
+}
+.panel-wide { flex: 2; min-width: 500px; }
+
+/* Alarm- & Profil-Gruppierungen */
+.group { 
+  background: var(--bg-input); 
+  border: 1px solid var(--border-dark); 
+  border-radius: 14px; 
+  padding: 15px; 
+  margin-bottom: 18px; 
+  box-shadow: inset 0 0 12px rgba(0, 255, 255, .05); 
+}
+.group-title { 
+  color: var(--accent2); 
+  font-size: 1.2em; 
+  margin-bottom: 10px; 
+  font-weight: bold; 
+  text-align: center; 
+  border-bottom: 1px solid #007a99; 
+  padding-bottom: 6px; 
+}
+#alarmStatus { 
+  background: #2a0000; 
+  border: 1px solid #aa3333; 
+  border-radius: 10px; 
+  padding: 8px; 
+  box-shadow: 0 0 8px rgba(255, 0, 0, .25);
+  text-align: center;
+}
+.alarm-box { 
+  background: #003d52; 
+  border: 1px solid #007a99; 
+  border-radius: 12px; 
+  padding: 12px; 
+  margin: 12px 0; 
+  box-shadow: 0 0 6px rgba(0, 255, 255, .2); 
+  text-align: left; 
+}
+.alarm-head { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  font-weight: bold; 
+  color: #66ffff; 
+  margin-bottom: 6px; 
+}
+
+/* Status-Elemente */
+#activeProfile { font-size: 18px; font-weight: bold; color: var(--text); }
+#statusText { font-weight: bold; color: var(--accent2); }
 
 /* ==========================================================================
    5. DIGITALE BORD-SCHALTER & AKTUATOREN-LEDS (index, autopilot)
    ========================================================================== */
-.switch-section { margin-top: 40px; padding: 25px 0; background: linear-gradient(180deg, #00141d, #00242f); border-top: 2px solid #005566; border-bottom: 2px solid #005566; box-shadow: inset 0 0 20px rgba(0, 255, 255, 0.05); }
+.switch-section { 
+  margin-top: 40px; 
+  padding: 25px 0; 
+  background: linear-gradient(180deg, #00141d, #00242f); 
+  border-top: 2px solid var(--border-dark); 
+  border-bottom: 2px solid var(--border-dark); 
+  box-shadow: inset 0 0 20px rgba(0, 255, 255, 0.05); 
+}
 .switch-panel { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; margin: 20px 0; }
-.switch { background-color: #0b2a38; border: 2px solid #007a99; border-radius: 12px; width: 180px; padding: 15px; color: #fff; font-size: 18px; font-weight: bold; text-align: center; cursor: pointer; box-shadow: 0 0 10px rgba(0,255,255,0.2); transition: 0.3s; }
+.switch { 
+  background-color: #0b2a38; 
+  border: 2px solid #007a99; 
+  border-radius: 12px; 
+  width: 180px; 
+  padding: 15px; 
+  color: var(--text); 
+  font-size: 18px; 
+  font-weight: bold; 
+  text-align: center; 
+  cursor: pointer; 
+  box-shadow: 0 0 10px rgba(0,255,255,0.2); 
+  transition: 0.3s; 
+}
 .switch:hover { background-color: #104a5f; }
-.led { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-left: 8px; vertical-align: middle; background-color: red; box-shadow: 0 0 6px #ff0000; }
+.led { 
+  display: inline-block; 
+  width: 14px; 
+  height: 14px; 
+  border-radius: 50%; 
+  margin-left: 8px; 
+  vertical-align: middle; 
+  background-color: red; 
+  box-shadow: 0 0 6px #ff0000; 
+}
 .switch.on .led { background-color: limegreen; box-shadow: 0 0 10px #00ff00; }
 
 /* ==========================================================================
-   6. DATEN-TABELLEN & ALARME (system_settings, logbuch, polar, tide)
+   6. DATEN-TABELLEN & PROFILE
    ========================================================================== */
-table, .data-table { margin: 20px auto; border-collapse: collapse; width: 90%; max-width: 700px; background: #1a1f28; border-radius: 8px; overflow: hidden; }
-th, td { border: 1px solid #252a38; padding: 12px; text-align: left; }
-th { background: #00bcd4; color: #0f1218; text-align: center; font-weight: bold; }
+table, .data-table { 
+  margin: 20px auto; 
+  border-collapse: collapse; 
+  width: 100%; 
+  max-width: 700px; 
+  background: #1a1f28; 
+  border-radius: 8px; 
+  overflow: hidden; 
+}
+th, td { border: 1px solid var(--border-muted); padding: 12px; text-align: left; }
+th { background: var(--accent-muted); color: #0f1218; text-align: center; font-weight: bold; }
 tr:nth-child(even) { background-color: #00222f; }
 
+/* Spezialtabellen (Info & Profile) */
+td { border: 1px solid var(--border-muted); padding: 6px; }
+.info-table td:first-child { width: 180px; font-weight: bold; color: var(--text); }
+.polar-container {
+  display: none; 
+  max-height: 300px; 
+  overflow-y: auto; 
+  margin-top: 10px;
+  border: 1px solid var(--border-muted); 
+  background: var(--bg-input);
+}
+.polar-table td { text-align: center; }
+
 /* ==========================================================================
-   7. INPUT-FELDER & FORMULAR-CONTAINER (settings, autopilot_settings, Alarm)
+   7. INPUT-FELDER, REGLER & FORMULAR-CONTAINER
    ========================================================================== */
-.settings-form { background-color: #1a1f28; border: 1px solid #252a38; border-radius: 8px; max-width: 550px; margin: 20px auto; padding: 20px; text-align: left; }
+.settings-form { 
+  background-color: #1a1f28; 
+  border: 1px solid #252a38; 
+  border-radius: 8px; 
+  max-width: 550px; 
+  margin: 20px auto; 
+  padding: 20px; 
+  text-align: left; 
+}
 .form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 6px; }
-input[type="number"], input[type="text"] { width: 100%; box-sizing: border-box; background: #252a38; color: #fff; border: 1px solid #007d91; padding: 8px; border-radius: 4px; }
-input[type="checkbox"] { transform: scale(1.2); margin-right: 8px; cursor: pointer; }
+
+input, select, input[type="number"], input[type="text"] { 
+  width: 100%; 
+  box-sizing: border-box; 
+  background: var(--bg-input); 
+  color: var(--text); 
+  border: 1px solid var(--border); 
+  padding: 8px; 
+  border-radius: 4px; 
+}
+input[type="checkbox"] { width: auto; transform: scale(1.2); margin-right: 8px; cursor: pointer; }
 .info-text { font-size: 0.85em; color: #aaa; margin-top: 4px; display: block; }
 .info-text_checkbox { font-size: 0.85em; color: #fda; margin-top: 4px; display: block; }
 
+/* Slider-Zeilen */
+.slider-row, .slider-container { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.slider-row input[type=range], .slider-container input[type="range"] { flex: 1; }
+.slider-container label { width: 120px; color: var(--text); font-weight: bold; }
+.slider-container span { width: 50px; text-align: right; color: var(--accent2); }
+.value { min-width: 60px; text-align: right; color: var(--text); font-weight: bold; }
+.polar-input { width: 60px; text-align: center; background: #000; border: 1px solid var(--border-dark); color: #fff; }
+
 /* ==========================================================================
-   8. SYSTEM BARS & OPERATIONEN (system_settings, upload)
+   8. BUTTONS, SYSTEM BARS & OPERATIONEN
    ========================================================================== */
-.buttonBar { margin-top: 30px; padding: 20px; border-top: 1px solid #252a38; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-button, .btn-submit { padding: 12px 20px; font-size: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; min-width: 180px; transition: all 0.2s ease; }
-button:hover, .btn-submit:hover { transform: translateY(-2px); filter: brightness(1.1); }
+.buttonBar, .button-bar { 
+  margin-top: 30px; 
+  padding: 20px; 
+  display: flex; 
+  flex-wrap: wrap; 
+  justify-content: center; 
+  gap: 10px; 
+}
+.button-bar { margin-top: 15px; padding: 0; justify-content: flex-start; }
+
+/* Standard-Buttons aus der ersten CSS-Version */
+button, .btn-submit { 
+  margin: 12px 6px;
+  padding: 12px 20px; 
+  font-size: 15px; 
+  font-weight: bold; 
+  border: none; 
+  border-radius: 8px; 
+  cursor: pointer; 
+  min-width: 180px; 
+  transition: all 0.2s ease; 
+  background: #007a99; 
+  color: #fff;
+}
+button:hover, .btn-submit:hover { 
+  transform: translateY(-2px); 
+  filter: brightness(1.1);
+  background: #00b8d4; 
+  color: #001a26; 
+}
+button:disabled { 
+  background: #555 !important; 
+  color: #aaa !important; 
+  cursor: not-allowed; 
+  transform: none !important;
+}
+
+/* Spezifische ID-Buttons aus der ersten Version */
 #saveBtn { background: #00bcd4; color: #0f1218; }
 #cancelBtn { background: #333; color: #fff; }
 #calibCompassBtn { background: #ff9800; color: #000; }
 #calibGyroBtn { background: #f44336; color: #fff; }
+
+/* Gefahr- & Alarm-Buttons */
+.danger { background: #992222; color: #fff; }
+.danger:hover { background: #cc3333; color: #fff; }
+
+/* Profil-Buttons (Spezialklasse kompakt halten) */
+.profile-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.profile-btn {
+  background: #004455; color: var(--text); border: none;
+  border-radius: 6px; padding: 10px 14px; cursor: pointer; min-width: auto; margin: 0;
+}
+.profile-btn:hover { background: #007799; }
+.profile-btn.active { background: var(--button-hover); }
+
+/* Ausklapp-Button */
+.toggle-table-btn {
+  background: #003344; color: #8fdfff; border: 1px dashed var(--border);
+  width: 100%; padding: 8px; margin-top: 10px; text-align: center; cursor: pointer; border-radius: 4px;
+}
 .calib-cell { text-align: center; vertical-align: middle; width: 220px; }
 
-/* ==========================================================================
-   9. GRAFIKEN & KARTEN-CONTAINER (karte, kompass, horizont)
-   ========================================================================== */
-#map, .canvas-container { width: 100%; height: 70vh; max-height: 600px; background-color: #00141d; border: 2px solid #005566; border-radius: 8px; margin: 15px 0; }
-
-/* ==========================================================================
-   10. RESPONSIVE LAYOUTS (Mobilgeräte Optimierung)
-   ========================================================================== */
-@media (max-width: 600px) { #navbar { gap: 6px; padding: 8px 4px; } .navbtn { padding: 4px 8px; font-size: 0.8em; } }

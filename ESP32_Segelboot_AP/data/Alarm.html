@@ -4,32 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="title_alarms">Alarm Einstellungen</title>
-    <style>
-        body { background:#001a26; color:#00e6e6; font-family:"Segoe UI", Arial, sans-serif; margin: 0; text-align: center; }
-        header { background:#002b3a; color:#00ffff; padding: 15px; font-size: 1.6em; font-weight: bold; border-bottom: 2px solid #005566; }
-        #navbar { display: flex; justify-content: center; gap: 6px; background:#002b3a; padding: 6px 0; border-bottom: 1px solid #005566; position: relative; flex-wrap: wrap; align-items: center; }
-        #wsStatus { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size:.75em; color:#ccc; }
-        #wsLed { width: 12px; height: 12px; border-radius: 50%; background:#ff3333; box-shadow: 0 0 6px rgba(255, 0, 0,.8); }
-        .navbtn { background:#003d52; color:#00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px 10px; text-decoration: none; font-size:.85em; font-weight: bold; }
-        .lang-select-container { margin-left: 10px; }
-        #langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px; font-size: .85em; font-weight: bold; cursor: pointer; }
-        #langSelect option { background: #001a26; color: #00ffff; }
-        .main { max-width: 720px; margin: 20px auto; padding: 15px; }
-        .group { background:#001f2b; border: 1px solid #005566; border-radius: 14px; padding: 15px; margin-bottom: 18px; box-shadow: inset 0 0 12px rgba(0, 255, 255,.05); }
-        .group-title { color:#00ffff; font-size: 1.2em; margin-bottom: 10px; font-weight: bold; text-align: center; border-bottom: 1px solid #007a99; padding-bottom: 6px; }
-        #alarmStatus { background:#2a0000; border: 1px solid #aa3333; border-radius: 10px; padding: 8px; box-shadow: 0 0 8px rgba(255, 0, 0,.25);}
-        .alarm-box { background:#003d52; border: 1px solid #007a99; border-radius: 12px; padding: 12px; margin: 12px 0; box-shadow: 0 0 6px rgba(0, 255, 255,.2); text-align: left; }
-        .alarm-head { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color:#66ffff; margin-bottom: 6px; }
-        .slider-row { display: flex; align-items: center; gap: 10px; }
-        .slider-row input[type=range] { flex: 1; }
-        .value { min-width: 60px; text-align: right; color:#fff; font-weight: bold; }
-        button { margin: 12px 6px; padding: 12px 22px; font-size: 1em; background:#007a99; color:#fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:hover { background:#00b8d4; color:#001a26; }
-        button:disabled { background:#555; color:#aaa; cursor: not-allowed; }
-        .danger { background:#992222; }
-        .danger:hover { background:#cc3333; }
-        footer { margin: 30px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color:#00b8d4; font-size:.85 em; text-align: center; opacity:.9; line-height: 1.4; }
-    </style>
+    
+	<link rel="stylesheet" href="navis.css">
     
     <!-- Sprach-Manager vor dem Body laden -->
     <script src="js/lang_manager.js"></script>
@@ -50,14 +26,25 @@
         <a href="horizont.html" class="navbtn" data-i18n="nav_horizont">Horizont</a>
         
         <!-- Integrierter Sprachumschalter am Ende der Navbar -->
-        <div class="lang-select-container">
-            <select id="langSelect" onchange="changeLanguage(this.value)">
-                <option value="de">DE</option>
-                <option value="en">EN</option>
-                <option value="fr">FR</option>
-                <option value="it">IT</option>
-            </select>
-        </div>
+
+		<div style="padding:10px;">
+			<select id="langSelect" onchange="changeLanguage(this.value)">
+				<!-- Standard-Sprachen -->
+				<option value="de" data-i18n="index_txt_10">Deutsch</option>
+				<option value="en" data-i18n="index_txt_11">English</option>
+				<option value="fr" data-i18n="index_txt_12">Français</option>
+				<option value="it" data-i18n="index_txt_13">Italiano</option>
+				<option value="es" data-i18n="index_txt_43">Español</option>
+				<option value="da" data-i18n="index_txt_44">Dansk</option>
+				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
+				<option value="no" data-i18n="index_txt_46">Norsk</option>
+				<option value="sv" data-i18n="index_txt_47">Svenska</option>
+				<option value="ru" data-i18n="index_txt_48">Русский</option>
+				<option value="pl" data-i18n="index_txt_49">Polski</option>
+				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
+				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
+			</select>
+		</div>
     </nav>
 
     <div class="main">

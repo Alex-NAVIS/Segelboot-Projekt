@@ -1,4 +1,3 @@
-console.log("NAVIS VERSION TEST 12345");
 /* ----------------------------------------------------------------------
 🧭 NAVIS V2.0 Kontext-Routing Engine
 ---------------------------------------------------------------------- */
@@ -7,7 +6,7 @@ const NAVIS_ROUTE = {
     ziel: null,
     waypoints: [],
     departureTime: null,
-    profile: "fast",
+    profile: "fastest",
     strategy: "eta",
     weatherFrame: 0
 };
@@ -23,7 +22,6 @@ const NAVIS_VISUAL = {
 };
 
 function updateNavisPolyline() {
-    console.log("=== 🌐 updateNavisPolyline gestartet ===");
     
     if (NAVIS_VISUAL.routeLine) {
         map.removeLayer(NAVIS_VISUAL.routeLine);
@@ -31,7 +29,6 @@ function updateNavisPolyline() {
     }
 
     if (!NAVIS_ROUTE.start || !NAVIS_ROUTE.ziel) {
-        console.log("ℹ️ Keine Linie: Start oder Ziel fehlt.");
         return;
     }
 
@@ -49,8 +46,6 @@ function updateNavisPolyline() {
 
     // Ziel hinzufügen (Hier stand vorher NAIVS statt NAVIS!)
     pathCoordinates.push([NAVIS_ROUTE.ziel.lat, NAVIS_ROUTE.ziel.lon]);
-    
-    console.log("📐 Versuche Linie zu zeichnen mit Koordinaten:", pathCoordinates);
 
     try {
         NAVIS_VISUAL.routeLine = L.polyline(pathCoordinates, {
@@ -59,7 +54,6 @@ function updateNavisPolyline() {
             opacity: 0.9, 
             dashArray: '8, 12'
         }).addTo(map);
-        console.log("✅ Polyline erfolgreich zur Karte hinzugefügt!");
     } catch (error) {
         console.error("🔴 Leaflet-Fehler beim Zeichnen:", error);
     }
@@ -99,11 +93,22 @@ const TILE_SPAN = 0.256;
 
 // Initialisiere die Abfahrtszeit im Panel auf die aktuelle Uhrzeit
 document.addEventListener("DOMContentLoaded", () => {
-    const now = new Date();
-    const localISO = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     const timeInput = document.getElementById("routing-departure-time");
-    if (timeInput) timeInput.value = localISO;
+    if (!timeInput) return;
+    // UTC direkt ins Eingabefeld
+    timeInput.value = new Date().toISOString().slice(0, 16);
+    updateDepartureTimeDisplay();
+    timeInput.addEventListener("change", updateDepartureTimeDisplay);
 });
+
+function updateDepartureTimeDisplay() {
+    const input = document.getElementById("routing-departure-time");
+    const display = document.getElementById("routing-localtime-display");
+    if (!input || !display || !input.value) return;
+    // UTC-Wert aus Eingabefeld lesen
+    const utcDate = new Date(input.value + ":00Z");
+    display.innerHTML = `🕒 Lokale Systemzeit: ${utcDate.toLocaleString()}`;
+}
 
 // Leaflet Rechtsklick-Menü im NAVIS Design
 if (typeof map !== 'undefined') {
@@ -235,18 +240,17 @@ function setNavisPoint(type, latlng) {
     NAVIS_VISUAL[markerKey].on('drag', function(event) {
         const pos = event.target.getLatLng();
         NAVIS_ROUTE[key] = createNavisNode(pos);
-        document.getElementById(displayId).innerText = `Lat: ${pos.lat.toFixed(4)} | Lon: ${pos.lng.toFixed(4)}`;
+        document.getElementById(displayId).innerText = `Lat: ${pos.lat.toFixed(2)} | Lon: ${pos.lng.toFixed(2)}`;
         updateNavisPolyline(); 
     });
 
     // Dieses Event feuert beim LOSLASSEN
     NAVIS_VISUAL[markerKey].on('dragend', function(event) {
         const pos = event.target.getLatLng();
-        console.log(`${emoji} ${label.split('punkt')[0]} verschoben -> Tile t_${NAVIS_ROUTE[key].tileX}_${NAVIS_ROUTE[key].tileY}`);
         updateNavisPolyline();
     });
 
-    document.getElementById(displayId).innerText = `Lat: ${point.lat.toFixed(4)} | Lon: ${point.lon.toFixed(4)}`;
+    document.getElementById(displayId).innerText = `Lat: ${point.lat.toFixed(2)} | Lon: ${point.lon.toFixed(2)}`;
     updateNavisPolyline();
 }
 
@@ -272,7 +276,6 @@ function addNavisWaypoint(latlng) {
     wpMarker.on('dragend', function(event) {
         const markerIndex = NAVIS_VISUAL.waypointMarkers.indexOf(wpMarker);
         if (markerIndex > -1) {
-            console.log(`🧭 WP ${markerIndex + 1} verschoben -> Tile t_${NAVIS_ROUTE.waypoints[markerIndex].tileX}_${NAVIS_ROUTE.waypoints[markerIndex].tileY}`);
             updateNavisPolyline();
         }
     });
@@ -311,7 +314,6 @@ function reindexNavisWaypoints() {
         // müssen wir sicherstellen, dass das Kontextmenü die neuen Indizes kennt.
         // Das passiert automatisch, da wir im 'contextmenu' oben .indexOf() nutzen!
     });
-    console.log(`🔄 Wegpunkte renummeriert. Anzahl verbleibend: ${NAVIS_VISUAL.waypointMarkers.length}`);
 }
 
 // Aktualisiert die Anzahl im linken Panel
@@ -321,8 +323,6 @@ function updateWaypointDisplay() {
         display.innerText = `${NAVIS_ROUTE.waypoints.length} Wegpunkt(e) hinzugefügt`;
     }
 }
-
-console.log("NAVIS: Vor triggerNavisRouting");
 
 // Routenberechnung ausführen
 window.triggerNavisRouting = function () {
@@ -335,7 +335,8 @@ window.triggerNavisRouting = function () {
     // 2. Variablen-Initialisierung
     const startPos = NAVIS_ROUTE.start;
     const zielPos = NAVIS_ROUTE.ziel;
-    const departureTime = new Date(document.getElementById("routing-departure-time").value);
+    const departureTime =
+    new Date(document.getElementById("routing-departure-time").value + ":00Z");
     const profile = document.querySelector('input[name="routingProfile"]:checked').value;
     const strategy = document.getElementById("routing-time-strategy").value;
   
@@ -344,7 +345,7 @@ window.triggerNavisRouting = function () {
     // 3. Wetter-Frame-Index berechnen
     if (activeWeatherData && activeWeatherData.metadata && activeWeatherData.metadata.created) {
         const timeDiffHours = (departureTime - new Date(activeWeatherData.metadata.created)) / (1000 * 60 * 60);
-        weatherFrameIdx = Math.max(0, Math.min(71, Math.floor(timeDiffHours)));
+        weatherFrameIdx = Math.max(0, Math.min( activeWeatherData.frames.length - 1, Math.floor(timeDiffHours)));
     }
 
     // 4. Globale Routen-Objekte aktualisieren
@@ -352,11 +353,6 @@ window.triggerNavisRouting = function () {
     NAVIS_ROUTE.profile = profile;
     NAVIS_ROUTE.strategy = strategy;
     NAVIS_ROUTE.weatherFrame = weatherFrameIdx;
-
-    // 5. Konsolen-Logging für Debugging
-	console.log("=== 🚀 NAVIS GRID ROUTER ENGAGED ===");
-	console.log(`Profil: ${profile}`);
-	console.log(`Start-Tile: t_${startPos.tileX}_${startPos.tileY}`);
 
 	NAVIS_ROUTE.waypoints.forEach((wp, i) => {console.log(`WP #${i + 1}-Tile: t_${wp.tileX}_${wp.tileY}`);});
 	console.log(`Ziel-Tile: t_${zielPos.tileX}_${zielPos.tileY}`);
@@ -390,24 +386,17 @@ window.triggerNavisRouting = function () {
         try {
             // KEIN dynamischer Import mehr! Wir nutzen die global bereitstehende Funktion:
             const route = await planRoute(
+				{ lat: NAVIS_ROUTE.start.lat, lon: NAVIS_ROUTE.start.lon },
+				{ lat: NAVIS_ROUTE.ziel.lat, lon: NAVIS_ROUTE.ziel.lon },
 				{
-					lat: NAVIS_ROUTE.start.lat,
-					lon: NAVIS_ROUTE.start.lon
-				},
-				{
-					lat: NAVIS_ROUTE.ziel.lat,
-					lon: NAVIS_ROUTE.ziel.lon
-				},
-				{
-					profile: profile
+					profile: profile,
+					windAktiv: true,
+					welleAktiv: true,
+					stroemungAktiv: true,
+					kursMalusAktiv: true,  // 🌟 AKTIVIEREN: Zwingt das Boot auf gerade Linien
+					xteAktiv: true         // 🌟 AKTIVIEREN: Verhindert das unendliche Ausbrechen nach außen
 				}
 			);
-            
-            console.log("=== 🏁 NAVIS ENGINE: ROUTE BERECHNET ===");
-            console.log("Anzahl berechneter Wegpunkte:", route.length);
-            if (route.length > 0) {
-                console.log(`Gesamtzeit der Route: ${route[route.length - 1].timeElapsed.toFixed(2)} Stunden.`);
-            }
             
             // Übergabe an deine Zeichenfunktion
             drawCalculatedRoute(route);
@@ -419,7 +408,6 @@ window.triggerNavisRouting = function () {
     })();
 };
 
-console.log("NAVIS: Nach triggerNavisRouting");
 console.log(window.triggerNavisRouting);
 
 /**
@@ -581,12 +569,71 @@ function getWeatherData(hoursAhead, lat, lon) {
     const tileY = Math.floor(lat / TILE_SPAN_LOCAL);
     const tileKey = `t_${tileX}_${tileY}`;
 
-    // 2. Zeit- und Raum-Komponente aus deiner wettersystem.js abfragen (falls geladen)
-    if (typeof wetterDaten !== 'undefined' && wetterDaten[hoursAhead]) {
-        const hourlyData = wetterDaten[hoursAhead];
-        if (hourlyData[tileKey]) return hourlyData[tileKey];
-        if (hourlyData.tiles && hourlyData.tiles[tileKey]) return hourlyData.tiles[tileKey];
-    }
+	// ======================================================
+	// ECHTE NAVIS-WETTERDATEN AUS activeWeatherData
+	// ======================================================
+	if (
+		typeof activeWeatherData !== 'undefined' &&
+		activeWeatherData &&
+		activeWeatherData.frames &&
+		activeWeatherData.frames[hoursAhead]
+	) {
+		const frame = activeWeatherData.frames[hoursAhead];
+		const meta = activeWeatherData.metadata;
+		const latPos = (meta.la1 - lat) / meta.dy;
+		const lonPos = (lon - meta.lo1) / meta.dx;
+		if (lonPos < 0 || lonPos > meta.nx - 1 || latPos < 0 || latPos > meta.ny - 1) {
+			return {
+				windDir: 240,
+				windSpeed: 12,
+				waveHeight: 0.5,
+				waveDir: 240,
+				currentDir: 90,
+				currentSpeed: 0.2
+			};
+		}
+
+		const x0 = Math.floor(lonPos);
+		const y0 = Math.floor(latPos);
+		const x1 = Math.min(x0 + 1, meta.nx - 1);
+		const y1 = Math.min(y0 + 1, meta.ny - 1);
+		const xFactor = lonPos - x0;
+		const yFactor = latPos - y0;
+		const getIdx = (x, y) => (y * meta.nx) + x;
+		const bilinear = (array) => {
+			if (!array) return 0;
+			const v00 = array[getIdx(x0, y0)] ?? 0;
+			const v10 = array[getIdx(x1, y0)] ?? 0;
+			const v01 = array[getIdx(x0, y1)] ?? 0;
+			const v11 = array[getIdx(x1, y1)] ?? 0;
+			return (
+				(1 - yFactor) *
+					((1 - xFactor) * v00 + xFactor * v10) +
+				yFactor *
+					((1 - xFactor) * v01 + xFactor * v11)
+			);
+		};
+		const windU = bilinear(frame.wind_u);
+		const windV = bilinear(frame.wind_v);
+		const currentU = bilinear(frame.current_u);
+		const currentV = bilinear(frame.current_v);
+		const windSpeed = Math.sqrt(windU * windU + windV * windV) * 1.94384;
+		let windDir = ((270 - (Math.atan2(windV, windU) * 180 / Math.PI)) % 360 + 360) % 360;
+		const currentSpeed = Math.sqrt(currentU * currentU + currentV * currentV);
+		let currentDir = (Math.atan2(currentU, currentV) * 180 / Math.PI);
+		currentDir = ((currentDir % 360) + 360) % 360;
+
+		const waveDir =	bilinear(frame.wave_direction) ?? windDir;
+
+		return {
+			windDir,
+			windSpeed,
+			waveHeight: bilinear(frame.wave_height),
+			waveDir,
+			currentDir,
+			currentSpeed
+		};
+	}
 
     // 3. ECHTES 4D-GEZEITEN- & WETTER-FALLBACK (Für lokalen Test im Browser)
     // Wind- und Wellenfronten (Wandernd im Raum und in der Zeit)
@@ -622,14 +669,15 @@ function getWeatherData(hoursAhead, lat, lon) {
     const currentSpeedCalc = Math.abs(tideFactor) * maxCurrentInRegion;
 
     return {
-        windDir: (windDirBase + 360) % 360,
-        windSpeed: Math.max(2, windSpeedCalc),
-        waveHeight: Math.max(0.1, waveHeightCalc),
-        
-        // KRITIK-FIX: Strömung schwenkt alle 6.2 Stunden um und ist extrem ortsabhängig!
-        currentDir: currentDirCalc,
-        currentSpeed: currentSpeedCalc
-    };
+		windDir: (windDirBase + 360) % 360,
+		windSpeed: Math.max(2, windSpeedCalc),
+		waveHeight: Math.max(0.1, waveHeightCalc),
+		// Testweise identisch zum Wind
+		// später echte Wellenrichtung einsetzen
+		waveDir: (windDirBase + 360) % 360,
+		currentDir: currentDirCalc,
+		currentSpeed: currentSpeedCalc
+	};
 }
 
 // NAUTISCHE MATHEMATIK FIX: Doppelte Variablen-Deklaration entfernt
@@ -689,6 +737,34 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
+// =========================================================================
+// HIGH-PERFORMANCE 4D SEGLER-ENGINE (AXIS-ALIGNED & FIXED)
+// =========================================================================
+
+/**
+ * Ermittelt dynamisch den minimalen Am-Wind-Winkel aus den Polardaten.
+ * Steht ganz oben, damit planRoute fehlerfrei darauf zugreifen kann!
+ */
+function getMinSailableTWA(polar, tws) {
+    if (!polar || !polar.tws || !polar.twa) return 45.0;
+    const sArr = polar.tws;
+    const aArr = polar.twa;
+    
+    let s_idx = sArr.findIndex(s => s >= tws);
+    if (s_idx === -1) s_idx = sArr.length - 1;
+
+    for (let i = 0; i < aArr.length; i++) {
+        const angle = aArr[i];
+        const speed = polar.speed[i][s_idx];
+        // Nutze deine echten Nullen: Sobald Fahrt > 0.5 Knoten, ist es fahrbar
+        if (speed > 0.5 && angle > 0) {
+            return parseFloat(angle); 
+        }
+    }
+    return 45.0; 
+}
+window.getMinSailableTWA = getMinSailableTWA;
+
 // --- 4. A* CORE ENGINE ---
 // =========================================================================
 // NAVIS A* SEGEL-ROUTER KERN (PROFIL- & WELLEN-VEKTOR ENGAGED)
@@ -696,11 +772,13 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
 // =========================================================================
 // --- 4. A* CORE ENGINE (MIT DYNAMISCHEN DEBUG-SCHALTERALEN FÜR WIND, WELLE, STRÖMUNG) ---
 // --- 4. A* CORE ENGINE (WIND-BEZUGSSYSTEM UND POLAR-INDEX-FIX) ---
+// --- 4. A* CORE ENGINE ---
 async function planRoute(start, ziel, optionen = {}) {
+    // Labor-Schaltzentrale für die Fehlersuche (Standard: Nur Wind aktiv!)
     const cfg = {
         wind: optionen.windAktiv !== undefined ? optionen.windAktiv : true,
-        welle: optionen.welleAktiv !== undefined ? optionen.welleAktiv : false,
-        stroemung: optionen.stroemungAktiv !== undefined ? optionen.stroemungAktiv : false,
+        welle: optionen.welleAktiv !== undefined ? optionen.welleAktiv : true,
+        stroemung: optionen.stroemungAktiv !== undefined ? optionen.stroemungAktiv : true,
         kursMalus: optionen.kursMalusAktiv !== undefined ? optionen.kursMalusAktiv : true,
         xteKorridor: optionen.xteAktiv !== undefined ? optionen.xteAktiv : true
     };
@@ -709,20 +787,24 @@ async function planRoute(start, ziel, optionen = {}) {
     const openHeap = new MinHeap();
     const openMap = new Map(); 
     const closedSet = new Set();
-    const goalRadiusNM = 0.5; 
+    const goalRadiusNM = 0.25; 
     const stepSize = 0.01; 
     
     const cosLat = Math.cos(start.lat * Math.PI / 180);
     const stepSizeLon = stepSize / Math.max(0.1, cosLat); 
     
-    // 128 High-Res Richtungen generieren
+    // 64 High-Res Richtungen generieren (Nautisch eingenordet)
     const NUM_DIRECTIONS = 128;
     const directions = [];
     for (let i = 0; i < NUM_DIRECTIONS; i++) {
-        const angleRad = (i * 2 * Math.PI) / NUM_DIRECTIONS;
+        const angleDeg = (i * 360) / NUM_DIRECTIONS;
+        const angleRad = angleDeg * Math.PI / 180;
+        
+        // KORREKTUR: dLat ist Y (Nord/Süd) -> Cosinus. dLon ist X (Ost/West) -> Sinus.
         directions.push({
             dLat: stepSize * Math.cos(angleRad),
-            dLon: stepSizeLon * Math.sin(angleRad)
+            dLon: stepSizeLon * Math.sin(angleRad),
+            angleDeg: angleDeg
         });
     }
     
@@ -734,23 +816,21 @@ async function planRoute(start, ziel, optionen = {}) {
         parent: null
     };
     
-    const startGridLat = Math.round(start.lat / stepSize);
-    const startGridLon = Math.round(start.lon / stepSizeLon);
-    const startKey4D = `${startGridLat},${startGridLon},0`;
-    
+    // Präziser Key verhindert Gitter-Verzerrungen und Überlagerungen
+    const startKey4D = `${start.lat.toFixed(2)},${start.lon.toFixed(2)},${NAVIS_ROUTE.weatherFrame}`;
     openHeap.insert(startNode);
     openMap.set(startKey4D, startNode.cost_g);
 
     while (openHeap.size() > 0) {
-        let current = openHeap.extractMin();
-        const currentHoursAhead = Math.min(Math.floor(current.g), 71); 
+		let current = openHeap.extractMin();
+
+		const currentHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.floor(current.g), 71);
         
-        const currentGridLat = Math.round(current.lat / stepSize);
-        const currentGridLon = Math.round(current.lon / stepSizeLon);
-        const currentKey4D = `${currentGridLat},${currentGridLon},${currentHoursAhead}`;
+        const currentKey4D = `${current.lat.toFixed(2)},${current.lon.toFixed(2)},${currentHoursAhead}`;
         
         if (closedSet.has(currentKey4D)) continue;
         closedSet.add(currentKey4D);
+		openMap.delete(currentKey4D);
         
         if (calculateDistance(current.lat, current.lon, ziel.lat, ziel.lon) <= goalRadiusNM) {
             return reconstructPath(current);
@@ -760,9 +840,11 @@ async function planRoute(start, ziel, optionen = {}) {
         if (current.parent) {
             incomingBearing = calculateBearing(current.parent.lat, current.parent.lon, current.lat, current.lon);
         }
-        
         const weather = getWeatherData(currentHoursAhead, current.lat, current.lon);
-        const optimalUpwindTWA = getCachedOptimalUpwindTWA(polar, weather.windSpeed);
+        
+        // Erkennt nun absolut fehlerfrei deine echten Nullen bis 45° aus der JSON-Datei!
+        const dynamicMinTWA = Math.max(44.0, getMinSailableTWA(polar, weather.windSpeed));
+        const optimalUpwindTWA = Math.max(45.0, getCachedOptimalUpwindTWA(polar, weather.windSpeed));
         
         for (let dir of directions) {
             let neighborLat = current.lat + dir.dLat;
@@ -772,41 +854,36 @@ async function planRoute(start, ziel, optionen = {}) {
             if (tileValue === 2) continue; 
             
             const dist = calculateDistance(current.lat, current.lon, neighborLat, neighborLon);
-            const heading = calculateBearing(current.lat, current.lon, neighborLat, neighborLon);
+            
+            // Nutzt den exakten, vordefinierten Kompasskurs des Rasters (eliminiert Rundungsfehler)
+            const heading = dir.angleDeg;
             
             // =========================================================================
-            // COGNITIVE FIX: WIND-EINFALLSWINKEL GEOMETRISCH REINFELGEN
+            // HARD-GUARD: DER TOTEN WINKEL AUS DEINEN POLARDATEN SPERREN
             // =========================================================================
             let twaDeg = 0;
             if (cfg.wind) {
-                // Berechne den absoluten Winkel zwischen Windrichtung und Fahrtrichtung
                 let angleDiff = Math.abs(weather.windDir - heading);
-                
-                // Da der Windkreis 360° hat, ist der maximale Einfallswinkel auf den Bug 180°
-                // Egal ob von Steuerbord (rechts) oder Backbord (links)
                 twaDeg = angleDiff > 180 ? 360 - angleDiff : angleDiff;
                 
-                // UNERBITTLICHER HARD-GUARD:
-                // Wenn der Einfallswinkel im toten Winkel deines Bootes liegt (< 45° auf den Bug),
-                // wird dieser Nachbarknoten komplett vernichtet. Das Boot DARF hier nicht herfahren!
-                if (twaDeg < 45.0) {
+                // Wenn der geplante Kurs im toten Winkel liegt -> Sofort überspringen!
+                if (twaDeg < dynamicMinTWA) {
                     continue; 
                 }
             }
             
-            // Ab hier sind wir zu 100% sicher im fahrbaren Segelwind-Bereich (45° bis 180°)
             let boatSpeed = 4.5; 
             if (cfg.wind) {
-                // Übergibt nun garantiert einen sauberen Wert zwischen 45 und 180 an dein Polar-Array!
                 boatSpeed = getBoatSpeedInterpolated(polar, twaDeg, weather.windSpeed);
-                
                 if (twaDeg < optimalUpwindTWA) {
                     const penalty = Math.pow(twaDeg / optimalUpwindTWA, 3); 
                     boatSpeed = boatSpeed * penalty;
                 }
             }
             
-            // Strömungsvektoren (Knoten)
+            // KORREKTUR: Die Geschwindigkeits-Vektoren sind nun exakt mit den Richtungs-Schritten synchronisiert!
+            // dLat nutzt Cosinus -> Also nutzt auch boatY (Nord/Süd) den Cosinus.
+            // dLon nutzt Sinus -> Also nutzt auch boatX (Ost/West) den Sinus.
             let boatX = boatSpeed * Math.sin(heading * Math.PI / 180);
             let boatY = boatSpeed * Math.cos(heading * Math.PI / 180);
             let streamX = 0, streamY = 0;
@@ -818,10 +895,11 @@ async function planRoute(start, ziel, optionen = {}) {
             }
             let speedOverGround = Math.sqrt((boatX + streamX) ** 2 + (boatY + streamY) ** 2);
             
-            // Wellen-Vektor
             if (cfg.welle) {
-                let waveEncounterAngle = Math.abs(heading - weather.windDir);
-                if (waveEncounterAngle > 180) waveEncounterAngle = 360 - waveEncounterAngle;
+                let waveEncounterAngle = Math.abs(heading - weather.waveDir);
+				if (waveEncounterAngle > 180)
+					waveEncounterAngle = 360 - waveEncounterAngle;
+				
                 const waveCos = Math.cos(waveEncounterAngle * Math.PI / 180);
                 let waveFactor = 1.0;
                 if (waveCos > 0) waveFactor = Math.max(0.4, 1.0 - (waveCos * weather.waveHeight * 0.4));
@@ -830,19 +908,98 @@ async function planRoute(start, ziel, optionen = {}) {
             }
             
             const effectiveSpeed = Math.max(0.1, speedOverGround);
-            let travelTime = dist / effectiveSpeed; 
-            let cost = travelTime;
+			let travelTime = dist / effectiveSpeed;
 
-            // Kurswechsel-Malus (2 Minuten Strafe gegen Flattern)
+			// =====================================================
+			// NAVIS PROFIL-KOSTENMODELL
+			// =====================================================
+
+			let cost = travelTime;
+			const profile = optionen.profile || "fastest";
+
+			// ------------------------------------
+			// ⚡ Schnellste Route
+			// ------------------------------------
+			if (profile === "fastest") {
+				cost = travelTime;
+			}
+
+			// ------------------------------------
+			// ⚓ Küstenroute
+			// ------------------------------------
+			else if (profile === "coastal") {
+				cost = travelTime;
+				// Küstenzellen bevorzugen
+				if (tileValue === 1) {
+					cost *= 0.7;
+				}
+			}
+
+			// ------------------------------------
+			// 🛡 Sicherste Route
+			// ------------------------------------
+			else if (profile === "safest") {
+				cost = travelTime;
+				// hohe Wellen bestrafen
+				cost += weather.waveHeight * 2.0;
+				// Starkwind bestrafen
+				cost += weather.windSpeed * 0.5;
+			}
+
+			// ------------------------------------
+			// 🛋 Komfort-Route
+			// ------------------------------------
+			else if (profile === "comfort") {
+				cost = travelTime;
+				// Wellen sehr stark gewichten
+				cost += weather.waveHeight * 3.0;
+				// Wind leicht gewichten
+				cost += weather.windSpeed * 0.2;
+			}
+
+			// ------------------------------------
+			// 💨 Wind vermeiden
+			// ------------------------------------
+			else if (profile === "avoid_wind") {
+				cost = travelTime;
+				cost += weather.windSpeed * 2.0;
+			}
+
+			// ------------------------------------
+			// 🌊 Wellen vermeiden
+			// ------------------------------------
+			else if (profile === "avoid_waves") {
+				cost = travelTime;
+				cost += weather.waveHeight * 5.0;
+			}
+
+			// ------------------------------------
+			// 🔋 Energieeffizient
+			// ------------------------------------
+			else if (profile === "eco") {
+				cost = travelTime;
+				// Gegenanlieger bestrafen
+				if (twaDeg < 60) {
+					cost += 2.0;
+				}
+				// starke Wellen kosten Energie
+				cost += weather.waveHeight * 1.5;
+				// starke Strömung gegenan bestrafen
+				if (weather.currentSpeed > 1.0) {
+					cost += weather.currentSpeed;
+				}
+			}
+
+            // Kurswechsel-Malus (2 Minuten bremst das Flattern aus)
             if (cfg.kursMalus && incomingBearing !== null) {
                 let headingChange = Math.abs(heading - incomingBearing);
                 if (headingChange > 180) headingChange = 360 - headingChange;
-                if (headingChange > 4.0) { 
-                    cost += 0.0333; 
-                }
+                if (headingChange > 4.0) {
+					cost += (headingChange / 90) * 0.15;
+				}
             }
 
-            // Cross-Track-Error (XTE Korridor)
+            // Cross-Track-Error (XTE Korridor schließt unkontrollierte Bögen aus)
             if (cfg.xteKorridor) {
                 const distStartToTarget = calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon);
                 if (distStartToTarget > 0.3) {
@@ -853,10 +1010,10 @@ async function planRoute(start, ziel, optionen = {}) {
                     if (angleDiff > 180) angleDiff = 360 - angleDiff;
                     
                     const crossTrackErrorNM = distStartToNeighbor * Math.sin(angleDiff * Math.PI / 180);
-                    const maxAllowedCrosstrackNM = 1.0; 
+                    const maxAllowedCrosstrackNM = 20.0; // 20 Seemeile Schlauchbreite
                     
-                    if (crossTrackErrorNM > maxAllowedCrosstrackNM) {
-                        const xteExcess = crossTrackErrorNM - maxAllowedCrosstrackNM;
+                    if (Math.abs(crossTrackErrorNM) > maxAllowedCrosstrackNM) {
+                        const xteExcess = Math.abs(crossTrackErrorNM) - maxAllowedCrosstrackNM;
                         cost += travelTime * Math.pow(xteExcess, 2) * 4.0; 
                     }
                 }
@@ -865,24 +1022,53 @@ async function planRoute(start, ziel, optionen = {}) {
             let tentative_g = current.g + travelTime;      
             let tentative_cost_g = current.cost_g + cost; 
             
-            const neighborHoursAhead = Math.min(Math.floor(tentative_g), 71);
-            const neighborGridLat = Math.round(neighborLat / stepSize);
-            const neighborGridLon = Math.round(neighborLon / stepSizeLon);
-            const neighborKey4D = `${neighborGridLat},${neighborGridLon},${neighborHoursAhead}`;
-            
+			const neighborHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame +	Math.floor(tentative_g), 71);
+			const neighborKey4D = `${neighborLat.toFixed(2)},${neighborLon.toFixed(2)},${neighborHoursAhead}`;
+	
             if (closedSet.has(neighborKey4D)) continue;
             
             const existingCostG = openMap.get(neighborKey4D);
             
             if (existingCostG === undefined || tentative_cost_g < existingCostG) {
-                const h = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / 4.5;
+                // AUSBALANCIERTE HEURISTIK: Berechnet die verbleibende Luftlinie zum Ziel stabil geteilt durch 4.0 Knoten.
+                // Das zieht den Suchbaum sauber nach vorn, ohne Am-Wind-Kurse künstlich abzustrafen.
+                const h = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / 4.0;
+                
                 const newNode = {
-                    lat: neighborLat, lon: neighborLon,
-                    g: tentative_g,       
-                    cost_g: tentative_cost_g, 
-                    f: tentative_cost_g + h,
-                    parent: current
-                };
+					lat: neighborLat,
+					lon: neighborLon,
+
+					// Routing
+					g: tentative_g,
+					cost_g: tentative_cost_g,
+					f: tentative_cost_g + h,
+
+					// Navigation
+					heading: heading,
+					distance: dist,
+
+					// Boot
+					boatSpeed: boatSpeed,
+					sog: speedOverGround,
+
+					// Wind
+					windSpeed: weather.windSpeed,
+					windDir: weather.windDir,
+					twa: twaDeg,
+
+					// Strömung
+					currentSpeed: weather.currentSpeed,
+					currentDir: weather.currentDir,
+					currentAngle:
+						Math.abs(((weather.currentDir - heading + 540) % 360) - 180),
+
+					// Wellen
+					waveHeight: weather.waveHeight,
+					waveDir: weather.waveDir,
+					waveAngle: Math.abs(((weather.waveDir - heading + 540) % 360) - 180), // Relativer Anlaufwinkel der Welle zum Bootskurs (0° = von vorn, 180° = von achtern)
+
+					parent: current
+				};
                 openHeap.insert(newNode);
                 openMap.set(neighborKey4D, tentative_cost_g);
             }
@@ -890,6 +1076,7 @@ async function planRoute(start, ziel, optionen = {}) {
     }
     return []; 
 }
+
 
 
 
@@ -915,7 +1102,24 @@ function reconstructPath(node) {
     let path = [];
     let curr = node;
     while (curr !== null) {
-        path.push({ lat: curr.lat, lon: curr.lon, timeElapsed: curr.g });
+        path.push({
+			lat: curr.lat,
+			lon: curr.lon,
+			eta: curr.g || 0,
+			timeElapsed: curr.g || 0,
+			heading: curr.heading || 0,
+            boatSpeed: curr.boatSpeed || 0,
+            sog: curr.sog || 0,
+            windSpeed: curr.windSpeed || 0,
+            windDir: curr.windDir || 0,
+            twa: curr.twa || 0,
+            currentSpeed: curr.currentSpeed || 0,
+            currentDir: curr.currentDir || 0,
+            currentAngle: curr.currentAngle || 0,
+            waveHeight: curr.waveHeight || 0,
+            waveDir: curr.waveDir || 0,
+            waveAngle: curr.waveAngle || 0
+        });
         curr = curr.parent;
     }
     return path.reverse();

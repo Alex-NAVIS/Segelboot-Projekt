@@ -3,25 +3,14 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="style.css">
 	<title>Bootssystem Übersicht</title>
 	<style>
-		body { background-color: #001a26; color: #00e6e6; font-family: "Segoe UI", Arial, sans-serif; margin: 0; overflow-x: hidden; text-align: center; }
-		header { background-color: #002b3a; color: #00ffff; padding: 15px; font-size: 1.8em; font-weight: bold; border-bottom: 2px solid #005566; }
-		#navbar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
-		.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 5px 12px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: all 0.2s ease-in-out; }
-		.navbtn:hover, .navbtn.active { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
-		#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; cursor: pointer; outline: none; }
-		#langSelect option { background: #001a26; color: #00ffff; }
 		@media (max-width: 600px) {
 			#navbar { gap: 6px; padding: 8px 4px; }
 			.navbtn { padding: 4px 8px; font-size: 0.8em; }
 		}
-
-		#wsStatus { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #ccc; z-index: 10; }
-		#wsLed { width: 12px; height: 12px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 6px rgba(255,0,0,0.8); }
-		#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px; font-size: .85em; font-weight: bold; cursor: pointer; }
-        #langSelect option { background: #001a26; color: #00ffff; }
-        .section-title { color: #00ffff; margin-top: 30px; font-size: 1.4em; border-bottom: 1px solid #007a99; display: inline-block; padding-bottom: 4px; }
+		.section-title { color: #00ffff; margin-top: 30px; font-size: 1.4em; border-bottom: 1px solid #007a99; display: inline-block; padding-bottom: 4px; }
 		.sensor-data { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 20px; }
 		.data-box { background-color: #003d52; border: 1px solid #007a99; border-radius: 10px; padding: 10px 15px; width: 220px; box-shadow: 0 0 6px rgba(0,255,255,0.2); }
 		.data-title { color: #66ffff; font-weight: bold; font-size: 1em; }
@@ -32,14 +21,15 @@
 		.switch:hover { background-color: #104a5f; }
 		.led { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-left: 8px; vertical-align: middle; background-color: red; box-shadow: 0 0 6px #ff0000; }
 		.switch.on .led { background-color: limegreen; box-shadow: 0 0 10px #00ff00; }
-		footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
 	</style>
-	<!-- Sprach-Manager vor dem Body laden -->
-	<script src="NAVIS_lang_manager.js"></script>
 </head>
 <body>
-	<header><div id="wsLed"></div>Bootssystem Übersicht</header>
+	<header>Bootssystem Übersicht</header>
 	<nav id="navbar">
+		<div id="wsStatus">
+			<div id="wsLed"></div>
+			<span>WS</span>
+		</div>
 		<a href="karte.html" class="navbtn" data-i18n="nav.map">Karte</a>
 		<a href="kompass.html" class="navbtn" data-i18n="nav.compass">Kompass</a>
 		<a href="horizont.html" class="navbtn" data-i18n="nav.horizon">Horizont</a>
@@ -50,10 +40,20 @@
 		
 		<div style="padding-left: 5px;">
 			<select id="langSelect" onchange="changeLanguage(this.value)">
-				<option value="de">Deutsch</option>
-				<option value="en">English</option>
-				<option value="fr">Français</option>
-				<option value="it">Italiano</option>
+				<!-- Standard-Sprachen -->
+				<option value="de" data-i18n="index_txt_10">Deutsch</option>
+				<option value="en" data-i18n="index_txt_11">English</option>
+				<option value="fr" data-i18n="index_txt_12">Français</option>
+				<option value="it" data-i18n="index_txt_13">Italiano</option>
+				<option value="es" data-i18n="index_txt_43">Español</option>
+				<option value="da" data-i18n="index_txt_44">Dansk</option>
+				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
+				<option value="no" data-i18n="index_txt_46">Norsk</option>
+				<option value="sv" data-i18n="index_txt_47">Svenska</option>
+				<option value="ru" data-i18n="index_txt_48">Русский</option>
+				<option value="pl" data-i18n="index_txt_49">Polski</option>
+				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
+				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
 			</select>
 		</div>
 	</nav>

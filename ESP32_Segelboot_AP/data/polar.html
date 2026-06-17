@@ -6,115 +6,71 @@
     <title>NAVIS Bootsprofile & Polardiagramm</title>
     <!-- Lokale Einbindung aus dem internen Ordner des ESP32 -->
     <script src="js/chart.min.js"></script>
-    <style>
-        :root {
-            --bg-main: #001a26;
-            --bg-panel: #002b3a;
-            --bg-input: #001f2b;
-            --border: #00aacc;
-            --accent: #00e5ff;
-            --accent2: #00ffff;
-            --button: #0088aa;
-            --button-hover: #00aacc;
-            --text: #ffffff;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            padding: 20px;
-            background: var(--bg-main);
-            color: var(--accent);
-            font-family: Arial, Helvetica, sans-serif;
-        }
-        h1, h2 { color: var(--accent2); margin-top: 0; margin-bottom: 15px; }
-        .dashboard {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-        .panel {
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            flex: 1;
-            min-width: 350px;
-        }
-        .panel-wide { flex: 2; min-width: 500px; }
-        .profile-list { display: flex; flex-wrap: wrap; gap: 10px; }
-        .profile-btn {
-            background: #004455; color: white; border: none;
-            border-radius: 6px; padding: 10px 14px; cursor: pointer;
-        }
-        .profile-btn:hover { background: #007799; }
-        .profile-btn.active { background: var(--button-hover); }
-        .button-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
-        button {
-            background: var(--button); color: white; border: none;
-            border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: bold;
-        }
-        button:hover { background: var(--button-hover); }
-        table { width: 100%; border-collapse: collapse; }
-        td { border: 1px solid #004455; padding: 6px; }
-        .info-table td:first-child { width: 180px; font-weight: bold; color: white; }
-        input, select {
-            width: 100%; background: var(--bg-input); color: white;
-            border: 1px solid var(--border); border-radius: 4px; padding: 6px;
-        }
-        .slider-container {
-            display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-        }
-        .slider-container label { width: 120px; color: white; font-weight: bold; }
-        .slider-container input[type="range"] { flex: 1; }
-        .slider-container span { width: 50px; text-align: right; color: var(--accent2); }
-        .chart-box { background: #ffffff; border-radius: 8px; padding: 15px; height: 420px; }
-        .toggle-table-btn {
-            background: #003344; color: #8fdfff; border: 1px dashed var(--border);
-            width: 100%; padding: 8px; margin-top: 10px; text-align: center; cursor: pointer;
-        }
-        .polar-container {
-            display: none; max-height: 300px; overflow-y: auto; margin-top: 10px;
-            border: 1px solid #004455; background: var(--bg-input);
-        }
-        .polar-table td { text-align: center; }
-        .polar-input { width: 60px; text-align: center; background: #000; border: 1px solid #005566; color: #fff; }
-        #activeProfile { font-size: 18px; font-weight: bold; color: white; }
-        #statusText { font-weight: bold; color: var(--accent2); }
-		
-		/* --- BASIS-STYLING FÜR DIE NAV-BAR --- */
+    
+	<style>
+		:root { --bg-main: #001a26; --bg-panel: #002b3a; --bg-input: #001f2b; --border: #00aacc; --accent: #00e5ff; --accent2: #00ffff; --button: #0088aa; --button-hover: #00aacc; --text: #ffffff; }
+		* { box-sizing: border-box; }
+		body { margin: 0; padding: 20px; background: var(--bg-main); color: var(--accent); font-family: Arial, Helvetica, sans-serif; }
+		h1, h2 { color: var(--accent2); margin-top: 0; margin-bottom: 15px; }
+		.dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
+		.panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 15px; margin-bottom: 20px; flex: 1; min-width: 350px; }
+		.panel-wide { flex: 2; min-width: 500px; }
+		.profile-list { display: flex; flex-wrap: wrap; gap: 10px; }
+		.profile-btn { background: #004455; color: white; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
+		.profile-btn:hover { background: #007799; }
+		.profile-btn.active { background: var(--button-hover); }
+		.button-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+		button { background: var(--button); color: white; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: bold; }
+		button:hover { background: var(--button-hover); }
+		table { width: 100%; border-collapse: collapse; }
+		td { border: 1px solid #004455; padding: 6px; }
+		.info-table td:first-child { width: 180px; font-weight: bold; color: white; }
+		input, select { width: 100%; background: var(--bg-input); color: white; border: 1px solid var(--border); border-radius: 4px; padding: 6px; }
+		.slider-container { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+		.slider-container label { width: 120px; color: white; font-weight: bold; }
+		.slider-container input[type="range"] { flex: 1; }
+		.slider-container span { width: 50px; text-align: right; color: var(--accent2); }
+		.chart-box { background: #ffffff; border-radius: 8px; padding: 15px; height: 420px; }
+		.toggle-table-btn { background: #003344; color: #8fdfff; border: 1px dashed var(--border); width: 100%; padding: 8px; margin-top: 10px; text-align: center; cursor: pointer; }
+		.polar-container { display: none; max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid #004455; background: var(--bg-input); }
+		.polar-table td { text-align: center; }
+		.polar-input { width: 60px; text-align: center; background: #000; border: 1px solid #005566; color: #fff; }
+		#activeProfile { font-size: 18px; font-weight: bold; color: white; }
+		#statusText { font-weight: bold; color: var(--accent2); }
 		#navbar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
-
-		/* --- BUTTON-STYLING --- */
 		.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 5px 12px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: all 0.2s ease-in-out; }
-
-		/* --- HOVER- UND AKTIV-EFFEKTE --- */
 		.navbtn:hover, .navbtn.active { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
-
-		/* --- SPRACHAUSWAHL --- */
 		#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; cursor: pointer; outline: none; }
 		#langSelect option { background: #001a26; color: #00ffff; }
-
-		/* --- RESPONSIVE ANPASSUNG (MOBILGERÄTE) --- */
 		@media (max-width: 600px) {
-			#navbar { gap: 6px; padding: 8px 4px; }
-			.navbtn { padding: 4px 8px; font-size: 0.8em; }
+		  #navbar { gap: 6px; padding: 8px 4px; }
+		  .navbtn { padding: 4px 8px; font-size: 0.8em; }
 		}
-
 		footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
-    </style>
+	</style>
 </head>
+
 <body>
 	<nav id="navbar">
 		<a href="index.html" class="navbtn" data-i18n="nav.overview">Übersicht</a>
 		<a href="system_settings.html" class="navbtn" data-i18n="nav.sys_settings">System</a>
 		
-		<div style="padding-left: 5px;">
+		<div style="padding:10px;">
 			<select id="langSelect" onchange="changeLanguage(this.value)">
-				<option value="de">Deutsch</option>
-				<option value="en">English</option>
-				<option value="fr">Français</option>
-				<option value="it">Italiano</option>
+				<!-- Standard-Sprachen -->
+				<option value="de" data-i18n="index_txt_10">Deutsch</option>
+				<option value="en" data-i18n="index_txt_11">English</option>
+				<option value="fr" data-i18n="index_txt_12">Français</option>
+				<option value="it" data-i18n="index_txt_13">Italiano</option>
+				<option value="es" data-i18n="index_txt_43">Español</option>
+				<option value="da" data-i18n="index_txt_44">Dansk</option>
+				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
+				<option value="no" data-i18n="index_txt_46">Norsk</option>
+				<option value="sv" data-i18n="index_txt_47">Svenska</option>
+				<option value="ru" data-i18n="index_txt_48">Русский</option>
+				<option value="pl" data-i18n="index_txt_49">Polski</option>
+				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
+				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
 			</select>
 		</div>
 	</nav>
