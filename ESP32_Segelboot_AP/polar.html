@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAVIS Bootsprofile & Polardiagramm</title>
+    <!-- Lokale Einbindung aus dem internen Ordner des ESP32 -->
+    <script src="js/chart.min.js"></script>
+    
+	<style>
+		:root { --bg-main: #001a26; --bg-panel: #002b3a; --bg-input: #001f2b; --border: #00aacc; --accent: #00e5ff; --accent2: #00ffff; --button: #0088aa; --button-hover: #00aacc; --text: #ffffff; }
+		* { box-sizing: border-box; }
+		body { margin: 0; padding: 20px; background: var(--bg-main); color: var(--accent); font-family: Arial, Helvetica, sans-serif; }
+		h1, h2 { color: var(--accent2); margin-top: 0; margin-bottom: 15px; }
+		.dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
+		.panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 15px; margin-bottom: 20px; flex: 1; min-width: 350px; }
+		.panel-wide { flex: 2; min-width: 500px; }
+		.profile-list { display: flex; flex-wrap: wrap; gap: 10px; }
+		.profile-btn { background: #004455; color: white; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
+		.profile-btn:hover { background: #007799; }
+		.profile-btn.active { background: var(--button-hover); }
+		.button-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+		button { background: var(--button); color: white; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: bold; }
+		button:hover { background: var(--button-hover); }
+		table { width: 100%; border-collapse: collapse; }
+		td { border: 1px solid #004455; padding: 6px; }
+		.info-table td:first-child { width: 180px; font-weight: bold; color: white; }
+		input, select { width: 100%; background: var(--bg-input); color: white; border: 1px solid var(--border); border-radius: 4px; padding: 6px; }
+		.slider-container { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+		.slider-container label { width: 120px; color: white; font-weight: bold; }
+		.slider-container input[type="range"] { flex: 1; }
+		.slider-container span { width: 50px; text-align: right; color: var(--accent2); }
+		.chart-box { background: #ffffff; border-radius: 8px; padding: 15px; height: 420px; }
+		.toggle-table-btn { background: #003344; color: #8fdfff; border: 1px dashed var(--border); width: 100%; padding: 8px; margin-top: 10px; text-align: center; cursor: pointer; }
+		.polar-container { display: none; max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid #004455; background: var(--bg-input); }
+		.polar-table td { text-align: center; }
+		.polar-input { width: 60px; text-align: center; background: #000; border: 1px solid #005566; color: #fff; }
+		#activeProfile { font-size: 18px; font-weight: bold; color: white; }
+		#statusText { font-weight: bold; color: var(--accent2); }
+		#navbar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
+		.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 5px 12px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: all 0.2s ease-in-out; }
+		.navbtn:hover, .navbtn.active { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
+		#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; cursor: pointer; outline: none; }
+		#langSelect option { background: #001a26; color: #00ffff; }
+		@media (max-width: 600px) {
+		  #navbar { gap: 6px; padding: 8px 4px; }
+		  .navbtn { padding: 4px 8px; font-size: 0.8em; }
+		}
+		footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
+	</style>
+</head>
+
+<body>
+	<nav id="navbar">
+		<a href="index.html" class="navbtn" data-i18n="nav.overview">Übersicht</a>
+		<a href="system_settings.html" class="navbtn" data-i18n="nav.sys_settings">System</a>
+		
+		<div style="padding:10px;">
+			<select id="langSelect" onchange="changeLanguage(this.value)">
+				<!-- Standard-Sprachen -->
+				<option value="de" data-i18n="index_txt_10">Deutsch</option>
+				<option value="en" data-i18n="index_txt_11">English</option>
+				<option value="fr" data-i18n="index_txt_12">Français</option>
+				<option value="it" data-i18n="index_txt_13">Italiano</option>
+				<option value="es" data-i18n="index_txt_43">Español</option>
+				<option value="da" data-i18n="index_txt_44">Dansk</option>
+				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
+				<option value="no" data-i18n="index_txt_46">Norsk</option>
+				<option value="sv" data-i18n="index_txt_47">Svenska</option>
+				<option value="ru" data-i18n="index_txt_48">Русский</option>
+				<option value="pl" data-i18n="index_txt_49">Polski</option>
+				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
+				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
+			</select>
+		</div>
+	</nav>
+    <h1>⚓ NAVIS Bootsprofilmanager</h1>
+
+    <div class="dashboard">
+        <!-- LINKE SPALTE: STAMMDATEN & SMART SLIDER -->
+        <div class="panel">
+            <h2>Bootsvorlage auswählen</h2>
+			<select id="boatTemplate" onchange="loadBoatTemplate(this.value)">
+				<option value="">-- Vorlage auswählen --</option>
+
+				<optgroup label="Kleinkreuzer">
+					<option value="neptun22">Neptun 22</option>
+					<option value="varianta65">Varianta 65</option>
+					<option value="etap22">Etap 22</option>
+				</optgroup>
+
+				<optgroup label="Fahrtensegler">
+					<option value="sirius26">Sirius 26</option>
+					<option value="sirius31">Sirius 31</option>
+					<option value="friendship28">Friendship 28</option>
+					<option value="hallbergrassy26">Hallberg-Rassy 26</option>
+				</optgroup>
+
+				<optgroup label="Performance">
+					<option value="dehler25">Dehler 25</option>
+					<option value="dehler31">Dehler 31</option>
+					<option value="x79">X-79</option>
+					<option value="first317">First 31.7</option>
+				</optgroup>
+
+				<optgroup label="Katamarane">
+					<option value="lagoon380">Lagoon 380</option>
+					<option value="bali42">Bali 4.2</option>
+					<option value="leopard40">Leopard 40</option>
+					<option value="excess11">Excess 11</option>
+					<option value="fountainepajot40">Fountaine Pajot Isla 40</option>
+				</optgroup>
+
+			</select>
+
+			<br><br>
+
+			<h2>Aktives Boot: <span id="activeProfile">Benutzerprofil</span></h2>
+            
+            <h2>Bootsdaten (Sicherheitsgrenzen)</h2>
+            <table class="info-table">
+                <tr><td>Name</td><td><input id="bootName" value="Mein Boot"></td></tr>
+                <tr><td>Länge (m)</td><td><input id="bootLength" type="number" step="0.1" value="6.7"></td></tr>
+                <tr><td>Breite (m)</td><td><input id="bootBeam" type="number" step="0.1" value="2.4"></td></tr>
+                <tr><td>Tiefgang (m) [Wasser]</td><td><input id="bootDraft" type="number" step="0.1" value="1.3"></td></tr>
+                <tr><td>Masthöhe (m) [Brücken]</td><td><input id="bootMastHeight" type="number" step="0.1" value="9.0"></td></tr>
+                <tr><td>Verdrängung (kg)</td><td><input id="bootDisplacement" type="number" value="1200"></td></tr>
+                <tr><td>Motorfahrt (kn) [Flaute]</td><td><input id="bootMotorSpeed" type="number" step="0.1" value="5.5"></td></tr>
+                <tr><td>VMG Upwind (°)</td><td><input id="bootVMGUpwind" type="number" value="45"></td></tr>
+                <tr><td>VMG Downwind (°)</td><td><input id="bootVMGDownwind" type="number" value="145"></td></tr>
+            </table>
+
+            <h2 style="margin-top:20px;">Smart-Polar-Kurven-Editor</h2>
+            <p style="font-size:12px; color:#8fdfff;">Wähle eine Windstärke. Die Regler passen die Hauptpunkte im Diagramm an. Restliche Winkel werden automatisch interpoliert.</p>
+            
+            <label>Zu bearbeitende Windstärke:</label>
+            <select id="select-wind-edit" onchange="ladeSmartSliderAusTabelle()" style="margin-bottom:15px;">
+                <option value="6">Leichter Wind (6 kn)</option>
+                <option value="8">Wind (8 kn)</option>
+                <option value="10">Wind (10 kn)</option>
+                <option value="12" selected>Mittlerer Wind (12 kn)</option>
+                <option value="15">Wind (15 kn)</option>
+                <option value="20">Starker Wind (20 kn)</option>
+                <option value="25">Sturm (25 kn)</option>
+            </select>
+
+            <div id="smart-sliders">
+                <div class="slider-container"><label>Am Wind (45°):</label><input type="range" id="slide-45" min="0" max="12" step="0.1" value="4.0" oninput="onSliderChange(45, this.value)"><span>4.0</span> kn</div>
+                <div class="slider-container"><label>Flach (60°):</label><input type="range" id="slide-60" min="0" max="12" step="0.1" value="5.0" oninput="onSliderChange(60, this.value)"><span>5.0</span> kn</div>
+                <div class="slider-container"><label>Halbwind (90°):</label><input type="range" id="slide-90" min="0" max="12" step="0.1" value="6.5" oninput="onSliderChange(90, this.value)"><span>6.5</span> kn</div>
+                <div class="slider-container"><label>Raumschots (120°):</label><input type="range" id="slide-120" min="0" max="12" step="0.1" value="6.0" oninput="onSliderChange(120, this.value)"><span>6.0</span> kn</div>
+                <div class="slider-container"><label>Soll-Halse (150°):</label><input type="range" id="slide-150" min="0" max="12" step="0.1" value="5.2" oninput="onSliderChange(150, this.value)"><span>5.2</span> kn</div>
+                <div class="slider-container"><label>Vor dem Wind (180°):</label><input type="range" id="slide-180" min="0" max="12" step="0.1" value="4.0" oninput="onSliderChange(180, this.value)"><span>4.0</span> kn</div>
+            </div>
+        </div>
+
+        <!-- RECHTE SPALTE: DIAGRAMM & LOOKUP-TABELLE -->
+        <div class="panel panel-wide">
+            <h2>Nautisches Polardiagramm (Gespiegeltes 360°-Bootsprofil)</h2>
+            <div class="chart-box">
+                <canvas id="polarChartCanvas"></canvas>
+            </div>
+
+            <div class="toggle-table-btn" onclick="toggleRohdatenTabelle()">🛠️ Komplette 196-Felder-Tabelle anzeigen/verbergen</div>
+            <div id="polarContainer" class="polar-container"></div>
+
+            <h2>Aktionen</h2>
+			<!-- NAVIS Bootsprofil-Aktionen -->
+			<div class="flex flex-col gap-3 mt-6 w-full max-w-2xl">
+				<!-- Erste Zeile: Speichern und Exportieren nebeneinander -->
+				<div class="flex flex-row gap-3 w-full">
+					<!-- 1. Speichern (An ESP32 senden) -->
+					<button onclick="saveCurrentProfile()" class="flex-1 flex items-center justify-center gap-2 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200">
+						<span>💾</span> <span class="whitespace-nowrap">Profil speichern</span>
+					</button>
+
+					<!-- 2. Exportieren (Lokales Backup) -->
+					<button onclick="downloadProfileBackup()" class="flex-1 flex items-center justify-center gap-2 h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200">
+						<span>📥</span> <span class="whitespace-nowrap">Profil exportieren</span>
+					</button>
+				</div>
+
+				<!-- Zweite Zeile: Importieren über die volle Breite darunter -->
+				<label class="w-full flex items-center justify-center gap-2 h-11 bg-slate-600 hover:bg-slate-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200 cursor-pointer text-center select-none m-0">
+					<span>📂</span> <span class="whitespace-nowrap">Profil importieren</span>
+					<input type="file" accept=".json" onchange="uploadProfileBackup(event)" class="hidden">
+				</label>
+			</div>
+            <br>
+            <h2>Systemstatus: <span id="statusText">Bereit</span></h2>
+        </div>
+    </div>
+
+	<footer>
+		<strong>Marine Dashboard v1.1</strong><br>
+		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
+		© 2025 – Bootssystem ESP32 • Live Monitoring
+	</footer>
+    <script>
+        // Reparierte Arrays mit deinen exakten Gittervorgaben aus der originalen Struktur
+        const NAVIS_ANGLES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180];
+        const NAVIS_WINDS = [6, 8, 10, 12, 15, 20, 25];
+		const BOAT_TEMPLATES = {
+			neptun22: {
+				name: "Neptun 22",
+				length: 6.70,
+				beam: 2.40,
+				draft: 1.30,
+				mastHeight: 9.00,
+				displacement: 1200,
+				motorSpeed: 5.5,
+				vmgUpwind: 45,
+				vmgDownwind: 145,
+				polarDefaults: {
+					45:  {6:2.6, 8:3.2, 10:3.8, 12:4.2, 15:4.5, 20:4.8, 25:4.8},
+					60:  {6:3.3, 8:4.0, 10:4.5, 12:4.9, 15:5.2, 20:5.5, 25:5.5},
+					90:  {6:4.1, 8:4.8, 10:5.2, 12:5.5, 15:5.8, 20:6.0, 25:6.0},
+					120: {6:4.3, 8:5.0, 10:5.4, 12:5.7, 15:5.9, 20:6.1, 25:6.1},
+					150: {6:3.7, 8:4.3, 10:4.7, 12:5.0, 15:5.2, 20:5.5, 25:5.5},
+					180: {6:3.0, 8:3.5, 10:3.9, 12:4.2, 15:4.5, 20:4.8, 25:4.8}
+
+				}
+			},
+
+			varianta65: {
+				name: "Varianta 65",
+				length: 6.50,
+				beam: 2.10,
+				draft: 1.15,
+				mastHeight: 8.50,
+				displacement: 1050,
+				motorSpeed: 5.0,
+				vmgUpwind: 45,
+				vmgDownwind: 145,
+				polarDefaults: {
+					45:  {6:2.8, 8:3.5, 10:4.1, 12:4.6, 15:4.9, 20:5.1, 25:5.1},
+					60:  {6:3.5, 8:4.3, 10:4.9, 12:5.4, 15:5.7, 20:5.9, 25:5.9},
+					90:  {6:4.3, 8:5.1, 10:5.6, 12:6.0, 15:6.2, 20:6.3, 25:6.3},
+					120: {6:4.4, 8:5.2, 10:5.7, 12:6.1, 15:6.3, 20:6.4, 25:6.4},
+					150: {6:3.9, 8:4.6, 10:5.1, 12:5.5, 15:5.7, 20:5.8, 25:5.8},
+					180: {6:3.2, 8:3.8, 10:4.3, 12:4.7, 15:5.0, 20:5.2, 25:5.2}
+				}
+			},
+
+			etap22: {
+				name: "Etap 22",
+				length: 6.60,
+				beam: 2.45,
+				draft: 1.25,
+				mastHeight: 9.20,
+				displacement: 1350,
+				motorSpeed: 5.5,
+				vmgUpwind: 45,
+				vmgDownwind: 145,
+				polarDefaults: {
+					45:  {6:2.5, 8:3.1, 10:3.7, 12:4.1, 15:4.4, 20:4.7, 25:4.7},
+					60:  {6:3.2, 8:3.9, 10:4.4, 12:4.8, 15:5.1, 20:5.4, 25:5.4},
+					90:  {6:4.0, 8:4.7, 10:5.2, 12:5.5, 15:5.8, 20:6.0, 25:6.0},
+					120: {6:4.2, 8:4.9, 10:5.4, 12:5.7, 15:5.9, 20:6.1, 25:6.1},
+					150: {6:3.7, 8:4.3, 10:4.8, 12:5.1, 15:5.3, 20:5.5, 25:5.5},
+					180: {6:3.0, 8:3.5, 10:4.0, 12:4.3, 15:4.6, 20:4.8, 25:4.8}
+				}
+			},
+
+			sirius26: {
+				name: "Sirius 26",
+				length: 7.90,
+				beam: 2.75,
+				draft: 1.30,
+				mastHeight: 11.00,
+				displacement: 2800,
+				motorSpeed: 6.0,
+				vmgUpwind: 45,
+				vmgDownwind: 145,
+				polarDefaults: {
+					45:  {6:2.4, 8:3.0, 10:3.5, 12:3.9, 15:4.2, 20:4.5, 25:4.5},
+					60:  {6:3.1, 8:3.8, 10:4.3, 12:4.7, 15:5.0, 20:5.3, 25:5.3},
+					90:  {6:3.9, 8:4.6, 10:5.1, 12:5.5, 15:5.8, 20:6.0, 25:6.0},
+					120: {6:4.1, 8:4.8, 10:5.3, 12:5.6, 15:5.9, 20:6.1, 25:6.1},
+					150: {6:3.6, 8:4.2, 10:4.7, 12:5.0, 15:5.3, 20:5.5, 25:5.5},
+					180: {6:2.9, 8:3.4, 10:3.9, 12:4.2, 15:4.5, 20:4.7, 25:4.7}
+				}
+			},
+
+			sirius31: {
+				name: "Sirius 31",
+				length: 9.30,
+				beam: 3.10,
+				draft: 1.45,
+				mastHeight: 13.50,
+				displacement: 5200,
+				motorSpeed: 6.0,
+				vmgUpwind: 45,
+				vmgDownwind: 145,
+				polarDefaults: {
+					45:  {6:2.6, 8:3.3, 10:3.9, 12:4.4, 15:4.8, 20:5.1, 25:5.1},
+					60:  {6:3.4, 8:4.2, 10:4.9, 12:5.4, 15:5.8, 20:6.2, 25:6.2},
+					90:  {6:4.4, 8:5.3, 10:6.0, 12:6.5, 15:6.8, 20:7.0, 25:7.0},
+					120: {6:4.6, 8:5.5, 10:6.2, 12:6.7, 15:7.0, 20:7.2, 25:7.2},
+					150: {6:4.0, 8:4.8, 10:5.5, 12:6.0, 15:6.3, 20:6.6, 25:6.6},
+					180: {6:3.3, 8:4.0, 10:4.6, 12:5.1, 15:5.5, 20:5.8, 25:5.8}
+				}
+			},
+
+			friendship28: {
+				name: "Friendship 28",
+				length: 8.60,
+				beam: 2.95,
+				draft: 1.40,
+				mastHeight: 12.50,
+				displacement: 3400,
+				motorSpeed: 6.0,
+				vmgUpwind: 44,
+				vmgDownwind: 145,
+				polarDefaults: {
+					45:  {6:3.0, 8:3.8, 10:4.5, 12:5.0, 15:5.4, 20:5.8, 25:5.8},
+					60:  {6:3.8, 8:4.7, 10:5.4, 12:6.0, 15:6.4, 20:6.8, 25:6.8},
+					90:  {6:4.8, 8:5.8, 10:6.4, 12:6.9, 15:7.2, 20:7.4, 25:7.4},
+					120: {6:5.0, 8:6.0, 10:6.6, 12:7.1, 15:7.4, 20:7.6, 25:7.6},
+					150: {6:4.4, 8:5.3, 10:5.9, 12:6.4, 15:6.8, 20:7.0, 25:7.0},
+					180: {6:3.6, 8:4.4, 10:5.0, 12:5.5, 15:5.9, 20:6.2, 25:6.2}
+				}
+			},
+
+			hallbergrassy26: {
+				name: "Hallberg-Rassy 26",
+				length: 8.00,
+				beam: 2.65,
+				draft: 1.35,
+				mastHeight: 11.20,
+				displacement: 3200,
+				motorSpeed: 5.8,
+				vmgUpwind: 45,
+				vmgDownwind: 145,
+				polarDefaults: {
+					45:  {6:2.3, 8:2.9, 10:3.4, 12:3.8, 15:4.1, 20:4.4, 25:4.4},
+					60:  {6:3.0, 8:3.6, 10:4.1, 12:4.5, 15:4.8, 20:5.1, 25:5.1},
+					90:  {6:3.8, 8:4.4, 10:4.9, 12:5.3, 15:5.6, 20:5.8, 25:5.8},
+					120: {6:4.0, 8:4.6, 10:5.1, 12:5.5, 15:5.8, 20:6.0, 25:6.0},
+					150: {6:3.5, 8:4.0, 10:4.5, 12:4.9, 15:5.2, 20:5.4, 25:5.4},
+					180: {6:2.8, 8:3.3, 10:3.7, 12:4.1, 15:4.4, 20:4.6, 25:4.6}
+				}
+			},
+
+			dehler25: {
+				name: "Dehler 25",
+				length: 7.50,
+				beam: 2.50,
+				draft: 1.45,
+				mastHeight: 11.50,
+				displacement: 2200,
+				motorSpeed: 6.0,
+				vmgUpwind: 42,
+				vmgDownwind: 150,
+				polarDefaults: {
+					45:  {6:3.4, 8:4.3, 10:5.0, 12:5.5, 15:5.9, 20:6.2, 25:6.2},
+					60:  {6:4.2, 8:5.2, 10:6.0, 12:6.5, 15:6.9, 20:7.2, 25:7.2},
+					90:  {6:5.2, 8:6.2, 10:6.9, 12:7.3, 15:7.6, 20:7.8, 25:7.8},
+					120: {6:5.4, 8:6.4, 10:7.1, 12:7.5, 15:7.8, 20:8.0, 25:8.0},
+					150: {6:4.8, 8:5.8, 10:6.5, 12:6.9, 15:7.2, 20:7.5, 25:7.5},
+					180: {6:4.0, 8:4.9, 10:5.5, 12:6.0, 15:6.4, 20:6.7, 25:6.7}
+				}
+			},
+
+			dehler31: {
+				name: "Dehler 31",
+				length: 9.40,
+				beam: 3.00,
+				draft: 1.65,
+				mastHeight: 14.00,
+				displacement: 4200,
+				motorSpeed: 6.5,
+				vmgUpwind: 42,
+				vmgDownwind: 150,
+				polarDefaults: {
+					45:  {6:3.8, 8:4.8, 10:5.3, 12:5.8, 15:6.1, 20:6.4, 25:6.4},
+					60:  {6:4.8, 8:5.8, 10:6.4, 12:6.9, 15:7.2, 20:7.5, 25:7.5},
+					90:  {6:5.7, 8:6.7, 10:7.3, 12:7.8, 15:8.1, 20:8.4, 25:8.4},
+					120: {6:6.0, 8:7.0, 10:7.6, 12:8.1, 15:8.4, 20:8.7, 25:8.7},
+					150: {6:5.2, 8:6.2, 10:6.9, 12:7.4, 15:7.7, 20:8.0, 25:8.0},
+					180: {6:4.3, 8:5.3, 10:6.0, 12:6.5, 15:6.9, 20:7.2, 25:7.2}
+				}
+			},
+
+			x79: {
+				name: "X-79",
+				length: 7.90,
+				beam: 2.90,
+				draft: 1.35,
+				mastHeight: 11.80,
+				displacement: 1500,
+				motorSpeed: 6.2,
+				vmgUpwind: 40,
+				vmgDownwind: 155,
+				polarDefaults: {
+					45:  {6:4.0, 8:5.0, 10:5.8, 12:6.3, 15:6.8, 20:7.2, 25:7.2},
+					60:  {6:5.0, 8:6.1, 10:6.9, 12:7.5, 15:8.0, 20:8.4, 25:8.4},
+					90:  {6:6.0, 8:7.1, 10:7.9, 12:8.5, 15:9.0, 20:9.5, 25:9.5},
+					120: {6:6.3, 8:7.4, 10:8.2, 12:8.8, 15:9.3, 20:9.8, 25:9.8},
+					150: {6:5.6, 8:6.7, 10:7.5, 12:8.1, 15:8.6, 20:9.0, 25:9.0},
+					180: {6:4.8, 8:5.8, 10:6.6, 12:7.1, 15:7.6, 20:8.0, 25:8.0}
+				}
+			},
+
+			first317: {
+				name: "First 31.7",
+				length: 9.50,
+				beam: 3.25,
+				draft: 1.90,
+				mastHeight: 14.50,
+				displacement: 3750,
+				motorSpeed: 6.5,
+				vmgUpwind: 40,
+				vmgDownwind: 155,
+				polarDefaults: {
+					45:  {6:4.2, 8:5.3, 10:6.1, 12:6.7, 15:7.2, 20:7.6, 25:7.6},
+					60:  {6:5.3, 8:6.5, 10:7.3, 12:7.9, 15:8.4, 20:8.9, 25:8.9},
+					90:  {6:6.4, 8:7.6, 10:8.4, 12:9.0, 15:9.5, 20:10.0, 25:10.0},
+					120: {6:6.7, 8:7.9, 10:8.7, 12:9.3, 15:9.8, 20:10.3, 25:10.3},
+					150: {6:6.0, 8:7.1, 10:7.9, 12:8.5, 15:9.0, 20:9.5, 25:9.5},
+					180: {6:5.1, 8:6.2, 10:7.0, 12:7.6, 15:8.1, 20:8.5, 25:8.5}
+				}
+			},
+			
+			lagoon380: {
+				name: "Lagoon 380",
+				length: 11.55,
+				beam: 6.53,
+				draft: 1.15,
+				mastHeight: 17.00,
+				displacement: 7260,
+				motorSpeed: 7.5,
+				vmgUpwind: 50,
+				vmgDownwind: 160,
+				polarDefaults: {
+					45:  {6:3.8, 8:5.0, 10:6.0, 12:6.8, 15:7.5, 20:8.0, 25:8.0},
+					60:  {6:5.2, 8:6.7, 10:8.0, 12:9.0, 15:10.0, 20:11.0, 25:11.0},
+					90:  {6:6.0, 8:8.0, 10:9.5, 12:10.5, 15:12.0, 20:13.0, 25:13.0},
+					120: {6:6.5, 8:8.5, 10:10.0, 12:11.5, 15:13.0, 20:14.0, 25:14.0},
+					150: {6:6.0, 8:7.8, 10:9.2, 12:10.5, 15:12.0, 20:13.0, 25:13.0},
+					180: {6:5.0, 8:6.5, 10:7.8, 12:9.0, 15:10.0, 20:11.0, 25:11.0}
+				}
+			},
+			
+			bali42: {
+				name: "Bali 4.2",
+				length: 12.85,
+				beam: 7.08,
+				draft: 1.12,
+				mastHeight: 18.50,
+				displacement: 11500,
+				motorSpeed: 8.0,
+				vmgUpwind: 52,
+				vmgDownwind: 160,
+				polarDefaults: {
+					45:  {6:4.0, 8:5.3, 10:6.4, 12:7.2, 15:8.0, 20:8.5, 25:8.5},
+					60:  {6:5.5, 8:7.2, 10:8.6, 12:9.8, 15:10.8, 20:11.8, 25:11.8},
+					90:  {6:6.5, 8:8.7, 10:10.3, 12:11.5, 15:13.0, 20:14.0, 25:14.0},
+					120: {6:7.0, 8:9.2, 10:10.8, 12:12.0, 15:13.5, 20:14.5, 25:14.5},
+					150: {6:6.3, 8:8.4, 10:9.9, 12:11.2, 15:12.5, 20:13.5, 25:13.5},
+					180: {6:5.3, 8:7.0, 10:8.3, 12:9.6, 15:10.8, 20:11.8, 25:11.8}
+				}
+			},
+
+			leopard40: {
+				name: "Leopard 40",
+				length: 11.99,
+				beam: 6.72,
+				draft: 1.25,
+				mastHeight: 18.20,
+				displacement: 9240,
+				motorSpeed: 8.0,
+				vmgUpwind: 50,
+				vmgDownwind: 160,
+				polarDefaults: {
+					45:  {6:4.2, 8:5.5, 10:6.6, 12:7.5, 15:8.2, 20:8.8, 25:8.8},
+					60:  {6:5.8, 8:7.5, 10:9.0, 12:10.2, 15:11.2, 20:12.2, 25:12.2},
+					90:  {6:6.8, 8:9.0, 10:10.8, 12:12.0, 15:13.5, 20:14.5, 25:14.5},
+					120: {6:7.2, 8:9.5, 10:11.2, 12:12.5, 15:14.0, 20:15.0, 25:15.0},
+					150: {6:6.5, 8:8.7, 10:10.3, 12:11.6, 15:13.0, 20:14.0, 25:14.0},
+					180: {6:5.5, 8:7.3, 10:8.7, 12:10.0, 15:11.2, 20:12.2, 25:12.2}
+				}
+			},
+
+			excess11: {
+				name: "Excess 11",
+				length: 11.42,
+				beam: 6.59,
+				draft: 1.15,
+				mastHeight: 18.30,
+				displacement: 9000,
+				motorSpeed: 8.0,
+				vmgUpwind: 48,
+				vmgDownwind: 160,
+				polarDefaults: {
+					45:  {6:4.5, 8:6.0, 10:7.2, 12:8.2, 15:9.0, 20:9.8, 25:9.8},
+					60:  {6:6.2, 8:8.0, 10:9.8, 12:11.0, 15:12.5, 20:13.5, 25:13.5},
+					90:  {6:7.2, 8:9.8, 10:11.8, 12:13.2, 15:15.0, 20:16.0, 25:16.0},
+					120: {6:7.8, 8:10.4, 10:12.4, 12:13.8, 15:15.5, 20:16.5, 25:16.5},
+					150: {6:7.0, 8:9.3, 10:11.0, 12:12.5, 15:14.0, 20:15.0, 25:15.0},
+					180: {6:5.8, 8:7.8, 10:9.2, 12:10.6, 15:12.0, 20:13.0, 25:13.0}
+				}
+			},
+
+			fountainepajot40: {
+				name: "Fountaine Pajot Isla 40",
+				length: 11.93,
+				beam: 6.63,
+				draft: 1.21,
+				mastHeight: 19.00,
+				displacement: 9400,
+				motorSpeed: 8.0,
+				vmgUpwind: 50,
+				vmgDownwind: 160,
+				polarDefaults: {
+					45:  {6:4.1, 8:5.4, 10:6.5, 12:7.4, 15:8.1, 20:8.8, 25:8.8},
+					60:  {6:5.7, 8:7.4, 10:8.9, 12:10.1, 15:11.3, 20:12.3, 25:12.3},
+					90:  {6:6.8, 8:9.0, 10:10.7, 12:12.0, 15:13.5, 20:14.5, 25:14.5},
+					120: {6:7.3, 8:9.6, 10:11.3, 12:12.7, 15:14.2, 20:15.2, 25:15.2},
+					150: {6:6.6, 8:8.8, 10:10.4, 12:11.8, 15:13.2, 20:14.2, 25:14.2},
+					180: {6:5.5, 8:7.3, 10:8.8, 12:10.1, 15:11.4, 20:12.4, 25:12.4}
+				}
+			}
+		};
+		
+        let currentProfile = null;
+        let polarChart = null;
+
+        function setStatus(text) { document.getElementById("statusText").innerText = text; }
+        
+		function loadBoatTemplate(templateId) {
+			if (!BOAT_TEMPLATES[templateId]) return;
+			const b = BOAT_TEMPLATES[templateId];
+			document.getElementById("activeProfile").innerText = b.name;
+			document.getElementById("bootName").value = b.name;
+			document.getElementById("bootLength").value = b.length;
+			document.getElementById("bootBeam").value = b.beam;
+			document.getElementById("bootDraft").value = b.draft;
+			document.getElementById("bootMastHeight").value = b.mastHeight;
+			document.getElementById("bootDisplacement").value = b.displacement;
+			document.getElementById("bootMotorSpeed").value = b.motorSpeed;
+			document.getElementById("bootVMGUpwind").value = b.vmgUpwind;
+			document.getElementById("bootVMGDownwind").value = b.vmgDownwind;
+			if (b.polarDefaults) {
+				applyPolarDefaults(b.polarDefaults);
+			}
+			setStatus("Bootsvorlage geladen: " + b.name);
+		}
+		
+		function applyPolarDefaults(polarDefaults) {
+			if (!polarDefaults) return;
+			Object.keys(polarDefaults).forEach(angle => {
+				Object.keys(polarDefaults[angle]).forEach(wind => {
+					const input = document.querySelector(
+						`.polar-input[data-angle="${angle}"][data-wind="${wind}"]`
+					);
+					if (input) {
+						input.value = polarDefaults[angle][wind];
+					}
+				});
+			});
+			NAVIS_WINDS.forEach(wind => {
+				interpoliereZwischenWinkel(wind);
+			});
+			ladeSmartSliderAusTabelle();
+			updateChartVisuals();
+		}
+		
+        function toggleRohdatenTabelle() {
+            const c = document.getElementById("polarContainer");
+            c.style.display = (c.style.display === "block") ? "none" : "block";
+        }
+
+        function generatePolarTableStructures(profile = null) {
+            const container = document.getElementById("polarContainer");
+            let html = '<table><tr><th>Winkel</th>';
+            NAVIS_WINDS.forEach(w => { html += `<th>${w} kn</th>`; });
+            html += '</tr>';
+
+            const defaultSpeeds = { 45: 3.0, 60: 4.2, 90: 5.5, 120: 5.8, 150: 4.6, 180: 3.6 };
+
+            NAVIS_ANGLES.forEach(angle => {
+                html += `<tr><td><b>${angle}°</b></td>`;
+                NAVIS_WINDS.forEach(speed => {
+                    let val = 0.0;
+                    if(profile && profile.polar && profile.polar[angle] && profile.polar[angle][speed] !== undefined) {
+                        val = profile.polar[angle][speed];
+                    } else {
+                        let closestKey = Object.keys(defaultSpeeds).reduce((a, b) => Math.abs(b - angle) < Math.abs(a - angle) ? b : a);
+                        val = (defaultSpeeds[closestKey] * (speed / 12)).toFixed(1);
+                    }
+                    html += `<td><input class="polar-input" type="number" step="0.1" value="${val}" data-angle="${angle}" data-wind="${speed}" oninput="onTableInput(this)"></td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        function initPolarChart() {
+            const ctx = document.getElementById('polarChartCanvas').getContext('2d');
+            
+            let labels360 = [];
+            for (let a = 0; a < 360; a += 5) {
+                if (a <= 180) {
+                    labels360.push(a + "° STB");
+                } else {
+                    labels360.push((360 - a) + "° BB");
+                }
+            }
+
+            try {
+                polarChart = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: labels360,
+                        datasets: [
+                            { label: '6 kn Wind', data: new Array(72).fill(0), borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.03)', borderWidth: 2, pointRadius: 0 },
+                            { label: '12 kn Wind', data: new Array(72).fill(0), borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.03)', borderWidth: 2, pointRadius: 0 },
+                            { label: '20 kn Wind', data: new Array(72).fill(0), borderColor: '#e74c3c', backgroundColor: 'rgba(231, 76, 60, 0.03)', borderWidth: 2, pointRadius: 0 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        startAngle: -90, 
+                        scale: {
+                            ticks: { beginAtZero: true, max: 12 },
+                            gridLines: { color: 'rgba(0,170,204,0.15)' },
+                            angleLines: { color: 'rgba(0,170,204,0.25)' }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Chart.js Init Fehler:", e);
+            }
+        }
+
+        function updateChartVisuals() {
+            if (!polarChart) return;
+            const windIndices = { 6: 0, 12: 1, 20: 2 };
+            const targetWinds = [6, 12, 20];
+            
+            targetWinds.forEach(wKn => {
+                let datasetIdx = windIndices[wKn];
+                let points360 = [];
+                
+                for (let a = 0; a < 360; a += 5) {
+                    let zielWinkel = a;
+                    if (a > 180) zielWinkel = 360 - a;
+                    
+                    if (zielWinkel < 45) {
+                        points360.push(0); 
+                    } else {
+                        const input = document.querySelector(`.polar-input[data-angle="${zielWinkel}"][data-wind="${wKn}"]`);
+                        points360.push(parseFloat(input ? input.value : 0));
+                    }
+                }
+                
+                if(polarChart.data.datasets[datasetIdx]) {
+                    polarChart.data.datasets[datasetIdx].data = points360;
+                }
+            });
+            polarChart.update();
+        }
+
+        function onSliderChange(angle, value) {
+            const currentWind = document.getElementById("select-wind-edit").value;
+            const sliderSpan = document.querySelector(`#smart-sliders #slide-${angle} ~ span`);
+            if (sliderSpan) sliderSpan.innerText = parseFloat(value).toFixed(1);
+            
+            const targetInput = document.querySelector(`.polar-input[data-angle="${angle}"][data-wind="${currentWind}"]`);
+            if (targetInput) targetInput.value = value;
+
+            interpoliereZwischenWinkel(currentWind);
+            updateChartVisuals();
+        }
+
+        function onTableInput(input) {
+            ladeSmartSliderAusTabelle();
+            updateChartVisuals();
+        }
+
+        function interpoliereZwischenWinkel(wind) {
+            const keyAngles = [45, 60, 90, 120, 150, 180]; 
+            for (let i = 0; i < keyAngles.length - 1; i++) {
+                let angA = keyAngles[i];
+                let angB = keyAngles[i+1];
+                let valA = parseFloat(document.querySelector(`.polar-input[data-angle="${angA}"][data-wind="${wind}"]`)?.value || 0);
+                let valB = parseFloat(document.querySelector(`.polar-input[data-angle="${angB}"][data-wind="${wind}"]`)?.value || 0);
+
+                NAVIS_ANGLES.forEach(ang => {
+                    if (ang > angA && ang < angB) {
+                        let ratio = (ang - angA) / (angB - angA);
+                        let interpolatedVal = valA + ratio * (valB - valA);
+                        let midInput = document.querySelector(`.polar-input[data-angle="${ang}"][data-wind="${wind}"]`);
+                        if (midInput) midInput.value = interpolatedVal.toFixed(1);
+                    }
+                });
+            }
+        }
+
+		function ladeSmartSliderAusTabelle() {
+			const currentWind = document.getElementById("select-wind-edit").value;
+			const keyAngles = [45, 60, 90, 120, 150, 180];
+			keyAngles.forEach(ang => {
+				const input = document.querySelector(`.polar-input[data-angle="${ang}"][data-wind="${currentWind}"]`);
+				const val = input ? parseFloat(input.value) : 0.0;
+				const slider = document.getElementById(`slide-${ang}`);
+				if (slider) {
+					slider.value = val;
+
+					const sliderSpan = document.querySelector(`#smart-sliders #slide-${ang} ~ span`);
+
+					if (sliderSpan) {
+						sliderSpan.innerText = val.toFixed(1);
+					}
+				}
+			});
+		}
+
+        function collectProfileData() {
+            const profile = {
+                name: document.getElementById("bootName").value,
+                length: parseFloat(document.getElementById("bootLength").value || 0),
+                beam: parseFloat(document.getElementById("bootBeam").value || 0),
+                draft: parseFloat(document.getElementById("bootDraft").value || 1.5),
+                displacement: parseFloat(document.getElementById("bootDisplacement").value || 0),
+                mastHeight: parseFloat(document.getElementById("bootMastHeight").value || 12.0),
+                motorSpeed: parseFloat(document.getElementById("bootMotorSpeed").value || 5.0),
+                vmgUpwind: parseFloat(document.getElementById("bootVMGUpwind").value || 45),
+                vmgDownwind: parseFloat(document.getElementById("bootVMGDownwind").value || 145),
+                windSpeeds: NAVIS_WINDS,
+                polar: {}
+            };
+
+            document.querySelectorAll('.polar-input').forEach(input => {
+                const angle = input.dataset.angle;
+                const wind = input.dataset.wind;
+                if (!profile.polar[angle]) {
+                    profile.polar[angle] = {};
+                }
+                profile.polar[angle][wind] = parseFloat(input.value || 0);
+            });
+            return profile;
+        }
+
+		// Funktion 1: Exportiert die aktuellen Tabellendaten direkt als .json-Datei
+		function downloadProfileBackup() {
+			try {
+				const profile = collectProfileData(); // Nutzt deine vorhandene Datensammlung
+				const jsonString = JSON.stringify(profile, null, 2); // Schön formatiert
+				
+				// Dateiname basierend auf dem Bootsnamen generieren
+				const bootName = document.getElementById("bootName").value.trim() || "myboot";
+				const fileName = `${bootName.replace(/[^a-z0-9]/gi, '_')}_polar_backup.json`;
+				
+				// Download-Trigger im Browser erzeugen
+				const blob = new Blob([jsonString], { type: "application/json" });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement("a");
+				
+				a.href = url;
+				a.download = fileName;
+				document.body.appendChild(a);
+				a.click();
+				
+				// Aufräumen
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+				setStatus("📥 Backup erfolgreich heruntergeladen");
+			} catch (e) {
+				console.error("Backup download failed:", e);
+				setStatus("❌ Fehler beim Erstellen der Backup-Datei");
+			}
+		}
+
+		// Funktion 2: Liest eine lokale .json-Datei ein und befüllt die Maske (ohne direkt zum ESP32 zu senden)
+		function uploadProfileBackup(event) {
+			const file = event.target.files[0];
+			if (!file) return;
+
+			const reader = new FileReader();
+			reader.onload = function(e) {
+				try {
+					const profile = JSON.parse(e.target.result);
+					
+					// Validierung, ob es sich um ein echtes Profil handelt
+					if (!profile.name && !profile.polar) {
+						throw new Error("Ungültiges Dateiformat");
+					}
+					
+					// Profil in die UI laden (Nutzt die korrigierte Funktion von vorhin)
+					applyProfileData(profile);
+					
+					setStatus("📂 Backup erfolgreich in die Maske geladen. Bitte 'Speichern' klicken!");
+					
+					// Input-Feld zurücksetzen, damit dieselbe Datei erneut gewählt werden kann
+					event.target.value = '';
+				} catch (err) {
+					setStatus("❌ Fehler: Ungültige oder beschädigte JSON-Datei");
+					event.target.value = '';
+				}
+			};
+			reader.readAsText(file);
+		}
+
+		async function saveCurrentProfile() {
+		  try {
+			const profile = collectProfileData();
+			const jsonString = JSON.stringify(profile);
+			
+			// Exakte Byte-Größe statt Zeichenanzahl bestimmen
+			const sizeBytes = new Blob([jsonString]).size;
+			if (sizeBytes > 20000) {
+			  setStatus(`❌ Profil zu groß (${sizeBytes} Byte / max. 20000 Byte)`);
+			  return;
+			}
+
+			setStatus("⏳ Übertrage Polardaten...");
+
+			const response = await fetch("/api/polar/save", {
+			  method: "POST",
+			  headers: {
+				"Content-Type": "application/json"
+			  },
+			  body: jsonString
+			});
+
+			// Versuche immer, die JSON-Antwort des Servers zu lesen
+			let result = {};
+			try {
+			  result = await response.json();
+			} catch (jsonError) {
+			  // Falls der Server keine valide JSON-Antwort geliefert hat
+			  result.message = `Server-Fehler (${response.status})`;
+			}
+
+			// HTTP-Status 200-299 abfangen
+			if (response.ok) {
+			  setStatus(`💾 ${result.message || "Polardaten erfolgreich gespeichert"}`);
+			} else {
+			  // Hier werden die C++ Fehler (400, 413, 500) direkt im UI sichtbar gemacht
+			  setStatus(`❌ Fehler ${response.status}: ${result.message || "Speichern fehlgeschlagen"}`);
+			}
+
+		  } catch (e) {
+			// Fängt Netzwerkfehler ab (z.B. ESP32 Offline, Verbindungsabbruch)
+			console.error("Polar Save Error:", e);
+			setStatus(`❌ Verbindungsfehler: Der Boot-Server antwortet nicht.`);
+		  }
+		}
+
+		async function loadCurrentProfile() {
+			try {
+				const response = await fetch("/api/polar/inquiry", {
+					method: "GET"
+				});
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}`);
+				}
+				const profile = await response.json();
+				if (!profile || Object.keys(profile).length === 0) {
+					setStatus("⚠️ Kein gespeichertes Profil gefunden");
+					return;
+				}
+				applyProfileData(profile);
+				setStatus("✅ Profil geladen");
+			} catch (error) {
+				console.error("Profil laden fehlgeschlagen:", error);
+				setStatus("❌ Profil konnte nicht geladen werden");
+			}
+		}
+		
+		function applyProfileData(profile) {
+			if (!profile) return;
+			// 1. Stammdaten (Sicherheitsgrenzen) befüllen
+			if (profile.name !== undefined) document.getElementById("bootName").value = profile.name;
+			if (profile.length !== undefined) document.getElementById("bootLength").value = profile.length;
+			if (profile.beam !== undefined) document.getElementById("bootBeam").value = profile.beam;
+			if (profile.draft !== undefined) document.getElementById("bootDraft").value = profile.draft;
+			if (profile.mastHeight !== undefined) document.getElementById("bootMastHeight").value = profile.mastHeight;
+			if (profile.displacement !== undefined) document.getElementById("bootDisplacement").value = profile.displacement;
+			if (profile.motorSpeed !== undefined) document.getElementById("bootMotorSpeed").value = profile.motorSpeed;
+			if (profile.vmgUpwind !== undefined) document.getElementById("bootVMGUpwind").value = profile.vmgUpwind;
+			if (profile.vmgDownwind !== undefined) document.getElementById("bootVMGDownwind").value = profile.vmgDownwind;
+
+			// Setze den Anzeigenamen über der Tabelle
+			document.getElementById("activeProfile").innerText = profile.name || "Benutzerprofil";
+
+			// 2. Polardaten in die 196-Felder-Tabelle eintragen
+			if (profile.polar) {
+				Object.keys(profile.polar).forEach(angle => {
+					Object.keys(profile.polar[angle]).forEach(wind => {
+						const input = document.querySelector(`.polar-input[data-angle="${angle}"][data-wind="${wind}"]`);
+						if (input) {
+							input.value = parseFloat(profile.polar[angle][wind]).toFixed(1);
+						}
+					});
+				});
+
+				// Interpolation für alle Windstärken nachziehen, falls Lücken im JSON waren
+				if (typeof interpoliereZwischenWinkel === "function") {
+					NAVIS_WINDS.forEach(wind => {
+						interpoliereZwischenWinkel(wind);
+					});
+				}
+			}
+
+			// 3. UI-Elemente und Diagramm auf Basis der neuen Daten synchronisieren
+			if (typeof ladeSmartSliderAusTabelle === "function") {
+				ladeSmartSliderAusTabelle();
+			}
+			if (typeof updateChartVisuals === "function") {
+				updateChartVisuals();
+			}
+		}
+
+        // Dom-Ready Initialisierungsschleife
+        document.addEventListener("DOMContentLoaded", () => {
+            generatePolarTableStructures();
+			loadCurrentProfile();
+            initPolarChart();
+            ladeSmartSliderAusTabelle();
+            updateChartVisuals();
+        });
+    </script>
+</body>
+</html>
