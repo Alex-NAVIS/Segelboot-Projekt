@@ -1,3 +1,26 @@
+/* =========================================================================
+ * NAVIS DATENQUELLE
+ * =========================================================================
+ * "PC"  = Lokaler Entwicklungsserver
+ * "ESP" = ESP32 / LittleFS
+ * "AUTO" = Automatische Erkennung
+ * =========================================================================
+ */
+const NAVIS_DATENQUELLE = "AUTO";
+
+function getWeatherMode() {
+    if (NAVIS_DATENQUELLE === "PC") {
+        return "PC";
+    }
+    if (NAVIS_DATENQUELLE === "ESP") {
+        return "ESP";
+    }
+    // AUTO
+    return (
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1"
+    ) ? "PC" : "ESP";
+}
 
 /* ----------------------------------------------------------------------
 ⛵ NAVIS 72h Offline-Wettersystem - JavaScript-Steuerung (PC & Boot)
@@ -28,7 +51,8 @@ let currentCurrentLayer = null; // Referenz auf die aktuell animierten Strömung
  * 
  * 2. ⛵ BORD-BETRIEB / ESP32-MODUS (LittleFS-Index-Auslesung)
  *    - Greift im regulären Schiffsbetrieb über das WLAN-Bordnetz des ESP32-Mikrocontrollers.
- *    - Lädt eine statische Indexdatei '/Wetter/index.json'. Ein angehängter Zeitstempel 
+ *    - Ruft den ESP32-Endpunkt '/api/weather/list' auf. Der ESP32 scannt das LittleFS-Verzeichnis '/Wetter'
+ *      dynamisch und liefert die verfügbaren Wetterdateien als JSON-Array zurück.. Ein angehängter Zeitstempel 
  *      ('?t=Date.now()') erzwingt den Abruf direkt aus dem Flash-Speicher ohne Browser-Cache.
  *    - Iteriert durch das JSON-Array und bindet die Pfade ('f.file') und Reviernamen 
  *      ('f.label') direkt als Optionen in das Auswahlmenü ein.
@@ -41,14 +65,11 @@ let currentCurrentLayer = null; // Referenz auf die aktuell animierten Strömung
 function initNavisWeather() {
     const select = document.getElementById('weather-file-select');
     if (!select) return;
-
-    // Erkennt, ob die Karte lokal auf dem PC-Server läuft
-    const isPCServer = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-    if (isPCServer) {
-        console.log("⛵ NAVIS: PC-Servermodus aktiv. Scanne Ordner /Wetter/ dynamisch...");
-        // Wir rufen direkt den Ordner auf. Der Python-Server antwortet mit einer HTML-Dateiliste
-        fetch('Wetter/')
+    const mode = getWeatherMode();
+	if (mode === "PC") {
+		console.log("⛵ NAVIS: PC-Servermodus aktiv. Scanne Ordner /Wetter/ dynamisch...");
+		// Wir rufen direkt den Ordner auf. Der Python-Server antwortet mit einer HTML-Dateiliste
+		fetch('Wetter/')
             .then(res => res.text())
             .then(htmlText => {
                 select.innerHTML = '<option value="">-- Revier --</option>';
@@ -64,7 +85,12 @@ function initNavisWeather() {
                     if (href && href.endsWith('.json') && href !== 'index.json') {
                         dateiGefunden = true;
                         // Erzeuge ein schönes Label aus dem Dateinamen (z.B. wind_ostsee_kiel.json -> Ostsee Kiel)
-                        let label = href.replace('.json', '').replace('wind_', '').replace('_', ' ');
+                        let label = href
+							.replace('.json', '')
+							.replace(/^wind_/, '')
+							.split('_')
+							.map(word => word.charAt(0).toUpperCase() + word.slice(1))
+							.join(' ');
                         // Worte im Label groß schreiben (Capitalize)
                         label = label.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
@@ -85,7 +111,7 @@ function initNavisWeather() {
             });
     } else {
         // Normaler Boot-Betrieb über das echte ESP32-LittleFS auf See (Nutzt Ihre index.json)
-        fetch('/Wetter/index.json?t=' + Date.now())
+        fetch('/api/weather/list?t=' + Date.now())
             .then(res => {
                 if (!res.ok) throw new Error("Indexdatei auf ESP32 fehlt.");
                 return res.json();
@@ -139,8 +165,8 @@ function loadNewWeatherData(fileUrl) {
     if (slider) slider.disabled = true;
 
     // Cache-Buster nur im echten Boot-Modus (HTTP/WLAN) nutzen
-    const isPC = window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const fetchUrl = fileUrl + (isPC ? '' : '?t=' + Date.now());
+    const mode = getWeatherMode();
+	const fetchUrl = fileUrl + (mode === "ESP" ? '?t=' + Date.now() : '');
 
     fetch(fetchUrl)
         .then(res => {
@@ -659,6 +685,11 @@ document.addEventListener("DOMContentLoaded", () => {
             updateWeatherFrame(currentHourIdx);
         });
     }
+	
+	const weatherImport = document.getElementById( "weather-import-file");
+	if (weatherImport) {
+		weatherImport.addEventListener("change", uploadWeatherFile);
+	}
 });
 
 /* =========================================================================
@@ -735,4 +766,63 @@ function toggleWeatherPanel() {
         panel.classList.add("collapsed");
         btn.innerText = "⤢";
     }
+}
+
+function openWeatherImportDialog() {
+    const input = document.getElementById("weather-import-file");
+    if (!input) {
+        return;
+    }
+    input.value = ""; // wichtig: erlaubt Re-Upload derselben Datei
+    input.click();
+}
+
+async function uploadWeatherFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        // ------------------------------------------------
+        // NAVIS Wetterdatei prüfen
+        // ------------------------------------------------
+        if (!json.metadata || json.metadata.format !== "NAVIS-WEATHER-V1") {
+            alert("Keine gültige NAVIS Wetterdatei.");
+            return;
+        }
+        // ------------------------------------------------
+        // Upload vorbereiten
+        // ------------------------------------------------
+        const uploadFile = new File(
+                [file],
+                "Wetter/" + file.name,
+                {
+                    type: "application/json"
+                }
+            );
+        const formData = new FormData();
+        formData.append("file",uploadFile,uploadFile.name);
+        // ------------------------------------------------
+        // Upload
+        // ------------------------------------------------
+        const response = await fetch(
+                "/upload",
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+        const result = await response.text();
+        if (!response.ok) {
+            throw new Error(result || "Upload fehlgeschlagen");
+        }
+        alert("Wetterdatei erfolgreich importiert.");
+        // Dropdown aktualisieren
+        initNavisWeather();
+    }
+    catch(error) {
+        console.error(error);
+        alert("Import fehlgeschlagen:\n" + error.message);
+    }
+    event.target.value = "";
 }
