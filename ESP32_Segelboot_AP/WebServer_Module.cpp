@@ -623,55 +623,75 @@ void listDir(fs::FS &fs, String dirname, String &json) {
 
 // ======================================================================
 // Bezeichnung: handleWetterRequest
-// Erklärung: Verarbeitet HTTP-Anfragen für spezifische Wetter-Dateien.
-// Prüft die Existenz der angeforderten Datei im LittleFS,
-// ermittelt den passenden Content-Type (JSON oder Text)
-// und sendet die Datei an den Client zurück.
+// Erklärung: Verarbeitet Anfragen für spezifische Wetter-Konfigurationen.
+//            Validiert den Pfad auf das Verzeichnis "/Wetter/", prüft
+//            die Existenz der Datei im LittleFS und streamt diese an den
+//            Client. Erzwingt Header für die Deaktivierung des Cachings.
+// Parameter: request - Der eingehende HTTP-Request (URL entspricht Dateipfad)
+// Rückgabe:  Keine (Antwort via HTTP 200 Stream, HTTP 403 oder HTTP 404)
 // ======================================================================
 void handleWetterRequest(AsyncWebServerRequest *request) {
-  String path = request->url();  // z.B. /Wetter/wind1.json
-  Serial.println("Wetter Request: " + path);
+  String path = request->url();
+  if (!path.startsWith("/Wetter/")) {
+    request->send(403, "text/plain", "Zugriff verweigert");
+    return;
+  }
   if (!LittleFS.exists(path)) {
     request->send(404, "text/plain", "Datei nicht gefunden");
     return;
   }
-  // Content-Type bestimmen (optional aber sauber)
   String contentType = "application/json";
-  if (path.endsWith(".json")) contentType = "application/json";
-  else if (path.endsWith(".txt")) contentType = "text/plain";
-  request->send(LittleFS, path, contentType);
+  if (path.endsWith(".txt"))
+    contentType = "text/plain";
+  AsyncWebServerResponse *response = request->beginResponse(LittleFS, path, contentType);
+  response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  request->send(response);
 }
 
 // ======================================================================
 // Bezeichnung: handleWetterIndex
-// Erklärung: Erstellt eine dynamische Liste aller verfügbaren Wetter-
-// Konfigurationen. Scannt das Verzeichnis "/Wetter" nach
-// JSON-Dateien und gibt deren Namen und Labels als
-// strukturiertes JSON-Array an den Webserver zurück.
+// Erklärung: Scannt das LittleFS-Verzeichnis "/Wetter" nach JSON-Dateien
+//            und schließt dabei "index.json" explizit aus. Erstellt ein
+//            strukturiertes JSON-Array, das Dateinamen und Labels enthält,
+//            und sendet dieses in UTF-8-Kodierung an den Webclient.
+// Parameter: request - Der eingehende HTTP-Request des AsyncWebservers
+// Rückgabe:  Keine (antwortet direkt mit HTTP 200 oder HTTP 500 bei Fehler)
 // ======================================================================
 void handleWetterIndex(AsyncWebServerRequest *request) {
   Serial.println("Wetter Index angefragt");
-  String json = "[";
   File root = LittleFS.open("/Wetter");
-  File file = root.openNextFile();
+  if (!root || !root.isDirectory()) {
+    request->send(
+      500,
+      "application/json",
+      "{\"error\":\"Wetterverzeichnis nicht gefunden\"}");
+    return;
+  }
+  String json = "[";
   bool first = true;
+  File file = root.openNextFile();
   while (file) {
-    String name = file.name();
-    if (name.endsWith(".json")) {
-      // Dateiname extrahieren (ohne Pfad)
-      int slash = name.lastIndexOf('/');
-      if (slash >= 0) name = name.substring(slash + 1);
-      if (!first) json += ",";
-      first = false;
-      json += "{";
-      json += "\"file\":\"" + name + "\",";  // Dateiname
-      json += "\"label\":\"" + name + "\"";  // Label identisch
-      json += "}";
+    if (!file.isDirectory()) {
+      String name = file.name();
+      if (name.endsWith(".json") && !name.endsWith("index.json")) {
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0)
+          name = name.substring(slash + 1);
+        if (!first)
+          json += ",";
+        first = false;
+        json += "{";
+        json += "\"file\":\"" + name + "\",";
+        json += "\"label\":\"" + name + "\"";
+        json += "}";
+      }
     }
+    file.close();
     file = root.openNextFile();
   }
+  root.close();
   json += "]";
-  request->send(200, "application/json", json);
+  request->send(200, "application/json; charset=utf-8", json);
 }
 
 // ======================================================================
