@@ -195,41 +195,40 @@ void handleTiles(AsyncWebServerRequest *request) {
 }
 
 // ======================================================================
-// Bezeichnung: handleTideStation
-// Erklärung:   Extrahiert den Dateinamen aus der Anfrage-URL, um Gezeiten-
-//              daten (CSV) aus einem spezifischen SD-Verzeichnis ("/tide/")
-//              auszuliefern. Die Funktion implementiert Mutex-geschützten
-//              SD-Zugriff, umfangreiches Debug-Logging und deaktiviert
-//              das Client-Caching für stets aktuelle Daten.
+// Bezeichnung: handleNavTiles
+// Erklärung:   Liefert eigene Navigations-Kacheln (tiles_nav) von der 
+//              SD-Karte aus. Nutzt den gleichen Mutex zur Thread-Sicherheit.
 // ======================================================================
-void handleTideStation(AsyncWebServerRequest *request) {
+void handleNavTiles(AsyncWebServerRequest *request) {
   String path = request->url();
-  path.replace("/tide_station/", "");
-  String fullPath = "/tide/" + path;
-  if (DEBUG_MODE_SERVER) {
-    Serial.print("[TideStation] Request URL: ");
-    Serial.println(request->url());
-    Serial.print("[TideStation] Datei-Name extrahiert: ");
-    Serial.println(path);
-    Serial.print("[TideStation] Voller Pfad auf SD: ");
-    Serial.println(fullPath);
-  }
-  if (!sd_file_exists(fullPath)) {
-    if (DEBUG_MODE_SERVER) Serial.println("[TideStation] Datei NICHT gefunden, sende 404");
-    request->send(404, "text/plain", "Datei nicht gefunden");
+  
+  // Eigene Verfügbarkeitsprüfung (nutzt aktuell dieselbe Flagge)
+  if (!USE_SD_TILES) {
+    request->send(404, "text/plain", "Nav-Tiles nicht verfuegbar");
     return;
   }
-  if (xSemaphoreTake(sdMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
-    if (DEBUG_MODE_SERVER) Serial.println("[TideStation] SD busy, sende 503");
-    request->send(503, "text/plain", "SD busy");
+  // Sicherheits-Check: Nur Zugriffe im Nav-Ordner erlauben
+  if (!path.startsWith("/tiles_nav/")) {
+    request->send(403, "text/plain", "Zugriff verweigert");
     return;
   }
-  if (DEBUG_MODE_SERVER) Serial.println("[TideStation] Datei existiert, sende Response");
-  AsyncWebServerResponse *response = request->beginResponse(SD, fullPath, "text/csv", false);
-  response->addHeader("Cache-Control", "no-cache");
+  // Mutex für SD-Zugriff holen
+  if (xSemaphoreTake(sdMutex, pdMS_TO_TICKS(250)) != pdTRUE) {
+    request->send(503, "text/plain", "SD busy (Nav)");
+    return;
+  }
+  // Prüfen, ob die Kachel existiert
+  if (!sd_file_exists(path)) {
+    xSemaphoreGive(sdMutex);
+    request->send(404, "text/plain", "Nav-Tile nicht gefunden");
+    return;
+  }
+  // Antwort senden (Cache-Control kann hier bei Bedarf angepasst werden)
+  AsyncWebServerResponse *response = request->beginResponse(SD, path, "image/png", false);
+  response->addHeader("Cache-Control", "public, max-age=604800, immutable");
+  response->addHeader("Connection", "close");
   request->send(response);
   xSemaphoreGive(sdMutex);
-  if (DEBUG_MODE_SERVER) Serial.println("[TideStation] Datei gesendet, Mutex freigegeben");
 }
 
 // ======================================================================
@@ -495,42 +494,6 @@ void handleAutopilotStatus(AsyncWebServerRequest *request) {
   String out;
   serializeJson(doc, out);
   request->send(200, "application/json", out);
-}
-
-// ======================================================================
-// Bezeichnung: handleTideCurve
-// Erklärung:   Verarbeitet Geodaten-Anfragen (Latitude, Longitude, Radius),
-//              um nahegelegene Gezeitenstationen zu finden. Die Funktion
-//              validiert die Eingabeparameter, führt eine Umkreissuche
-//              durch und sendet die Ergebnisse (Name, Position, Distanz)
-//              als JSON-Array via Stream-Response direkt an den Client,
-//              um den Arbeitsspeicher zu schonen.
-// ======================================================================
-void handleTideCurve(AsyncWebServerRequest *request) {
-  if (!request->hasParam("lat") || !request->hasParam("lon") || !request->hasParam("radius")) {
-    request->send(400, "text/plain", "missing lat/lon/radius");
-    return;
-  }
-  tideQueryLat = request->getParam("lat")->value().toDouble();
-  tideQueryLon = request->getParam("lon")->value().toDouble();
-  tideQueryRadiusSM = request->getParam("radius")->value().toDouble();
-  if (tideQueryRadiusSM < 1.0) tideQueryRadiusSM = 1.0;
-  if (!findTideStations()) {
-    request->send(200, "application/json", "[]");
-    return;
-  }
-  AsyncResponseStream *response = request->beginResponseStream("application/json");
-  StaticJsonDocument<4096> doc;
-  JsonArray arr = doc.to<JsonArray>();
-  for (uint8_t i = 0; i < tideStationCount; i++) {
-    JsonObject s = arr.createNestedObject();
-    s["name"] = tideStations[i].name;
-    s["lat"] = tideStations[i].lat;
-    s["lon"] = tideStations[i].lon;
-    s["dist"] = tideStations[i].distanceSM;
-  }
-  serializeJson(arr, *response);
-  request->send(response);
 }
 
 // ======================================================================
@@ -998,8 +961,6 @@ void setupWebServer() {
   });
 
   // 6. Gezeiten-API
-  server.on("/tide_curve", HTTP_GET, handleTideCurve);
-  server.on("/tide_station/*", HTTP_GET, handleTideStation);
 
   // 7. System & Sensoren
   server.on("/getSystem", HTTP_GET, handleGetSystem);
@@ -1007,6 +968,7 @@ void setupWebServer() {
     "/mastdata", HTTP_POST, [](AsyncWebServerRequest *r) {}, NULL, handleMastBody);
   server.on("/setSystem", HTTP_GET, handleSetSystem);
   server.on("/tiles/*", HTTP_GET, handleTiles);
+  server.on("/nav_tiles/*", HTTP_GET, handleNavTiles);
   server.on("/resetLog", HTTP_GET, [](AsyncWebServerRequest *request) {
     sensorData.sm_counter = 0.0;
     request->send(200, "text/plain", "OK");
