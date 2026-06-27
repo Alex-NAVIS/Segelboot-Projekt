@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="css/style.css">
     <title>NAVIS Bootsprofile & Polardiagramm</title>
     <!-- Lokale Einbindung aus dem internen Ordner des ESP32 -->
     <script src="js/chart.min.js"></script>
@@ -10,7 +11,6 @@
 	<style>
 		:root { --bg-main: #001a26; --bg-panel: #002b3a; --bg-input: #001f2b; --border: #00aacc; --accent: #00e5ff; --accent2: #00ffff; --button: #0088aa; --button-hover: #00aacc; --text: #ffffff; }
 		* { box-sizing: border-box; }
-		body { margin: 0; padding: 20px; background: var(--bg-main); color: var(--accent); font-family: Arial, Helvetica, sans-serif; }
 		h1, h2 { color: var(--accent2); margin-top: 0; margin-bottom: 15px; }
 		.dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
 		.panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 15px; margin-bottom: 20px; flex: 1; min-width: 350px; }
@@ -26,10 +26,6 @@
 		td { border: 1px solid #004455; padding: 6px; }
 		.info-table td:first-child { width: 180px; font-weight: bold; color: white; }
 		input, select { width: 100%; background: var(--bg-input); color: white; border: 1px solid var(--border); border-radius: 4px; padding: 6px; }
-		.slider-container { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-		.slider-container label { width: 120px; color: white; font-weight: bold; }
-		.slider-container input[type="range"] { flex: 1; }
-		.slider-container span { width: 50px; text-align: right; color: var(--accent2); }
 		.chart-box { background: #ffffff; border-radius: 8px; padding: 15px; height: 420px; }
 		.toggle-table-btn { background: #003344; color: #8fdfff; border: 1px dashed var(--border); width: 100%; padding: 8px; margin-top: 10px; text-align: center; cursor: pointer; }
 		.polar-container { display: none; max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid #004455; background: var(--bg-input); }
@@ -37,166 +33,140 @@
 		.polar-input { width: 60px; text-align: center; background: #000; border: 1px solid #005566; color: #fff; }
 		#activeProfile { font-size: 18px; font-weight: bold; color: white; }
 		#statusText { font-weight: bold; color: var(--accent2); }
-		#navbar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; background-color: #002b3a; padding: 10px 5px; border-bottom: 1px solid #005566; }
-		.navbtn { background-color: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 5px 12px; text-decoration: none; font-size: 0.9em; font-weight: bold; transition: all 0.2s ease-in-out; }
-		.navbtn:hover, .navbtn.active { background-color: #00b8d4; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
-		#langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px 8px; font-size: 0.85em; font-weight: bold; cursor: pointer; outline: none; }
-		#langSelect option { background: #001a26; color: #00ffff; }
-		@media (max-width: 600px) {
-		  #navbar { gap: 6px; padding: 8px 4px; }
-		  .navbtn { padding: 4px 8px; font-size: 0.8em; }
-		}
-		footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; }
 	</style>
 </head>
 
 <body>
-	<nav id="navbar">
-		<a href="index.html" class="navbtn" data-i18n="nav.overview">Übersicht</a>
-		<a href="system_settings.html" class="navbtn" data-i18n="nav.sys_settings">System</a>
-		
-		<div style="padding:10px;">
-			<select id="langSelect" onchange="changeLanguage(this.value)">
-				<!-- Standard-Sprachen -->
-				<option value="de" data-i18n="index_txt_10">Deutsch</option>
-				<option value="en" data-i18n="index_txt_11">English</option>
-				<option value="fr" data-i18n="index_txt_12">Français</option>
-				<option value="it" data-i18n="index_txt_13">Italiano</option>
-				<option value="es" data-i18n="index_txt_43">Español</option>
-				<option value="da" data-i18n="index_txt_44">Dansk</option>
-				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
-				<option value="no" data-i18n="index_txt_46">Norsk</option>
-				<option value="sv" data-i18n="index_txt_47">Svenska</option>
-				<option value="ru" data-i18n="index_txt_48">Русский</option>
-				<option value="pl" data-i18n="index_txt_49">Polski</option>
-				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
-				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
-			</select>
-		</div>
-	</nav>
-    <h1>⚓ NAVIS Bootsprofilmanager</h1>
-
-    <div class="dashboard">
-        <!-- LINKE SPALTE: STAMMDATEN & SMART SLIDER -->
-        <div class="panel">
-            <h2>Bootsvorlage auswählen</h2>
+    <h1 data-i18n="prof_main_header">⚓ NAVIS Bootsprofilmanager</h1>
+	<div class="dashboard">
+		<!-- LINKE SPALTE: STAMMDATEN & SMART SLIDER -->
+		<div class="panel">
+			<h2 data-i18n="prof_sec_template">Bootsvorlage auswählen</h2>
 			<select id="boatTemplate" onchange="loadBoatTemplate(this.value)">
-				<option value="">-- Vorlage auswählen --</option>
+				<option value="" data-i18n="prof_opt_select_template">-- Vorlage auswählen --</option>
 
-				<optgroup label="Kleinkreuzer">
+				<optgroup label="Kleinkreuzer" data-i18n-label="prof_group_pocket">
 					<option value="neptun22">Neptun 22</option>
 					<option value="varianta65">Varianta 65</option>
 					<option value="etap22">Etap 22</option>
 				</optgroup>
 
-				<optgroup label="Fahrtensegler">
+				<optgroup label="Fahrtensegler" data-i18n-label="prof_group_cruiser">
 					<option value="sirius26">Sirius 26</option>
 					<option value="sirius31">Sirius 31</option>
 					<option value="friendship28">Friendship 28</option>
 					<option value="hallbergrassy26">Hallberg-Rassy 26</option>
 				</optgroup>
 
-				<optgroup label="Performance">
+				<optgroup label="Performance" data-i18n-label="prof_group_performance">
 					<option value="dehler25">Dehler 25</option>
 					<option value="dehler31">Dehler 31</option>
 					<option value="x79">X-79</option>
 					<option value="first317">First 31.7</option>
 				</optgroup>
 
-				<optgroup label="Katamarane">
+				<optgroup label="Katamarane" data-i18n-label="prof_group_multihull">
 					<option value="lagoon380">Lagoon 380</option>
 					<option value="bali42">Bali 4.2</option>
 					<option value="leopard40">Leopard 40</option>
 					<option value="excess11">Excess 11</option>
 					<option value="fountainepajot40">Fountaine Pajot Isla 40</option>
 				</optgroup>
-
 			</select>
 
 			<br><br>
 
-			<h2>Aktives Boot: <span id="activeProfile">Benutzerprofil</span></h2>
-            
-            <h2>Bootsdaten (Sicherheitsgrenzen)</h2>
-            <table class="info-table">
-                <tr><td>Name</td><td><input id="bootName" value="Mein Boot"></td></tr>
-                <tr><td>Länge (m)</td><td><input id="bootLength" type="number" step="0.1" value="6.7"></td></tr>
-                <tr><td>Breite (m)</td><td><input id="bootBeam" type="number" step="0.1" value="2.4"></td></tr>
-                <tr><td>Tiefgang (m) [Wasser]</td><td><input id="bootDraft" type="number" step="0.1" value="1.3"></td></tr>
-                <tr><td>Masthöhe (m) [Brücken]</td><td><input id="bootMastHeight" type="number" step="0.1" value="9.0"></td></tr>
-                <tr><td>Verdrängung (kg)</td><td><input id="bootDisplacement" type="number" value="1200"></td></tr>
-                <tr><td>Motorfahrt (kn) [Flaute]</td><td><input id="bootMotorSpeed" type="number" step="0.1" value="5.5"></td></tr>
-                <tr><td>VMG Upwind (°)</td><td><input id="bootVMGUpwind" type="number" value="45"></td></tr>
-                <tr><td>VMG Downwind (°)</td><td><input id="bootVMGDownwind" type="number" value="145"></td></tr>
-            </table>
+			<h2><span data-i18n="prof_lbl_active_boat">Aktives Boot:</span> <span id="activeProfile" data-i18n="prof_val_user_profile">Benutzerprofil</span></h2>
+			
+			<h2 data-i18n="prof_sec_specs">Bootsdaten (Sicherheitsgrenzen)</h2>
+			<table class="info-table">
+				<tr><td data-i18n="prof_td_name">Name</td><td><input id="bootName" value="Mein Boot"></td></tr>
+				<tr><td><span data-i18n="prof_td_length">Länge</span> (m)</td><td><input id="bootLength" type="number" step="0.1" value="6.7"></td></tr>
+				<tr><td><span data-i18n="prof_td_beam">Breite</span> (m)</td><td><input id="bootBeam" type="number" step="0.1" value="2.4"></td></tr>
+				<tr><td><span data-i18n="prof_td_draft">Tiefgang</span> (m) <span style="font-size: 0.85em;">[Wasser]</span></td><td><input id="bootDraft" type="number" step="0.1" value="1.3"></td></tr>
+				<tr><td><span data-i18n="prof_td_mast">Masthöhe</span> (m) <span style="font-size: 0.85em;">[Brücken]</span></td><td><input id="bootMastHeight" type="number" step="0.1" value="9.0"></td></tr>
+				<tr><td><span data-i18n="prof_td_disp">Verdrängung</span> (kg)</td><td><input id="bootDisplacement" type="number" value="1200"></td></tr>
+				<tr><td><span data-i18n="prof_td_engine">Motorfahrt</span> (kn) <span style="font-size: 0.85em;">[Flaute]</span></td><td><input id="bootMotorSpeed" type="number" step="0.1" value="5.5"></td></tr>
+				<tr><td>VMG Upwind (°)</td><td><input id="bootVMGUpwind" type="number" value="45"></td></tr>
+				<tr><td>VMG Downwind (°)</td><td><input id="bootVMGDownwind" type="number" value="145"></td></tr>
+			</table>
 
-            <h2 style="margin-top:20px;">Smart-Polar-Kurven-Editor</h2>
-            <p style="font-size:12px; color:#8fdfff;">Wähle eine Windstärke. Die Regler passen die Hauptpunkte im Diagramm an. Restliche Winkel werden automatisch interpoliert.</p>
-            
-            <label>Zu bearbeitende Windstärke:</label>
-            <select id="select-wind-edit" onchange="ladeSmartSliderAusTabelle()" style="margin-bottom:15px;">
-                <option value="6">Leichter Wind (6 kn)</option>
-                <option value="8">Wind (8 kn)</option>
-                <option value="10">Wind (10 kn)</option>
-                <option value="12" selected>Mittlerer Wind (12 kn)</option>
-                <option value="15">Wind (15 kn)</option>
-                <option value="20">Starker Wind (20 kn)</option>
-                <option value="25">Sturm (25 kn)</option>
-            </select>
+			<h2 style="margin-top:20px;" data-i18n="prof_sec_editor">Smart-Polar-Kurven-Editor</h2>
+			<p style="font-size:12px; color:#8fdfff;" data-i18n="prof_editor_help">Wähle eine Windstärke. Die Regler passen die Hauptpunkte im Diagramm an. Restliche Winkel werden automatisch interpoliert.</p>
+			
+			<label data-i18n="prof_lbl_wind_select">Zu bearbeitende Windstärke:</label>
+			<select id="select-wind-edit" onchange="ladeSmartSliderAusTabelle()" style="margin-bottom:15px;">
+				<option value="6" data-i18n="prof_tws_6">Leichter Wind (6 kn)</option>
+				<option value="8" data-i18n="prof_tws_8">Wind (8 kn)</option>
+				<option value="10" data-i18n="prof_tws_10">Wind (10 kn)</option>
+				<option value="12" selected data-i18n="prof_tws_12">Mittlerer Wind (12 kn)</option>
+				<option value="15" data-i18n="prof_tws_15">Wind (15 kn)</option>
+				<option value="20" data-i18n="prof_tws_20">Starker Wind (20 kn)</option>
+				<option value="25" data-i18n="prof_tws_25">Sturm (25 kn)</option>
+			</select>
 
-            <div id="smart-sliders">
-                <div class="slider-container"><label>Am Wind (45°):</label><input type="range" id="slide-45" min="0" max="12" step="0.1" value="4.0" oninput="onSliderChange(45, this.value)"><span>4.0</span> kn</div>
-                <div class="slider-container"><label>Flach (60°):</label><input type="range" id="slide-60" min="0" max="12" step="0.1" value="5.0" oninput="onSliderChange(60, this.value)"><span>5.0</span> kn</div>
-                <div class="slider-container"><label>Halbwind (90°):</label><input type="range" id="slide-90" min="0" max="12" step="0.1" value="6.5" oninput="onSliderChange(90, this.value)"><span>6.5</span> kn</div>
-                <div class="slider-container"><label>Raumschots (120°):</label><input type="range" id="slide-120" min="0" max="12" step="0.1" value="6.0" oninput="onSliderChange(120, this.value)"><span>6.0</span> kn</div>
-                <div class="slider-container"><label>Soll-Halse (150°):</label><input type="range" id="slide-150" min="0" max="12" step="0.1" value="5.2" oninput="onSliderChange(150, this.value)"><span>5.2</span> kn</div>
-                <div class="slider-container"><label>Vor dem Wind (180°):</label><input type="range" id="slide-180" min="0" max="12" step="0.1" value="4.0" oninput="onSliderChange(180, this.value)"><span>4.0</span> kn</div>
-            </div>
-        </div>
+			<div id="smart-sliders">
+				<div class="slider-container"><label><span data-i18n="prof_twa_45">Am Wind</span> (45°):</label><input type="range" id="slide-45" min="0" max="12" step="0.1" value="4.0" oninput="onSliderChange(45, this.value)"><span>4.0</span> kn</div>
+				<div class="slider-container"><label><span data-i18n="prof_twa_60">Flach</span> (60°):</label><input type="range" id="slide-60" min="0" max="12" step="0.1" value="5.0" oninput="onSliderChange(60, this.value)"><span>5.0</span> kn</div>
+				<div class="slider-container"><label><span data-i18n="prof_twa_90">Halbwind</span> (90°):</label><input type="range" id="slide-90" min="0" max="12" step="0.1" value="6.5" oninput="onSliderChange(90, this.value)"><span>6.5</span> kn</div>
+				<div class="slider-container"><label><span data-i18n="prof_twa_120">Raumschots</span> (120°):</label><input type="range" id="slide-120" min="0" max="12" step="0.1" value="6.0" oninput="onSliderChange(120, this.value)"><span>6.0</span> kn</div>
+				<div class="slider-container"><label><span data-i18n="prof_twa_150">Soll-Halse</span> (150°):</label><input type="range" id="slide-150" min="0" max="12" step="0.1" value="5.2" oninput="onSliderChange(150, this.value)"><span>5.2</span> kn</div>
+				<div class="slider-container"><label><span data-i18n="prof_twa_180">Vor dem Wind</span> (180°):</label><input type="range" id="slide-180" min="0" max="12" step="0.1" value="4.0" oninput="onSliderChange(180, this.value)"><span>4.0</span> kn</div>
+			</div>
+		</div>
 
-        <!-- RECHTE SPALTE: DIAGRAMM & LOOKUP-TABELLE -->
-        <div class="panel panel-wide">
-            <h2>Nautisches Polardiagramm (Gespiegeltes 360°-Bootsprofil)</h2>
-            <div class="chart-box">
-                <canvas id="polarChartCanvas"></canvas>
-            </div>
+		<!-- RECHTE SPALTE: DIAGRAMM & LOOKUP-TABELLE -->
+		<div class="panel panel-wide">
+			<h2 data-i18n="prof_sec_chart">Nautisches Polardiagramm (Gespiegeltes 360°-Bootsprofil)</h2>
+			<div class="chart-box">
+				<canvas id="polarChartCanvas"></canvas>
+			</div>
 
-            <div class="toggle-table-btn" onclick="toggleRohdatenTabelle()">🛠️ Komplette 196-Felder-Tabelle anzeigen/verbergen</div>
-            <div id="polarContainer" class="polar-container"></div>
+			<div class="toggle-table-btn" onclick="toggleRohdatenTabelle()" data-i18n="prof_btn_toggle_table">🛠️ Komplette 196-Felder-Tabelle anzeigen/verbergen</div>
+			<div id="polarContainer" class="polar-container"></div>
 
-            <h2>Aktionen</h2>
+			<h2 data-i18n="prof_sec_actions">Aktionen</h2>
 			<!-- NAVIS Bootsprofil-Aktionen -->
 			<div class="flex flex-col gap-3 mt-6 w-full max-w-2xl">
 				<!-- Erste Zeile: Speichern und Exportieren nebeneinander -->
 				<div class="flex flex-row gap-3 w-full">
 					<!-- 1. Speichern (An ESP32 senden) -->
 					<button onclick="saveCurrentProfile()" class="flex-1 flex items-center justify-center gap-2 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200">
-						<span>💾</span> <span class="whitespace-nowrap">Profil speichern</span>
+						<span>💾</span> <span class="whitespace-nowrap" data-i18n="prof_btn_save">Profil speichern</span>
 					</button>
 
 					<!-- 2. Exportieren (Lokales Backup) -->
 					<button onclick="downloadProfileBackup()" class="flex-1 flex items-center justify-center gap-2 h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200">
-						<span>📥</span> <span class="whitespace-nowrap">Profil exportieren</span>
+						<span>📥</span> <span class="whitespace-nowrap" data-i18n="prof_btn_export">Profil exportieren</span>
 					</button>
 				</div>
 
 				<!-- Zweite Zeile: Importieren über die volle Breite darunter -->
 				<label class="w-full flex items-center justify-center gap-2 h-11 bg-slate-600 hover:bg-slate-700 text-white font-medium px-4 rounded-lg shadow-sm transition-colors duration-200 cursor-pointer text-center select-none m-0">
-					<span>📂</span> <span class="whitespace-nowrap">Profil importieren</span>
+					<span>📂</span> <span class="whitespace-nowrap" data-i18n="prof_btn_import">Profil importieren</span>
 					<input type="file" accept=".json" onchange="uploadProfileBackup(event)" class="hidden">
 				</label>
 			</div>
-            <br>
-            <h2>Systemstatus: <span id="statusText">Bereit</span></h2>
-        </div>
-    </div>
+			<br>
+			<h2><span data-i18n="prof_lbl_sys_status">Systemstatus:</span> <span id="statusText" data-i18n="prof_val_ready">Bereit</span></h2>
+		</div>
+	</div>
 
 	<footer>
 		<strong>Marine Dashboard v1.1</strong><br>
 		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
 		© 2025 – Bootssystem ESP32 • Live Monitoring
 	</footer>
+	
+	<script src="lang/lang_manager_polar.js"></script>
+	<script src="js/navis-navbar.js"></script> 
+	<script src="js/navis-telemetry.js"></script>
     <script>
+		// ======================================================================
+		// Übergibt die gewünschten Seiten-IDs, die in der Navbar erscheinen sollen:
+		// ======================================================================
+		createNavbar(["dashboard", "polar", "system"]);
+	
         // Reparierte Arrays mit deinen exakten Gittervorgaben aus der originalen Struktur
         const NAVIS_ANGLES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180];
         const NAVIS_WINDS = [6, 8, 10, 12, 15, 20, 25];

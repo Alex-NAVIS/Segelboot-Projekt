@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-	<link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="css/style.css">
     <title>Karte — NAVIS Marine Dashboard</title>
     <!-- Lokale Leaflet Dateien -->
     <link rel="stylesheet" href="leaflet/leaflet.css">
@@ -44,15 +44,16 @@
         body.night-mode button { background:rgba(255,100,50,0.08); color:#ffb199; box-shadow:0 0 10px rgba(255,80,40,0.2); }
         body.night-mode button:hover { background:rgba(255,100,50,0.2); }
 
-		/* 🟪 WAYPOINT LISTE & TABELLEN */
-		#waypointListContainer { position:absolute; bottom:-100%; left:0; width:95%; max-height:40vh; background:rgba(0,0,0,0.85); color:white; overflow-y:auto; transition:bottom 0.4s ease; z-index:9999; backdrop-filter:blur(6px); padding:10px; }
-		#waypointListContainer.visible { bottom:0; }
-		#waypointTable { width:100%; border-collapse:collapse; }
-		#waypointTable th, #waypointTable td { padding:4px 8px; border-bottom:1px solid #003040; text-align:center; white-space:nowrap; }
-		#waypointTable th { background:rgba(0,80,100,0.6); position:sticky; top:0; }
-		#waypointTable button { padding:3px 6px; background:#006680; border-radius:5px; color:#fff; border:none; cursor:pointer; }
-		#waypointTable button:hover { background:#00b0c0; }
 		
+		
+		/* ==========================================================
+		   NAVIS PANEL SYSTEM
+		   Gemeinsamer Container für alle NAVIS-Panels
+		========================================================== */
+		#navis-panel-container { position: absolute; inset: 0; pointer-events: none; z-index: 1000; }
+		#navis-weather-panel.collapsed, #navis-routing-panel.collapsed, #navis-waypoint-panel.collapsed { top: auto; left: auto; width: 220px; height: 42px; transform: none; overflow: hidden; transition: all .30s ease; }
+
+
 		/* ⛅ WETTER & ROUTING BOX STANDARD PANEL */
 		.navis-panel{ background:var(--navis-bg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--navis-border); border-radius:var(--navis-radius); box-shadow:var(--navis-shadow); color:var(--navis-text); font-family:var(--navis-font); box-sizing:border-box; }
 
@@ -70,14 +71,14 @@
 
 		/* ⛅ WETTER BOX HAUPTPANEL */
 		/* ⛅ WETTER BOX HAUPTPANEL POSITIONIERUNG */
-		#navis-weather-panel{ position:absolute; top:50%; right:20px; transform:translateY(-50%); z-index:1000; width:220px; height:53vh; padding:12px; display:flex; flex-direction:column; transition:all .3s ease; }
+		#navis-weather-panel{ pointer-events:auto; position:absolute; top:50%; right:20px; transform:translateY(-50%); z-index:1000; width:220px; height:53vh; padding:12px; display:flex; flex-direction:column; transition:all .3s ease; }
 		#navis-weather-panel[data-state="collapsed"]{ width:220px; }
 		#navis-weather-panel[data-state="expanded"]{ width:320px; }
 		#navis-weather-panel[data-state="collapsed"]:hover{ width:320px; }
 		#navis-weather-panel[data-state="pinned"]{ width:320px; box-shadow:0 6px 25px rgba(0,0,0,.7); }
 		
 		/* ⛅ WETTER BOX HAUPTPANEL EINGEKLAPPT */
-		#navis-weather-panel.collapsed{ top:auto; right:20px; bottom:70px; width:220px; height:42px; transform:none; overflow:hidden; }
+		#navis-weather-panel.collapsed{ top:auto; width:220px; height:42px; transform:none; overflow:hidden; }
 
 		/* ⛅ WETTER BOX ELEMENTE & ANZEIGEN */
 		.weather-content{ flex-grow:1; display:flex; align-items:center; justify-content:space-between; overflow:hidden; }
@@ -95,30 +96,50 @@
 		.weather-layer-controls{ display:flex; justify-content:center; gap:15px; }
 		.weather-layer-controls label{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--navis-text); cursor:pointer; }
 
-		/* 🗺️ ROUTING BOX HAUPTPANEL */
 		/* 🗺️ ROUTING BOX HAUPTPANEL POSITIONIERUNG */
-		#navis-routing-panel{ position:absolute; top:50%; left:20px; transform:translateY(-50%); z-index:1000; width:320px; padding:12px; display:flex; flex-direction:column; gap:10px; transition:all .3s ease; }
+		#navis-routing-panel { pointer-events: auto; position: absolute; top: 50%; left: 20px; transform: translateY(-50%); z-index: 1000; width: 320px; height: 80vh; padding: 12px; display: flex; flex-direction: column; gap: 10px; transition: all .3s ease; }
 
 		/* 🗺️ ROUTING BOX HAUPTPANEL EINGEKLAPPT */
-		#navis-routing-panel.collapsed{ top:auto; left:auto; right:20px; bottom:27px; width:220px; height:42px; transform:none; overflow:hidden; }
-		#navis-routing-panel.collapsed .panel-header{ border-bottom:none; padding-bottom:0; margin-bottom:0; }
+		#navis-routing-panel.collapsed { top: auto; left: auto; transform: none; width: 220px; height: 42px; overflow: hidden; }
+		#navis-routing-panel.collapsed .panel-header { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
 
-		/* 🗺️ ROUTING BOX INHALTSBEREICH */
-		.panel-content{ display:flex; flex-direction:column; gap:10px; opacity:1; transition:opacity .2s ease; }
-		#navis-routing-panel.collapsed .panel-content{ opacity:0; pointer-events:none; }
+		/* 🗺️ ROUTING BOX INHALTSBEREICH (Mit Scrollbar-Funktion) */
+		.panel-content { display: flex; flex-direction: column; gap: 10px; opacity: 1; transition: opacity .2s ease; overflow-y: auto; flex-grow: 1; }
+		#navis-routing-panel.collapsed .panel-content { opacity: 0; pointer-events: none; overflow: hidden; }
+
 
 		/* 🗺️ ROUTING BOX STRECKENOPTIONEN */
 		.routing-section{ display:flex; flex-direction:column; gap:4px; }
 		.routing-section label{ font-size:var(--navis-font-label); color:var(--navis-label); font-weight:600; }
 		.routing-meta{ font-size:11px; font-family:monospace; color:var(--navis-info); background:rgba(0,0,0,.2); padding:4px 6px; border-radius:4px; }
-		.radio-group{ display:flex; flex-direction:column; gap:5px; background:rgba(0,0,0,.15); padding:6px; border-radius:4px; }
-		.radio-label{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--navis-text); cursor:pointer; }
+		.radio-group{ display:flex; flex-direction:column; gap:0px; background:rgba(0,0,0,.15); padding:2px; border-radius:4px; }
+		.radio-label{ display:flex; align-items:center; gap:2px; font-size:8px; color:var(--navis-text); cursor:pointer; margin: 0; padding: 4px 0;}
 		.radio-label input{ width:auto; accent-color:#00ffff; }
 
 		/* 🗺️ ROUTING BOX AKTIONS BUTTON */
 		.calc-btn{ background:#007a99; color:#fff; border:1px solid #00ffff; padding:8px; border-radius:4px; font-size:12px; font-weight:bold; cursor:pointer; transition:.2s; }
 		.calc-btn:hover{ background:#00b8d4; color:#000; }
 		
+
+		#navis-waypoint-panel { pointer-events:auto; position: absolute; top: 50%; right: 20px; transform: translateY(-50%); z-index: 1000; width: 320px; height: 53vh; padding: 12px; display: flex; flex-direction: column; transition: all .3s ease; }
+		#navis-waypoint-panel.collapsed { top: auto; width: 220px; height: 42px; transform: none; overflow: hidden; }
+		#navis-waypoint-panel.collapsed .panel-header { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+		.waypoint-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+		.waypoint-card { background: rgba(0,61,82,.35); border: 1px solid rgba(0,255,255,.20); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+		.wp-header { display: flex; justify-content: space-between; align-items: center; }
+		.wp-title { color: var(--navis-title); font-size: 13px; font-weight: 600; }
+		.wp-actions { display: flex; gap: 6px; }
+		.waypoint-section { margin: 6px 0; }
+		.waypoint-section-title { color: var(--navis-label); font-size: 11px; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; }
+		.waypoint-row { display: flex; justify-content: space-between; padding: 2px 0; }
+		.waypoint-label { color: var(--navis-text); font-size: 11px; }
+		.waypoint-value { color: var(--navis-title); font-size: 11px; font-weight: bold; }
+		.waypoint-divider { height: 1px; margin: 8px 0; background: rgba(0,255,255,.20); }
+		.wp-action-btn { background: #007a99; color: #ffffff; border: 1px solid #00ffff; padding: 6px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: background 0.2s ease, transform 0.1s ease; display: inline-flex; align-items: center; justify-content: center; }
+		.wp-action-btn:hover { background: #00b8d4; color: #000000; }
+		.wp-action-btn:active { transform: scale(0.92); background: #00e5ff; }
+		.wp-action-btn.wp-delete-btn:hover { background: #ff3333; border-color: #ff8888; color: #ffffff; }
+
 		/* 🗺️ MAP POPUP STYLES */
 		.leaflet-popup-content-wrapper{ background:var(--navis-bg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--navis-border); border-radius:var(--navis-radius); box-shadow:var(--navis-shadow); color:var(--navis-text); font-family:var(--navis-font); }
 		.leaflet-popup-tip{ background:var(--navis-bg); border:1px solid var(--navis-border); }
@@ -129,221 +150,251 @@
 <body>
 <div class="panel">
     <div id="map"></div>
-    <div id="waypointListContainer">
-        <table id="waypointTable">
-            <thead>
-                <tr>
-                    <th>Nr.</th>
-                    <th>Lat</th>
-                    <th>Lon</th>
-                    <th>Kurs vom Schiff</th>
-                    <th>Distanz vom Schiff (sm)</th>
-                    <th>Kurs vom vorh. WP</th>
-                    <th>Distanz vom WP (sm)</th>
-                    <th>Autopilot</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-    <button id="centerToggle">🧭 Zentrieren</button>
-	<button id="modeRoute">📍 Modus: Peilung</button>
-    <button id="nightToggle">🌙 Nachtmodus</button>
-	<div id="logDisplay">0.00 sm</div>
-	<button id="resetLogBtn">Log zurücksetzen</button>
+    
+
+	
+    <button id="centerToggle">🧭 <span data-i18n="map_btn_center">Zentrieren</span></button>
+    <button id="modeRoute">📍 <span data-i18n="map_btn_mode">Modus: Peilung</span></button>
+    <button id="nightToggle">🌙 <span data-i18n="map_btn_night">Nachtmodus</span></button>
+    <div id="logDisplay">0.00 sm</div>
+    <button id="resetLogBtn" data-i18n="map_btn_reset_log">Log zurücksetzen</button>
 	
     <div id="waypointInfo"></div>
-    <div id="legend">🔴 Kompasskurs: --°<br>🟡 GPS-Kurs: --°<br>🟢 Wind: --° / -- kn</div>
+    <div id="legend">
+        <span data-i18n="map_leg_compass">🔴 Kompasskurs:</span> --°<br>
+        <span data-i18n="map_leg_gps">🟡 GPS-Kurs:</span> --°<br>
+        <span data-i18n="map_leg_wind">🟢 Wind:</span> --° / -- kn
+    </div>
 	
-	<!-- NAVIS WEATHER PANEL -->
-	<div id="navis-weather-panel" class="navis-panel collapsed">
-		<div>
-			<div class="panel-header">
-				<h3>💨 NAVIS Weather 72h</h3>
-				<button type="button" class="pin-btn" id="weather-pin-toggle" onclick="toggleWeatherPanel()">⤡</button>
-			</div>
+	<!-- ==========================================================
+     NAVIS PANEL SYSTEM
+     Alle NAVIS-Panels befinden sich in diesem Container.
+     Erweiterbar für:
+       - Wetter
+       - Routing
+       - Wegpunkte
+       - AIS
+	=========================================================== -->
+	<div id="navis-panel-container">
+		<!-- ==========================================================
+			 NAVIS WEATHER PANEL
+		========================================================== -->
+		<div id="navis-weather-panel" class="navis-panel collapsed">
+			<div>
+				<div class="panel-header">
+					<h3 data-i18n="map_wth_header">💨 NAVIS Weather 72h</h3>
+					<button type="button" class="pin-btn" id="weather-pin-toggle" onclick="toggleWeatherPanel()">⤡</button>
+				</div>
 
-			<select id="weather-file-select" class="navis-select" onchange="loadNewWeatherData(this.value)">
-				<option value="">-- Revier --</option>
-			</select>
-		</div>
-		<div class="weather-content">
-			<div class="weather-slider-container">
-				<input
-					type="range"
-					id="weather-slider"
-					class="weather-slider"
-					min="0"
-					max="71"
-					value="0"
-					oninput="updateWeatherFrame(this.value)"
-					disabled>
-			</div>
-			<div class="weather-center">
-				<div id="weather-time-label" class="weather-time">
-					+0h
-				</div>
-				<div id="weather-real-time" class="weather-datetime">
-					--.--.--<br>
-					--:--
-				</div>
-				<div class="weather-divider"></div>
-			</div>
-		</div>
-
-		<div id="weather-info-bar" class="weather-footer">
-			<div class="weather-row">
-				<span class="weather-label">Wind:</span>
-				<span id="info-wind" class="weather-value">-- kn / --°</span>
-			</div>
-			<div class="weather-row">
-				<div>
-					<span class="weather-label">Welle:</span>
-					<span id="info-wave-h" class="weather-value">-- m</span>
-				</div>
-				<div>
-					<span class="weather-label">Lauf:</span>
-					<span id="info-wave-d" class="weather-value">--°</span>
-				</div>
-				<div>
-					<span class="weather-label">Periode:</span>
-					<span id="info-wave-p" class="weather-value">-- s</span>
-				</div>
-			</div>
-			<div class="weather-row">
-				<div>
-					<span class="weather-label">Strömung:</span>
-					<span id="current-speed" class="weather-value">-- kn</span>
-				</div>
-				<div>
-					<span class="weather-label">Richtung:</span>
-					<span id="current-direction" class="weather-value">--°</span>
-				</div>
-			</div>
-			<div class="weather-row">
-				<span class="weather-label">Wasserst.:</span>
-				<span id="tide-height" class="weather-value">-- m (--)</span> 
-			</div>
-			<div class="weather-divider"></div>
-			<div class="weather-layer-controls">
-				<label class="radio-label">
-					<input type="checkbox" id="show-wind-layer" checked>
-					Wind
-				</label>
-				<label class="radio-label">
-					<input type="checkbox" id="show-current-layer" checked>
-					Strömung
-				</label>
-			</div>
-		</div>
-		<button onclick="openWeatherImportDialog()">
-			📂 Wetter importieren
-		</button>
-		<input
-			type="file"
-			id="weather-import-file"
-			accept=".json"
-			style="display:none"
-			onchange="uploadWeatherFile(event)">
-	</div>
-
-
-	<!-- NAVIS ROUTER PANEL -->
-	<div id="navis-routing-panel" class="navis-panel collapsed">
-		<div class="panel-header">
-			<h3>🧭 NAVIS Router</h3>
-			<button type="button" class="pin-btn" id="routing-pin-toggle" onclick="toggleRoutingPanel()">⤢</button>
-		</div>
-		<div class="panel-content">
-			<div class="routing-section">
-				<label>📍 Startpunkt</label>
-				<div id="route-start-display" class="routing-meta">
-					Nicht gesetzt (Rechtsklick)
-				</div>
-			</div>
-			<div class="routing-section">
-				<label>🏁 Zielpunkt</label>
-				<div id="route-ziel-display" class="routing-meta">
-					Nicht gesetzt (Rechtsklick)
-				</div>
-			</div>
-			<div class="routing-section">
-				<label>🧭 Zwischen-Wegpunkte</label>
-				<div id="route-waypoints-display" class="routing-meta">
-					0 Wegpunkte hinzugefügt
-				</div>
-			</div>
-
-			<div class="routing-section">
-				<label>📅 Abfahrtszeit (UTC)</label>
-				<input
-					type="datetime-local"
-					id="routing-departure-time"
-					class="navis-input">
-				<div id="routing-localtime-display"
-					 class="routing-meta"
-					 style="margin-top:6px;font-size:11px;">
-					Lokale Zeit: -
-				</div>
-			</div>
-			<div class="routing-section">
-				<label>❓ Welches Routing-Ziel hast du?</label>
-				<div class="radio-group">
-					<label class="radio-label">
-						<input type="radio" name="routingProfile" value="fastest" checked>
-						⚡ Schnellste Route
-					</label>
-					<label class="radio-label">
-						<input type="radio" name="routingProfile" value="comfort">
-						🛋 Komfortabelste Route
-					</label>
-					<label class="radio-label">
-						<input type="radio" name="routingProfile" value="safest">
-						🛡 Sicherste Route
-					</label>
-					<label class="radio-label">
-						<input type="radio" name="routingProfile" value="eco">
-						🔋 Energieeffizienteste Route
-					</label>
-					<label class="radio-label">
-						<input type="radio" name="routingProfile" value="avoid_wind">
-						💨 Starkwind vermeiden
-					</label>
-					<label class="radio-label">
-						<input type="radio" name="routingProfile" value="avoid_waves">
-						🌊 Wellen vermeiden
-					</label>
-					<label class="radio-label">
-						<input type="radio" name="routingProfile" value="coastal">
-						⚓ Küstennah fahren
-					</label>
-				</div>
-			</div>
-			<div class="routing-section">
-				<label>📈 Wetter-Abfahrtstaktik</label>
-				<select id="routing-time-strategy" class="navis-select">
-					<option value="fixed">Exakt zur gewählten Zeit abfahren</option>
-					<option value="optimize_3h">⏱ Optimierung ±3 Stunden</option>
-					<option value="optimize_6h">⏱ Optimierung ±6 Stunden</option>
+				<select id="weather-file-select" class="navis-select" onchange="loadNewWeatherData(this.value)">
+					<option value="" data-i18n="map_wth_opt_area">-- Revier --</option>
 				</select>
 			</div>
-			<button class="calc-btn" onclick="triggerNavisRouting()">
-				🚀 Route berechnen
+			<div class="weather-content">
+				<div class="weather-slider-container">
+					<input
+						type="range"
+						id="weather-slider"
+						class="weather-slider"
+						min="0"
+						max="71"
+						value="0"
+						oninput="updateWeatherFrame(this.value)"
+						disabled>
+				</div>
+				<div class="weather-center">
+					<div id="weather-time-label" class="weather-time">
+						+0h
+					</div>
+					<div id="weather-real-time" class="weather-datetime">
+						--.--.--<br>
+						--:--
+					</div>
+					<div class="weather-divider"></div>
+				</div>
+			</div>
+
+			<div id="weather-info-bar" class="weather-footer">
+				<div class="weather-row">
+					<span class="weather-label" data-i18n="map_wth_lbl_wind">Wind:</span>
+					<span id="info-wind" class="weather-value">-- kn / --°</span>
+				</div>
+				<div class="weather-row">
+					<div>
+						<span class="weather-label" data-i18n="map_wth_lbl_wave">Welle:</span>
+						<span id="info-wave-h" class="weather-value">-- m</span>
+					</div>
+					<div>
+						<span class="weather-label" data-i18n="map_wth_lbl_wave_dir">Lauf:</span>
+						<span id="info-wave-d" class="weather-value">--°</span>
+					</div>
+					<div>
+						<span class="weather-label" data-i18n="map_wth_lbl_wave_per">Periode:</span>
+						<span id="info-wave-p" class="weather-value">-- s</span>
+					</div>
+				</div>
+				<div class="weather-row">
+					<div>
+						<span class="weather-label" data-i18n="map_wth_lbl_curr">Strömung:</span>
+						<span id="current-speed" class="weather-value">-- kn</span>
+					</div>
+					<div>
+						<span class="weather-label" data-i18n="map_wth_lbl_curr_dir">Richtung:</span>
+						<span id="current-direction" class="weather-value">--°</span>
+					</div>
+				</div>
+				<div class="weather-row">
+					<span class="weather-label" data-i18n="map_wth_lbl_tide">Wasserst.:</span>
+					<span id="tide-height" class="weather-value">-- m (--)</span> 
+				</div>
+				<div class="weather-divider"></div>
+				<div class="weather-layer-controls">
+					<label class="radio-label">
+						<input type="checkbox" id="show-wind-layer" checked>
+						<span data-i18n="map_wth_chk_wind">Wind</span>
+					</label>
+					<label class="radio-label">
+						<input type="checkbox" id="show-current-layer" checked>
+						<span data-i18n="map_wth_chk_curr">Strömung</span>
+					</label>
+				</div>
+			</div>
+			<button onclick="openWeatherImportDialog()">
+				📂 <span data-i18n="map_wth_btn_import">Wetter importieren</span>
 			</button>
-			<!-- Fortschrittsanzeige für das A*-Routing -->
-			<div id="routing-progress-container" style="display: none; margin: 10px 0; padding: 10px; background: #001a26; border: 1px solid #007a99; border-radius: 4px; color: #fff;">
-				<span id="progress-text" style="font-size: 12px; display: block; margin-bottom: 5px;">Berechne Route...</span>
-				<div style="width: 100%; background: #003d52; border-radius: 3px; overflow: hidden;">
-					<div id="progress-bar" style="width: 0%; height: 8px; background: #00b8d4; transition: width 0.2s ease;"></div>
+			<input
+				type="file"
+				id="weather-import-file"
+				accept=".json"
+				style="display:none"
+				onchange="uploadWeatherFile(event)">
+		</div>
+
+		<!-- ==========================================================
+			 NAVIS ROUTING PANEL
+		========================================================== -->
+		<div id="navis-routing-panel" class="navis-panel collapsed">
+			<div class="panel-header">
+				<h3 data-i18n="map_rt_header">🧭 NAVIS Router</h3>
+				<button type="button" class="pin-btn" id="routing-pin-toggle" onclick="toggleRoutingPanel()">⤢</button>
+			</div>
+			<div class="panel-content">
+				<div class="routing-section">
+					<label data-i18n="map_rt_lbl_start">📍 Startpunkt</label>
+					<div id="route-start-display" class="routing-meta" data-i18n="map_rt_val_unset">
+						Nicht gesetzt (Rechtsklick)
+					</div>
+				</div>
+				<div class="routing-section">
+					<label data-i18n="map_rt_lbl_target">🏁 Zielpunkt</label>
+					<div id="route-ziel-display" class="routing-meta" data-i18n="map_rt_val_unset">
+						Nicht gesetzt (Rechtsklick)
+					</div>
+				</div>
+				<div class="routing-section">
+					<label data-i18n="map_rt_lbl_wps">🧭 Zwischen-Wegpunkte</label>
+					<div id="route-waypoints-display" class="routing-meta" data-i18n="map_rt_val_wps_init">
+						0 Wegpunkte hinzugefügt
+					</div>
+				</div>
+
+				<div class="routing-section">
+					<label data-i18n="map_rt_lbl_dept_time">📅 Abfahrtszeit (UTC)</label>
+					<input
+						type="datetime-local"
+						id="routing-departure-time"
+						class="navis-input">
+					<div id="routing-localtime-display" class="routing-meta" style="margin-top:6px;font-size:11px;" data-i18n="map_rt_val_local_time">
+						Lokale Zeit: -
+					</div>
+				</div>
+				<div class="routing-section">
+					<label data-i18n="map_rt_lbl_strategy_q">❓ Welches Routing-Ziel hast du?</label>
+					<div class="radio-group">
+						<label class="radio-label">
+							<input type="radio" name="routingProfile" value="fastest" checked>
+							<span data-i18n="map_rt_opt_fastest">⚡ Schnellste Route</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="routingProfile" value="comfort">
+							<span data-i18n="map_rt_opt_comfort">🛋 Komfortabelste Route</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="routingProfile" value="safest">
+							<span data-i18n="map_rt_opt_safest">🛡 Sicherste Route</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="routingProfile" value="eco">
+							<span data-i18n="map_rt_opt_eco">🔋 Energieeffizienteste Route</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="routingProfile" value="avoid_wind">
+							<span data-i18n="map_rt_opt_avoid_wind">💨 Starkwind vermeiden</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="routingProfile" value="avoid_waves">
+							<span data-i18n="map_rt_opt_avoid_waves">🌊 Wellen vermeiden</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" name="routingProfile" value="coastal">
+							<span data-i18n="map_rt_opt_coastal">⚓ Küstennah fahren</span>
+						</label>
+					</div>
+				</div>
+				<div class="routing-section">
+					<label data-i18n="map_rt_lbl_tactic">📈 Wetter-Abfahrtstaktik</label>
+					<select id="routing-time-strategy" class="navis-select">
+						<option value="fixed" data-i18n="map_rt_opt_fixed">Exakt zur gewählten Zeit abfahren</option>
+						<option value="optimize_3h" data-i18n="map_rt_opt_opt3h">⏱ Optimierung ±3 Stunden</option>
+						<option value="optimize_6h" data-i18n="map_rt_opt_opt6h">⏱ Optimierung ±6 Stunden</option>
+					</select>
+				</div>
+				<button class="calc-btn" onclick="triggerNavisRouting()">
+					🚀 <span data-i18n="map_rt_btn_calc">Route berechnen</span>
+				</button>
+				<!-- Fortschrittsanzeige für das A*-Routing -->
+				<div id="routing-progress-container" style="display: none; margin: 10px 0; padding: 10px; background: #001a26; border: 1px solid #007a99; border-radius: 4px; color: #fff;">
+					<span id="progress-text" style="font-size: 12px; display: block; margin-bottom: 5px;" data-i18n="map_rt_progress_text">Berechne Route...</span>
+					<div style="width: 100%; background: #003d52; border-radius: 3px; overflow: hidden;">
+						<div id="progress-bar" style="width: 0%; height: 8px; background: #00b8d4; transition: width 0.2s ease;"></div>
+					</div>
 				</div>
 			</div>
 		</div>
+
+		<!-- ==========================================================
+			 NAVIS WAYPOINT PANEL
+		========================================================== -->
+		<div id="navis-waypoint-panel" class="navis-panel collapsed">
+			<div class="panel-header">
+				<h3>📍 Wegpunkte</h3>
+				<button
+					type="button"
+					class="pin-btn"
+					id="waypoint-pin-toggle"
+					onclick="toggleWaypointPanel()">
+					⤡
+				</button>
+			</div>
+			<div id="waypoint-panel-content" class="waypoint-content">
+				<!-- Wird von updateWaypointList() gefüllt -->
+			</div>
+		</div>
+		
+		<!-- ==========================================================
+			 NAVIS AIS PANEL
+		========================================================== -->
+		<div id="navis-ais-panel" class="navis-panel collapsed">
+		
+		</div>
 	</div>
+	<!-- Ende NAVIS PANEL SYSTEM -->
 </div>
 
 <!-- Module -->
-<script src="js/lang_manager.js"></script>
+<script src="lang/lang_manager_map.js"></script>
 <script src="js/navis-navbar.js"></script>
+<script src="js/navis-telemetry.js"></script>
 <script src="leaflet/leaflet.js"></script>
 <script src="leaflet/navis-tilelayer.js"></script>
 <script src="leaflet/leaflet-velocity.min.js"></script>
@@ -355,6 +406,35 @@
 // Übergibt die gewünschten Seiten-IDs, die in der Navbar erscheinen sollen:
 // ======================================================================
 createNavbar(["dashboard", "karte", "kompass", "horizont"]);
+
+	layoutCollapsedPanels();
+/* ==========================================================
+   NAVIS PANEL MANAGER
+   Ordnet alle minimierten Panels automatisch an.
+========================================================== */
+function layoutCollapsedPanels() {
+    const panels = [
+        document.getElementById("navis-weather-panel"),
+        document.getElementById("navis-waypoint-panel"),
+        document.getElementById("navis-routing-panel"),
+        document.getElementById("navis-ais-panel")
+    ];
+    
+    let bottom = 20;
+    const COLLAPSED_HEIGHT = 35; // Feste Höhe eines minimierten Panels in Pixeln
+    
+    panels.forEach(panel => {
+        if (!panel || !panel.classList.contains("collapsed")) return;
+        
+        panel.style.right = "20px";
+        panel.style.bottom = bottom + "px";
+        
+        // Kein Auslesen der Höhe nötig – wir nutzen den festen Wert
+        bottom += COLLAPSED_HEIGHT + 10; 
+    });
+}
+
+
 
 /* ------------------------------
    Konfiguration / global state
@@ -402,6 +482,10 @@ const state = {
   windspeed_berechnet: 0
 };
 const target = JSON.parse(JSON.stringify(state));
+
+if (window.navisTelemetry) {
+    Object.assign(target, window.navisTelemetry);
+}
 
 const trackPoints = [];
 let liveTrackLine = null;
@@ -781,8 +865,8 @@ setInterval(() => {
 }, 100);
 
 setInterval(() => {
-    updateWaypointInfo();
     updateLegend();
+    updateWaypointInfo();
 }, 1000);
 
 setInterval(() => {
@@ -842,41 +926,27 @@ async function loadTrackHistory() {
     }
 }
 
-let ws = null;
-const WS_RECONNECT_MS = 3000;
-function attachWSHandlers(ws) {
-    ws.onopen = () => {
-        console.log("WebSocket verbunden");
-    };
-    ws.onmessage = (event) => {
-        try {
-            const j = JSON.parse(event.data);
-            if ('gps_lat' in j) target.gps_lat = Number(j.gps_lat);
-            if ('gps_lon' in j) target.gps_lon = Number(j.gps_lon);
-            if ('gps_speed' in j) target.gps_speed = Number(j.gps_speed);
-            if ('gps_kurs' in j) target.gps_kurs = Number(j.gps_kurs);
-			if ("sm" in j) {distanceSM = Number(j.sm);updateLogDisplay();}
-            if ('kompass' in j) target.kompass = Number(j.kompass);
-            if ('winddir_berechnet' in j) target.winddir_berechnet = Number(j.winddir_berechnet);
-            if ('windspeed_berechnet' in j) target.windspeed_berechnet = Number(j.windspeed_berechnet);
-        } catch(e) {
-            console.warn("WS JSON Fehler:", e, event.data);
-        }
-    };
-    ws.onerror = (err) => { console.error("WebSocket Fehler:", err); };
-    ws.onclose = (ev) => {
-        console.warn("WebSocket getrennt, reconnect in " + WS_RECONNECT_MS/1000 + "s", ev.reason);
-        setTimeout(connectWS, WS_RECONNECT_MS);
-    };
-}
-
-function connectWS() {
-    ws = new WebSocket(`ws://${location.hostname}/ws`);
-    attachWSHandlers(ws);
-}
-// Start WS-Verbindung
-connectWS();
-
+window.addEventListener("navisTelemetryUpdate", (event) => {
+    const j = event.detail;
+    if ('gps_lat' in j)
+        target.gps_lat = Number(j.gps_lat);
+    if ('gps_lon' in j)
+        target.gps_lon = Number(j.gps_lon);
+    if ('gps_speed' in j)
+        target.gps_speed = Number(j.gps_speed);
+    if ('gps_kurs' in j)
+        target.gps_kurs = Number(j.gps_kurs);
+    if ("sm" in j) {
+        distanceSM = Number(j.sm);
+        updateLogDisplay();
+    }
+    if ('kompass' in j)
+        target.kompass = Number(j.kompass);
+    if ('winddir_berechnet' in j)
+        target.winddir_berechnet = Number(j.winddir_berechnet);
+    if ('windspeed_berechnet' in j)
+        target.windspeed_berechnet = Number(j.windspeed_berechnet);
+});
 
 // Vorhandenen GPS-Track vom ESP laden
 loadTrackHistory();
@@ -935,9 +1005,6 @@ document.getElementById('nightToggle').addEventListener('click', () => {
   document.getElementById('nightToggle').textContent = isNightMode ? 'Tagmodus' : 'Nachtmodus';
 });
 
-/* ------------------------------
-   UpdateBoat Hauptfunktion
-   ------------------------------ */
 function updateBoat() {
     updateBoatGeometry();
     updateHeadingLines();
@@ -945,7 +1012,7 @@ function updateBoat() {
     updateRangeCircles();
     updateLegend();
 }
-
+  
 function updateBoatGeometry() {
     const pos = [state.gps_lat, state.gps_lon];
     const pixelSize = 14;
@@ -998,11 +1065,16 @@ function updateWaypointInfo() {
 }
 
 function updateLegend() {
+    // Hole die Übersetzungen direkt aus dem geladenen Sprachobjekt (mit deutschem Fallback)
+    const txtCompass = getTranslation("map_leg_compass", "🔴 Kompasskurs:");
+    const txtGps = getTranslation("map_leg_gps", "🟡 GPS-Kurs:");
+    const txtWind = getTranslation("map_leg_wind", "🟢 Wind:");
+
+    // Baue die Legende dynamisch und übersetzungssicher zusammen
     legendEl.innerHTML =
-        `🔴 Kompasskurs: ${state.kompass.toFixed(1)}°<br>` +
-        `🟡 GPS-Kurs: ${state.gps_kurs.toFixed(1)}°<br>` +
-        `🟢 Wind: ${state.winddir_berechnet.toFixed(1)}° / ` +
-        `${state.windspeed_berechnet.toFixed(1)} kn`;
+        `${txtCompass} ${state.kompass.toFixed(1)}°<br>` +
+        `${txtGps} ${state.gps_kurs.toFixed(1)}°<br>` +
+        `${txtWind} ${state.winddir_berechnet.toFixed(1)}° / ${state.windspeed_berechnet.toFixed(1)} kn`;
 }
 
 function updateRangeCircles() {

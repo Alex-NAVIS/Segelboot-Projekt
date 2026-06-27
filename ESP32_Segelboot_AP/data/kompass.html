@@ -3,60 +3,45 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width,initial-scale=1" />
-
-	<link rel="stylesheet" href="style.css">
-	<title>Kompass — NAVIS Marine Dashboard</title>
+	<link rel="stylesheet" href="css/style.css">
+	<title data-i18n="nav_kompass">Kompass — NAVIS Marine Dashboard</title>
 <style>
-:root{--bg:#1c1f26;--panel:#2a2f38;--text:#f4f4f4;--muted:#9aa3a8;}
-body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;height:100vh;}
-.panel{background:var(--panel);border-radius:12px;padding:8px;box-shadow:0 8px 28px rgba(0,0,0,0.6);margin-top:8px;}
-#compassCanvas{width:90vmin;height:90vmin;display:block;border-radius:12px;}
+/* Nutzt die CSS-Variablen aus Ihrer zentralen style.css */
+.panel-compass { 
+    background: var(--bg-panel); 
+    border-radius: 12px; 
+    padding: 12px; 
+    box-shadow: 0 8px 28px rgba(0,0,0,0.6); 
+    margin-top: 20px; 
+    
+    /* BEHEBUNG: Macht das Panel zu einem Inline-Element, damit das 'text-align: center' vom Body greift */
+    display: inline-block; 
+}
+
+#compassCanvas { 
+    /* Sorgt dafür, dass der Kompass quadratisch bleibt, sich flüssig anpasst und maximal 600px groß wird */
+    width: 85vmin; 
+    height: 85vmin; 
+    max-width: 600px;
+    max-height: 600px;
+    display: block; 
+    border-radius: 12px; 
+    margin: 0 auto; 
+}
 </style>
 </head>
 <body>
 
-	<nav id="navbar">
-		<div id="wsStatus">
-			<div id="wsLed"></div>
-			<span>WS</span>
-		</div>
-		<a href="index.html" class="navbtn" data-i18n="nav.map">Dashboard</a>
-		<a href="karte.html" class="navbtn" data-i18n="nav.map">Karte</a>
-		<a href="horizont.html" class="navbtn" data-i18n="nav.horizon">Horizont</a>
-		<a href="autopilot.html" class="navbtn" data-i18n="nav.autopilot">Autopilot</a>
-		
-		<div style="padding-left: 5px;">
-			<select id="langSelect" onchange="changeLanguage(this.value)">
-				<!-- Standard-Sprachen -->
-				<option value="de" data-i18n="index_txt_10">Deutsch</option>
-				<option value="en" data-i18n="index_txt_11">English</option>
-				<option value="fr" data-i18n="index_txt_12">Français</option>
-				<option value="it" data-i18n="index_txt_13">Italiano</option>
-				<option value="es" data-i18n="index_txt_43">Español</option>
-				<option value="da" data-i18n="index_txt_44">Dansk</option>
-				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
-				<option value="no" data-i18n="index_txt_46">Norsk</option>
-				<option value="sv" data-i18n="index_txt_47">Svenska</option>
-				<option value="ru" data-i18n="index_txt_48">Русский</option>
-				<option value="pl" data-i18n="index_txt_49">Polski</option>
-				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
-				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
-			</select>
-		</div>
-	</nav>
-
-<div class="panel">
+<!-- Durch 'display: inline-block' zentriert das 'text-align: center' aus Ihrer style.css dieses Element automatisch -->
+<div class="panel-compass">
   <canvas id="compassCanvas" width="600" height="600"></canvas>
 </div>
 
-<script>
-const WS_URL = `ws://${location.hostname}/ws`;
-// ================== STATUS LED =================
-const wsLed = document.getElementById("wsLed");
-function ledDisconnected(){ wsLed.style.background="#ff3333"; wsLed.style.boxShadow="0 0 6px rgba(255,0,0,0.8)"; }
-function ledConnecting(){ wsLed.style.background="#ffcc00"; wsLed.style.boxShadow="0 0 6px rgba(255,204,0,0.8)"; }
-function ledConnected(){ wsLed.style.background="#00ff66"; wsLed.style.boxShadow="0 0 6px rgba(0,255,102,0.9)"; }
+<script src="lang/lang_manager.js"></script>
+<script src="js/navis-navbar.js"></script> 
+<script src="js/navis-telemetry.js"></script>
 
+<script>
 const state = {
   kompass: 0,
   gps_speed: 0,
@@ -65,8 +50,11 @@ const state = {
   winddir_berechnet: 0,
   windspeed_berechnet: 0
 };
-const target = JSON.parse(JSON.stringify(state));
 
+// Navigationsleiste initialisieren
+createNavbar(["dashboard", "karte", "kompass", "horizont"]);
+
+// Canvas-Kontext vorbereiten
 const cCanvas = document.getElementById('compassCanvas');
 const cctx = cCanvas.getContext('2d');
 
@@ -105,10 +93,15 @@ function drawLabelBox(ctx,x,y,color,lines){
   bx = Math.max(m, Math.min(bx, cCanvas.width - w - m));
   by = Math.max(m, Math.min(by, cCanvas.height - h - m));
   ctx.fillStyle = "rgba(0,0,0,0.65)"; ctx.fillRect(bx,by,w,h);
-  ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.strokeRect(bx,by,w,h);
+  ctx.strokeStyle = color; ctx.lineWidth = 1.4; strokeRect(ctx,bx,by,w,h);
   ctx.fillStyle = color;
   lines.forEach((t,i)=> ctx.fillText(t, bx + w/2, by + 6 + i*lineH));
   ctx.restore();
+}
+
+// Helper Funktion für ältere Browser-Kompatibilität beim Zeichnen von Boxen
+function strokeRect(ctx,x,y,w,h){
+  ctx.strokeRect(x,y,w,h);
 }
 
 function drawWindTriangle(ctx, cx, cy, r, minDeg, maxDeg, color){
@@ -155,11 +148,11 @@ function drawCompass(){
   cctx.clearRect(0,0,cCanvas.width,cCanvas.height);
 
   const baseGrad=cctx.createRadialGradient(cx,cy,40,cx,cy,r);
-  baseGrad.addColorStop(0,'#3a3f44'); baseGrad.addColorStop(1,'#111214');
+  baseGrad.addColorStop(0,'#0b2a38'); baseGrad.addColorStop(1,'#00141d');
   cctx.fillStyle=baseGrad; cctx.beginPath(); cctx.arc(cx,cy,r,0,Math.PI*2); cctx.fill();
 
   cctx.save(); cctx.beginPath(); cctx.arc(cx,cy,r,0,Math.PI*2);
-  cctx.fillStyle='rgba(80,200,100,0.18)';
+  cctx.fillStyle='rgba(0, 230, 230, 0.05)'; 
   cctx.fill(); cctx.restore();
 
   const startDeg=315,endDeg=45;
@@ -167,8 +160,8 @@ function drawCompass(){
   cctx.save(); cctx.beginPath(); cctx.moveTo(cx,cy);
   cctx.arc(cx,cy,r,start,end+Math.PI*2,false); cctx.closePath();
   const redGrad=cctx.createRadialGradient(cx,cy,r*0.4,cx,cy,r);
-  redGrad.addColorStop(0,'rgba(255,80,80,0.05)');
-  redGrad.addColorStop(1,'rgba(255,80,80,0.55)');
+  redGrad.addColorStop(0,'rgba(255,80,80,0.02)');
+  redGrad.addColorStop(1,'rgba(255,80,80,0.30)');
   cctx.fillStyle=redGrad; cctx.fill(); cctx.restore();
 
   cctx.save(); cctx.translate(cx,cy); cctx.rotate(-state.kompass*Math.PI/180);
@@ -177,14 +170,15 @@ function drawCompass(){
     const inner=(i%30===0)?r-25:r-12;
     cctx.beginPath(); cctx.moveTo(inner*Math.cos(ang),inner*Math.sin(ang));
     cctx.lineTo(r*Math.cos(ang),r*Math.sin(ang));
-    cctx.strokeStyle='#8b8f92'; cctx.lineWidth=(i%30===0)?2:1; cctx.stroke();
+    cctx.strokeStyle='#007a99'; cctx.lineWidth=(i%30===0)?2:1; cctx.stroke(); 
   }
+  
   const labelAngles=[0,30,60,90,120,150,180,210,240,270,300,330];
   labelAngles.forEach(a=>{
     const ang=(a-90)*Math.PI/180;
     const lx=(r-45)*Math.cos(ang),ly=(r-45)*Math.sin(ang);
     cctx.save(); cctx.translate(lx,ly); cctx.rotate(state.kompass*Math.PI/180);
-    cctx.fillStyle='#e6e9eb';
+    cctx.fillStyle='#ffffff';
     cctx.font=(a%90===0)?'bold 14px Segoe UI':'12px Segoe UI';
     const lab=(a%90===0)?(a===0?'N':a===90?'E':a===180?'S':'W'):String(a);
     cctx.textAlign='center';cctx.textBaseline='middle';cctx.fillText(lab,0,0); cctx.restore();
@@ -192,7 +186,7 @@ function drawCompass(){
   cctx.restore();
 
   const upAng=-Math.PI/2;
-  drawArrow(cctx,cx,cy,cx+r*0.68*Math.cos(upAng),cy+r*0.68*Math.sin(upAng),'#00aaff',12,4,2);
+  drawArrow(cctx,cx,cy,cx+r*0.68*Math.cos(upAng),cy+r*0.68*Math.sin(upAng),'#00e5ff',12,4,3); 
 
   const appAng=(state.winddir_gemessen-90)*Math.PI/180;
   const trueAng=(state.winddir_berechnet-90)*Math.PI/180;
@@ -203,8 +197,8 @@ function drawCompass(){
   drawArrow(cctx,cx+r*0.78*Math.cos(appAng),cy+r*0.78*Math.sin(appAng),cx,cy,'#ffcc33',10,3,2);
   drawArrow(cctx,cx+r*0.78*Math.cos(trueAng),cy+r*0.78*Math.sin(trueAng),cx,cy,'#ff5555',10,3,2);
 
-  drawLabelBox(cctx,cx,cy-(r-48),'#00aaff',[
-    `Kurs: ${target.kompass.toFixed(0)}°`,
+  drawLabelBox(cctx,cx,cy-(r-48),'#00e5ff',[
+    `Kurs: ${state.kompass.toFixed(0)}°`,
     `Speed: ${state.gps_speed.toFixed(1)} kn`
   ]);
   drawLabelBox(cctx,cx+(r-90)*Math.cos(appAng),cy+(r-90)*Math.sin(appAng),'#ffcc33',[
@@ -217,73 +211,59 @@ function drawCompass(){
   ]);
 }
 
-// ================= Integration =================
+// ================= Integration & LERP =================
 const lerpAngle = (a, b, t) => {
   let diff = b - a;
-  if(diff > 180) diff -= 360;
-  if(diff < -180) diff += 360;
+  while (diff < -180) diff += 360;
+  while (diff > 180) diff -= 360;
   return a + diff * t;
 };
 
+const format360 = (angle) => {
+  let normalized = angle % 360;
+  if (normalized < 0) normalized += 360; 
+  return normalized;
+};
+
 let lastTime = performance.now();
+
+// Event-Listener: Berechnet Min/Max-Windwerte NUR, wenn der WebSocket neue Daten liefert
+window.addEventListener("navisTelemetryUpdate", () => {
+  updateWindHistory();
+});
+
 function integrate(now){
   const dt = (now - lastTime)/1000;
   lastTime = now;
   const sm = 1 - Math.exp(-2*dt);
 
-  for(const k in state){
-    if(typeof target[k] === 'number'){
-      if(k === 'kompass' || k === 'winddir_gemessen' || k === 'winddir_berechnet'){
-        state[k] = lerpAngle(state[k], target[k], sm);
-      } else {
-        state[k] = state[k] + (target[k] - state[k]) * sm;
-      }
-    }
+  const target = window.navisTelemetry || {};
+
+  if(typeof target.kompass === 'number') {
+    state.kompass = format360(lerpAngle(state.kompass, target.kompass, sm));
   }
-  updateWindHistory();
+  if(typeof target.gps_speed === 'number') {
+    state.gps_speed = state.gps_speed + (target.gps_speed - state.gps_speed) * sm;
+  }
+  if(typeof target.winddir_gemessen === 'number') {
+    state.winddir_gemessen = format360(lerpAngle(state.winddir_gemessen, target.winddir_gemessen, sm));
+  }
+  if(typeof target.windspeed_gemessen === 'number') {
+    state.windspeed_gemessen = state.windspeed_gemessen + (target.windspeed_gemessen - state.windspeed_gemessen) * sm;
+  }
+  if(typeof target.winddir_berechnet === 'number') {
+    state.winddir_berechnet = format360(lerpAngle(state.winddir_berechnet, target.winddir_berechnet, sm));
+  }
+  if(typeof target.windspeed_berechnet === 'number') {
+    state.windspeed_berechnet = state.windspeed_berechnet + (target.windspeed_berechnet - state.windspeed_berechnet) * sm;
+  }
+
   drawCompass();
   requestAnimationFrame(integrate);
 }
+
+// Animationsschleife starten
 requestAnimationFrame(integrate);
-
-// ================= WebSocket =================
-let ws = null;
-let reconnectTimer = null;
-let reconnectDelay = 1000;
-const MAX_RECONNECT_DELAY = 5000;
-
-function connectWS(){
-  if(ws && ws.readyState===WebSocket.OPEN) return;
-  ledConnecting();
-  console.log("WS: Verbindungsversuch …");
-  ws = new WebSocket(WS_URL);
-
-  ws.onopen = ()=>{
-    console.log("WS verbunden");
-    ledConnected();
-    reconnectDelay = 1000;
-  };
-  ws.onmessage = (event)=>{
-    try{ const json = JSON.parse(event.data); Object.assign(target,json); } 
-    catch(e){ console.warn("WS JSON Fehler", e); }
-  };
-  ws.onerror = ()=> ws.close();
-  ws.onclose = ()=>{
-    console.warn("WS getrennt");
-    ledDisconnected();
-    ws = null;
-    if(!reconnectTimer){
-      reconnectTimer = setTimeout(()=>{
-        reconnectTimer=null;
-        reconnectDelay = Math.min(reconnectDelay*1.5,MAX_RECONNECT_DELAY);
-        connectWS();
-      }, reconnectDelay);
-    }
-  };
-}
-connectWS();
-
-
 </script>
 </body>
 </html>

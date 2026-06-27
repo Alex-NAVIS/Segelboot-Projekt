@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="css/style.css">
     <title>Autopilot Steuerung</title>
     <style>
         body { background:#001a26; color:#00e6e6; font-family:"Segoe UI",Arial,sans-serif; margin:0; text-align:center; }
         header { background:#002b3a; color:#00ffff; padding:15px; font-size:1.8em; font-weight:bold; border-bottom:2px solid #005566; }
-        .section-title { color:#00ffff; margin-top:30px; font-size:1.4em; border-bottom:1px solid #007a99; display:inline-block; padding-bottom:4px; }
+        .section-title { color:#00ffff; margin-top:30px; font-size:1.4em; border-bottom:1px solid #007a99; display: inline-block; padding-bottom:4px; }
         .switch-section { margin-top:40px; padding:25px 0; background:linear-gradient(180deg,#00141d,#00242f); border-top:2px solid #005566; border-bottom:2px solid #005566; display:flex; flex-direction:column; align-items:center; }
-        .switch { border:2px solid #007a99; border-radius:12px; width:200px; padding:15px; font-size:18px; font-weight:bold; cursor:pointer; transition:.3s; margin:10px 0; background:#0b2a38; }
-        .switch.active { background:#00ff00 !important; color:#001a26; }
+        .switch { border:2px solid #007a99; border-radius:12px; width:200px; padding:15px; font-size:18px; font-weight:bold; cursor:pointer; transition:.3s; margin:10px 0; background:#0b2a38; color:#fff; }
+        .switch.active { background: #00b8d4 !important; color: #001a26; border-color: #00e6e6; box-shadow: 0 0 8px rgba(0, 230, 230, 0.4); }
         .rotary-encoder { width:340px; height:340px; margin:30px auto; position:relative; }
         .angle-display { font-size:1.8em; color:#66ffff; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
-        #rotary-svg { width:100%; height:100%; }
+        #rotary-svg { width:100%; height:100%; touch-action: none; }
         .marker { stroke:#00ffff; stroke-width:5; stroke-linecap:round; }
         .scale-small { stroke:#008899; stroke-width:1.2; }
         .scale-major { stroke:#00cccc; stroke-width:2; }
@@ -23,100 +24,84 @@
         .slider { width:200px; margin-top:20px; appearance:none; background:#004d66; height:10px; border-radius:5px; }
         .slider::-webkit-slider-thumb { appearance:none; width:20px; height:20px; background:#00b8d4; border-radius:50%; cursor:pointer; }
         .footer { margin: 40px auto 20px auto; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; width: 100%; max-width: 450px; }
-        #langSelect { background: #003d52; color: #00ffff; border: 1px solid #007a99; border-radius: 5px; padding: 4px; font-size: .85em; font-weight: bold; cursor: pointer; }
-        #langSelect option { background: #001a26; color: #00ffff; }
-        #navbar { display: flex; justify-content: center; gap: 8px; background-color: #002b3a; padding: 6px 0; border-bottom: 1px solid #005566; position: relative; }
-		#wsStatus { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; font-size: 0.75em; color: #ccc; z-index: 10; }
-		.navbtn { background:#003d52; color:#00ffff; border:1px solid #007a99; border-radius:5px; padding:3px 10px; text-decoration:none; font-size:.9em; font-weight:bold; transition:.2s; }
-        .navbtn:hover { background:#00b8d4; color:#001a26; border-color:#00e6e6; }
 		#wind_dir { filter: drop-shadow(0 0 2px rgba(255, 255, 0, 0.8)); }
 		.reset-container { display: flex; justify-content: flex-end; width: 340px; margin: -20px auto 10px auto; }
 		.reset-btn { background: #4d0000; color: #ff6666; border: 1px solid #990000; border-radius: 4px; padding: 5px 12px; font-size: 0.85em; font-weight: bold; cursor: pointer; transition: 0.2s; box-shadow: 0 0 5px rgba(255, 0, 0, 0.2); }
 		.reset-btn:hover { background: #800000; color: #ffffff; box-shadow: 0 0 10px rgba(255, 0, 0, 0.5); }
 		.reset-btn:active { transform: scale(0.95); }
-		#wsLed { width: 12px; height: 12px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 6px rgba(255,0,0,0.8); }
-		#rotary-svg { touch-action: none;}
 	</style>
-    <!-- Lade den zentralen Sprachmanager -->
-    <script src="js/lang_manager.js"></script>
 </head>
 <body>
-	<header><div id="wsLed"></div>Autopilot Steuerung</header>
-    <div id="navbar">
-		<a href="index.html" class="navbtn" data-i18n="nav_dashboard">Dashboard2</a>
-        <a href="karte.html" class="navbtn" data-i18n="nav_karte">Karte</a>
-        <a href="kompass.html" class="navbtn" data-i18n="nav_kompass">Kompass</a>
-        <a href="horizont.html" class="navbtn" data-i18n="nav_horizont">Horizont</a>
-        
-	<!-- Integrierter Sprachumschalter am Ende der Navbar -->
-        <div class="lang-select-container">
-            <select id="langSelect" onchange="changeLanguage(this.value)">
-                <option value="de">DE</option>
-                <option value="en">EN</option>
-                <option value="fr">FR</option>
-                <option value="it">IT</option>
-            </select>
-        </div>
-	</div>
-
-    <main>
-        <section class="switch-section">
-            <h2 class="section-title">Modus Auswahl</h2>
-            <div class="switch" id="modus_off">OFF</div>
-            <div class="switch" id="modus_kompass">Kompass Kurs</div>
-            <div class="switch" id="modus_wind">Windsteuerung</div>
-            <div class="switch" id="modus_gps">GPS Koordinate</div>
-			<h2 class="section-title">GPS Zielkoordinate</h2>
+	<header data-i18n="ap_header">Autopilot Steuerung</header>
+	<main>
+		<section class="switch-section">
+			<h2 class="section-title" data-i18n="ap_sec_mode">Modus Auswahl</h2>
+			<div class="switch" id="modus_off" data-i18n="ap_mode_off">OFF</div>
+			<div class="switch" id="modus_kompass" data-i18n="ap_mode_compass">Kompass Kurs</div>
+			<div class="switch" id="modus_wind" data-i18n="ap_mode_wind">Windsteuerung</div>
+			<div class="switch" id="modus_gps" data-i18n="ap_mode_gps">GPS Koordinate</div>
+			
+			<h2 class="section-title" data-i18n="ap_sec_gps_target">GPS Zielkoordinate</h2>
 			<div style="color:#ffffff; font-size:1.2em;">
 				Lat: <span id="ap_lat">--</span><br>
 				Lon: <span id="ap_lon">--</span>
 			</div>
-        </section>
-        <h2 class="section-title">Kursübersteuerung</h2>
-        <div class="rotary-encoder">
-            <svg id="rotary-svg" viewBox="0 0 200 200">
-                <!-- Halbkreis Farben -->
-                <path d="M100 10 A90 90 0 0 0 100 190" fill="none" stroke="red" stroke-width="7"/>
-                <path d="M100 10 A90 90 0 0 1 100 190" fill="none" stroke="green" stroke-width="7"/>
-                <path id="activeSegment" fill="none"/>
-                <g id="scale"></g>
+		</section>
+
+		<h2 class="section-title" data-i18n="ap_sec_override">Kursübersteuerung</h2>
+		<div class="rotary-encoder">
+			<svg id="rotary-svg" viewBox="0 0 200 200">
+				<path d="M100 10 A90 90 0 0 0 100 190" fill="none" stroke="red" stroke-width="7"/>
+				<path d="M100 10 A90 90 0 0 1 100 190" fill="none" stroke="green" stroke-width="7"/>
+				<path id="activeSegment" fill="none"/>
+				<g id="scale"></g>
 				<g id="compassScale"></g>
-				<!-- Windrichtungs-Pfeil -->
 				<polygon id="wind_dir" points="100,5 95,20 100,65 105,20" fill="yellow"/>
 				<line x1="100" y1="15" x2="100" y2="35" class="zero-line"/>
-                <line id="warnL" x1="100" y1="20" x2="100" y2="5" class="warning"/>
-                <line id="warnR" x1="100" y1="20" x2="100" y2="5" class="warning"/>
-                <line id="marker" x1="100" y1="100" x2="100" y2="35" class="marker"/>
-                <polygon class="boot" points="100,85 94,115 106,115"/>
-            </svg>
-            <div class="angle-display" id="angle_value">0°</div>
-			<!-- NEU: Reset Button Rechts unterhalb -->
+				<line id="warnL" x1="100" y1="20" x2="100" y2="5" class="warning"/>
+				<line id="warnR" x1="100" y1="20" x2="100" y2="5" class="warning"/>
+				<line id="marker" x1="100" y1="100" x2="100" y2="35" class="marker"/>
+				<polygon class="boot" points="100,85 94,115 106,115"/>
+			</svg>
+			<div class="angle-display" id="angle_value">0°</div>
 			<div class="reset-container">
-				<button class="reset-btn" id="reset_angle">RESET 0°</button>
+				<button class="reset-btn" id="reset_angle" data-i18n="ap_btn_reset">RESET 0°</button>
 			</div>	
-        </div>
+		</div>
 		<input type="range" min="-45" max="45" value="0" step="1" id="angle_input" class="slider">
-        <section class="switch-section">
-            <h2 class="section-title">Pinne Steuerung</h2>
-            <div class="switch" id="pinnen_einfahren">Pinne Einfahren</div>
-            <div class="switch" id="pinnen_ausfahren">Pinne Ausfahren</div>
-            <div class="switch" id="pinnen_stop">Stop</div>
-        </section>
-    </main>
+
+		<section class="switch-section">
+			<h2 class="section-title" data-i18n="ap_sec_tiller">Pinne Steuerung</h2>
+			<div class="switch" id="pinnen_off" data-i18n="ap_tiller_off">OFF</div>
+			<div class="switch" id="pinnen_einfahren" data-i18n="ap_tiller_retract">Pinne Einfahren</div>
+			<div class="switch" id="pinnen_ausfahren" data-i18n="ap_tiller_extend">Pinne Ausfahren</div>
+			<div class="switch" id="pinnen_stop" data-i18n="ap_tiller_stop">Stop</div>
+		</section>
+	</main>
 
     <footer class="footer">
         <strong>Marine Autopilot v1.1</strong><br>
         Entwickelt von den Partnern <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span>.<br>
         © 2025 – System ESP32
     </footer>
+
+	<script src="lang/lang_manager_auto.js"></script>
+	<script src="js/navis-navbar.js"></script> 
+	<script src="js/navis-telemetry.js"></script>
+
 	<script>
-	const MODE = { off: 0, kompass: 1, gps: 2, wind: 3 }, PINNE = { stop: 0, einfahren: 1, ausfahren: 2 };
-	let lastSendTime = 0, lastSentAngle = null;
+	const MODE = { off: 0, kompass: 1, gps: 2, wind: 3 }, PINNE = { stop: 0, einfahren: 1, ausfahren: 2, off: 0 };
+	let lastSendTime = 0, lastSentAngle = null, dragging = false;
 	const THROTTLE_MS = 100, svg = document.getElementById("rotary-svg"), scaleGroup = document.getElementById("scale");
 	const compassGroup = document.getElementById("compassScale");
 	let windDirection = 0; // 0–360°
-	
-	// Skala & Initialisierung
+			
+	// ======================================================================
+	// Übergibt die gewünschten Seiten-IDs, die in der Navbar erscheinen sollen:
+	// ======================================================================
+	createNavbar(["dashboard", "karte", "kompass", "horizont", "autopilot"]);
+
+	// Skala generieren (-45° bis +45°)
 	for (let a = -45; a <= 45; a += 1) {
 		let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
 		line.setAttribute("x1", 100);
@@ -127,9 +112,8 @@
 		line.setAttribute("class", (a % 10 === 0) ? "scale-major" : "scale-small");
 		scaleGroup.appendChild(line);
 	}
-	// ===============================
+
 	// 360° Kompass-Skala
-	// ===============================
 	for (let a = 0; a < 360; a += 5) {
 		let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
 		line.setAttribute("x1", 100);
@@ -143,130 +127,62 @@
 	document.getElementById("warnL").setAttribute("transform", "rotate(-30 100 100)");
 	document.getElementById("warnR").setAttribute("transform", "rotate(30 100 100)");
 
+	// UI-Element-Referenzen
+	const angleInput = document.getElementById("angle_input");
+	const angleValue = document.getElementById("angle_value");
+
 	// -------------------------------------------------------------
-	// WEBSOCKET initialisieren + Status LED
+	// LIVE-DATA LOOP (Aktualisiert die Anzeigen alle 50ms aus zentralem WS)
 	// -------------------------------------------------------------
-	const wsLed = document.getElementById("wsLed");
+	setInterval(() => {
+		const data = window.navisTelemetry;
+		if (!data || typeof data !== "object") return;
 
-	function ledDisconnected() {
-	  wsLed.style.background = "#ff3333";
-	  wsLed.style.boxShadow = "0 0 6px rgba(255,0,0,0.8)";
-	}
-	function ledConnecting() {
-	  wsLed.style.background = "#ffcc00";
-	  wsLed.style.boxShadow = "0 0 6px rgba(255,204,0,0.8)";
-	}
-	function ledConnected() {
-	  wsLed.style.background = "#00ff66";
-	  wsLed.style.boxShadow = "0 0 6px rgba(0,255,102,0.9)";
-	}
-	
-	let ws = null;
-	let reconnectTimer = null;
-	let reconnectDelay = 1000;
-	const MAX_RECONNECT_DELAY = 5000;
-
-	function connectWS() {
-	  if (ws && ws.readyState === WebSocket.OPEN) return;
-
-	  ledConnecting();
-	  console.log("WS: Verbindungsversuch …");
-
-	  ws = new WebSocket(`ws://${window.location.host}/ws`);
-
-	  ws.onopen = () => {
-		console.log("WS verbunden");
-		ledConnected();
-		reconnectDelay = 1000;
-	  };
-
-	ws.onmessage = (event) => {
-	  try {
-		const data = JSON.parse(event.data);
-
-		// ------------------------------
-		// Wind
-		// ------------------------------
+		// 1. Windrichtung aktualisieren
 		if (data.winddir_gemessen !== undefined) {
-		  updateWindDirection(data.winddir_gemessen);
+			updateWindDirection(data.winddir_gemessen);
 		}
 
-		// ------------------------------
-		// Autopilot Block
-		// ------------------------------
+		// 2. Autopilot Block auswerten
 		const ap = data.autopilot;
 		if (ap && typeof ap === "object") {
 
-		  // Offset / Winkel
-		  if (ap.offset !== undefined) {
-			document.getElementById("angle_input").value = ap.offset;
-			document.getElementById("angle_value").textContent = ap.offset + "°";
-			updateMarker(ap.offset);
-		  }
+			// Offset / Winkel (Nur aktualisieren, wenn der User nicht gerade zieht)
+			if (ap.offset !== undefined && !dragging && document.activeElement !== angleInput) {
+				angleInput.value = ap.offset;
+				angleValue.textContent = ap.offset + "°";
+				updateMarker(ap.offset);
+			}
 
-		  // Modus
-		  if (ap.mode !== undefined) {
+			// Modus-Klassen toggeln
 			Object.keys(MODE).forEach(m => {
-			  document
-				.getElementById("modus_" + m)
-				.classList.toggle("active", ap.mode === MODE[m]);
+				const btn = document.getElementById("modus_" + m);
+				if (btn) btn.classList.toggle("active", ap.mode === MODE[m]);
 			});
-		  }
 
-		  // Pinne
-		  if (ap.pinne !== undefined) {
+			// Pinnen-Klassen toggeln
 			Object.keys(PINNE).forEach(p => {
-			  document
-				.getElementById("pinnen_" + p)
-				.classList.toggle("active", ap.pinne === PINNE[p]);
+				const btn = document.getElementById("pinnen_" + p);
+				if (btn) btn.classList.toggle("active", ap.pinne === PINNE[p]);
 			});
-		  }
 
-		  // ⭐ NEU: Zielkoordinaten
-		  if (ap.target_lat !== undefined)
-			document.getElementById("ap_lat").textContent = Number(ap.target_lat).toFixed(6);
-
-		  if (ap.target_lon !== undefined)
-			document.getElementById("ap_lon").textContent = Number(ap.target_lon).toFixed(6);
+			// Zielkoordinaten befüllen
+			if (ap.target_lat !== undefined) {
+				document.getElementById("ap_lat").textContent = Number(ap.target_lat).toFixed(6);
+			}
+			if (ap.target_lon !== undefined) {
+				document.getElementById("ap_lon").textContent = Number(ap.target_lon).toFixed(6);
+			}
 		}
+	}, 50);
 
-	  } catch (e) {
-		console.warn("WS JSON Fehler", e);
-	  }
-	};
-
-	  ws.onerror = () => ws.close();
-
-	  ws.onclose = () => {
-		console.warn("WS getrennt");
-		ledDisconnected();
-		ws = null;
-
-		if (!reconnectTimer) {
-		  reconnectTimer = setTimeout(() => {
-			reconnectTimer = null;
-			reconnectDelay = Math.min(reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
-			connectWS();
-		  }, reconnectDelay);
-		}
-	  };
-	}
-
+	// Grafische Marker-Updates
 	function updateMarker(angle) {
 		document.getElementById("marker").setAttribute("transform", `rotate(${angle} 100 100)`);
 		document.querySelector(".boot").style.transform = `rotate(${angle}deg)`;
 		updateActiveSegment(angle);
 	}
 	
-	// Reset Button Logik
-	document.getElementById("reset_angle").addEventListener("click", () => {
-		send("winkel=0"); // UI wartet auf WS-Update
-	});
-
-
-	// ===============================
-	// Windrichtungsanzeige
-	// ===============================
 	function updateWindDirection(angle360) {
 		windDirection = angle360 % 360;
 		document.getElementById("wind_dir").setAttribute("transform", `rotate(${windDirection} 100 100)`);
@@ -282,6 +198,17 @@
 		segment.setAttribute("fill", angle > 0 ? `rgba(0,160,0,${0.2 + Math.abs(angle) / 100})` : `rgba(220,0,0,${0.2 + Math.abs(angle) / 100})`);
 	}
 
+	// Reset Button Logik
+	document.getElementById("reset_angle").addEventListener("click", () => {
+		angleInput.value = 0;
+		angleValue.textContent = "0°";
+		updateMarker(0);
+		send("winkel=0");
+	});
+
+	// -------------------------------------------------------------
+	// HTTP SEND LOGIK (Befehle per GET-Endpunkt an den ESP32)
+	// -------------------------------------------------------------
 	async function send(params) {
 		const now = Date.now();
 		if (now - lastSendTime < THROTTLE_MS) {
@@ -297,30 +224,37 @@
 		}
 	}
 
-	// Events
-	Object.keys(MODE).forEach(m => document.getElementById("modus_" + m).onclick = () => send("modus=" + MODE[m]));
-	Object.keys(PINNE).forEach(p => document.getElementById("pinnen_" + p).onclick = () => send("pinne=" + PINNE[p]));
+	// Event Zuweisungen für Modus und Pinnen-Tasten
+	Object.keys(MODE).forEach(m => {
+		const btn = document.getElementById("modus_" + m);
+		if (btn) btn.onclick = () => send("modus=" + MODE[m]);
+	});
+	
+	Object.keys(PINNE).forEach(p => {
+		const btn = document.getElementById("pinnen_" + p);
+		if (btn) btn.onclick = () => send("pinne=" + PINNE[p]);
+	});
 
-	document.getElementById("angle_input").oninput = (e) => {
-		let val = Math.round(e.target.value); // vorher: /5 * 5
-		document.getElementById("angle_value").textContent = val + "°";
+	// Schieberegler Input-Event
+	angleInput.oninput = (e) => {
+		let val = Math.round(e.target.value);
+		angleValue.textContent = val + "°";
 		updateMarker(val);
-		if (val !== lastSentAngle) { lastSentAngle = val; send("winkel=" + val); }
+		if (val !== lastSentAngle) { 
+			lastSentAngle = val; 
+			send("winkel=" + val); 
+		}
 	};
 
-// =====================================================
-// NAVIS Pointer-Steuerung (Desktop + Mobile stabil)
-// =====================================================
-	let dragging = false;
-
+	// =====================================================
+	// NAVIS Pointer-Steuerung (Desktop + Mobile stabil)
+	// =====================================================
 	function handleMove(x) {
 		const rect = svg.getBoundingClientRect();
 		const dx = x - (rect.left + rect.width / 2);
-		let angle = Math.round(
-			Math.max(-45, Math.min(45, (dx / (rect.width / 2) * 45)))
-		);
-		document.getElementById("angle_input").value = angle;
-		document.getElementById("angle_value").textContent = angle + "°";
+		let angle = Math.round(Math.max(-45, Math.min(45, (dx / (rect.width / 2) * 45))));
+		angleInput.value = angle;
+		angleValue.textContent = angle + "°";
 		updateMarker(angle);
 		if (angle !== lastSentAngle) {
 			lastSentAngle = angle;
@@ -328,34 +262,19 @@
 		}
 	}
 
-	// Pointer DOWN
 	svg.addEventListener("pointerdown", (e) => {
 		dragging = true;
 		svg.setPointerCapture(e.pointerId);
 		handleMove(e.clientX);
 	});
 
-	// Pointer MOVE
 	svg.addEventListener("pointermove", (e) => {
 		if (!dragging) return;
 		handleMove(e.clientX);
 	});
 
-	// Pointer UP
-	svg.addEventListener("pointerup", () => {
-		dragging = false;
-	});
-
-	// Pointer CANCEL (wichtig für Mobile!)
-	svg.addEventListener("pointercancel", () => {
-		dragging = false;
-	});
-
-	
-	window.onload = () => {
-		ledDisconnected();
-		connectWS();
-	};
-	</script>
+	svg.addEventListener("pointerup", () => { dragging = false; });
+	svg.addEventListener("pointercancel", () => { dragging = false; });
+</script>
 </body>
 </html>

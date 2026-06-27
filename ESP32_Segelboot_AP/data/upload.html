@@ -3,76 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP LittleFS Manager</title>
-  <style>
-    body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0f1218; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; justify-content: start; min-height: 100vh; padding: 2rem; }
-    h1 { color: #00bcd4; margin-bottom: 0.5rem; }
-    p { color: #aaa; font-size: 0.9rem; margin-bottom: 2rem; text-align: center; max-width: 500px; }
-    #navbar { width: 100%; max-width: 450px; display: flex; justify-content: flex-start; margin-bottom: 1rem; }
-    form, .dashboard { background: #1a1f28; padding: 2rem; border-radius: 12px; box-shadow: 0 0 20px rgba(0,180,212,0.15); display: flex; flex-direction: column; gap: 1.5rem; width: 100%; max-width: 450px; margin-bottom: 2rem; box-sizing: border-box; }
-    label { font-weight: bold; font-size: 0.85rem; color: #00bcd4; }
-    input[type="text"], input[type="file"] { padding: 0.6rem; border-radius: 6px; border: 1px solid #252a38; background: #252a38; color: #e0e0e0; width: 100%; box-sizing: border-box; }
-    input[type="submit"] { background: #00bcd4; color: #0f1218; border: none; padding: 0.8rem; font-size: 1rem; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
-    input[type="submit"]:hover { background: #00e5ff; transform: translateY(-1px); }
-    .navbtn { display: inline-block; background: linear-gradient(135deg, #1a2a35 0%, #003d52 100%); color: #00d4ff; border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 8px; padding: 8px 18px; text-decoration: none; font-size: 0.85rem; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-    .navbtn:hover { background: #00bcd4; color: #0f1218; border-color: #00e5ff; box-shadow: 0 0 12px rgba(0, 188, 212, 0.4); transform: translateY(-1px); }
-    #status { margin-top: 0.5rem; font-weight: bold; text-align: center; font-size: 0.9rem; }
-    #progressBar { width: 100%; height: 10px; background: #252a38; border-radius: 5px; overflow: hidden; }
-    #progress { height: 100%; width: 0%; background: #00bcd4; transition: width 0.3s ease; }
-    .file-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #252a38; font-size: 0.85rem; }
-    .file-name { color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; }
-    .file-size { color: #00bcd4; font-family: monospace; }
-    .storage-bar-bg { width: 100%; height: 6px; background: #252a38; border-radius: 3px; margin-top: 5px; }
-    .storage-bar-fill { height: 100%; background: #00bcd4; border-radius: 3px; }
-    footer { margin: 40px 0 20px 0; padding-top: 10px; border-top: 1px solid #005566; color: #00b8d4; font-size: 0.9em; text-align: center; opacity: 0.9; width: 100%; max-width: 450px; }
-  </style>
+  <link rel="stylesheet" href="css/style.css">
+  <title data-i18n="nav_upload">ESP LittleFS Manager</title>
 </head>
 <body>
 
-  <div id="navbar">
-    <a href="index.html" class="navbtn">← Main Menu</a>
-  </div>
-
-  <h1>ESP LittleFS Manager</h1>
-  <p>Verwalten Sie die Dateien auf Ihrem Autopilot-System.</p>
-
-  <form id="uploadForm">
-    <label for="folderInput">Zielpfad / Unterordner</label>
-    <input type="text" id="folderInput" placeholder="z.B. js/ (optional)" value="">
-
-    <label for="fileInput">Datei auswählen</label>
-    <input type="file" id="fileInput" name="file" required>
-
-    <input type="submit" value="Hochladen">
-
-    <div id="progressBar"><div id="progress"></div></div>
-    <div id="status">Bereit</div>
-  </form>
-
-  <div class="dashboard">
-    <label>Speicherbelegung</label>
-    <div id="storageText" style="font-size: 0.8rem; color: #aaa;">Lade Daten...</div>
-    <div class="storage-bar-bg"><div id="storageBar" class="storage-bar-fill" style="width: 0%"></div></div>
+  <!-- Zentrierter Inhalts-Container -->
+  <div class="upload-container">
     
-    <label style="margin-top: 1rem;">Dateien im System</label>
-    <div id="fileList">
-      <!-- Wird per JS befüllt -->
+    <h1 data-i18n="upload_main_header">ESP LittleFS Manager</h1>
+    <p data-i18n="upload_sub_header">Verwalten Sie die Dateien auf Ihrem Autopilot-System.</p>
+
+    <form id="uploadForm" class="upload-form">
+      <label for="folderInput" data-i18n="upload_lbl_path" class="group-title" style="border:none; padding:0; text-align:left; font-size:0.85rem;">Zielpfad / Unterordner</label>
+      <input type="text" id="folderInput" data-i18n-placeholder="upload_ph_path" placeholder="z.B. js/ (optional)" value="">
+
+      <label for="fileInput" data-i18n="upload_lbl_select" class="group-title" style="border:none; padding:0; text-align:left; font-size:0.85rem;">Datei auswählen</label>
+      <input type="file" id="fileInput" name="file" required>
+
+      <input type="submit" data-i18n="upload_btn_submit" value="Hochladen">
+
+      <div id="progressBar"><div id="progress"></div></div>
+      <div id="status" data-i18n="upload_status_ready">Bereit</div>
+    </form>
+
+    <div class="upload-dashboard">
+      <label data-i18n="upload_lbl_usage" class="group-title" style="border:none; padding:0; text-align:left; font-size:0.85rem;">Speicherbelegung</label>
+      <div id="storageText" style="font-size: 0.8rem; color: #aaa;" data-i18n="upload_val_loading">Lade Daten...</div>
+      <div class="storage-bar-bg"><div id="storageBar" class="storage-bar-fill" style="width: 0%"></div></div>
+      
+      <label style="margin-top: 1rem;" data-i18n="upload_lbl_files" class="group-title" style="border:none; padding:0; text-align:left; font-size:0.85rem;">Dateien im System</label>
+      <div id="fileList">
+        <!-- Wird per JS befüllt -->
+      </div>
     </div>
+
+    <footer>
+      <strong>NAVIS & Eike File Upload v1.1</strong><br>
+      <span data-i18n="upload_footer_dev">Entwickelt von</span> <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
+      © 2026 – System ESP32
+    </footer>
+
   </div>
 
-  <footer>
-    <strong>NAVIS & Eike File Upload v1.1</strong><br>
-    Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
-    © 2026 – System ESP32
-  </footer>
-
-  <script>
+  <script src="lang/lang_manager_upload.js"></script>
+  <script src="js/navis-navbar.js"></script> 
+  <script src="js/navis-telemetry.js"></script>
+	
+  <script>		
+    createNavbar(["dashboard", "upload", "system"]);
     const form = document.getElementById('uploadForm');
     const statusDiv = document.getElementById('status');
     const progressBar = document.getElementById('progress');
     const fileListDiv = document.getElementById('fileList');
     const storageText = document.getElementById('storageText');
     const storageBar = document.getElementById('storageBar');
+
+    function getTranslation(key, defaultText) {
+      if (typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang][key]) {
+        return translations[currentLang][key];
+      }
+      return defaultText;
+    }
 
     function loadFileSystemInfo() {
       fetch('/list_files')
@@ -87,11 +79,17 @@
           const totalKB = (fsInfo.fs_total / 1024).toFixed(1);
           const percent = (fsInfo.fs_used / fsInfo.fs_total * 100).toFixed(1);
 
-          storageText.innerText = `${usedKB} KB von ${totalKB} KB belegt (${percent}%)`;
+          const template = getTranslation("upload_js_storage_pattern", "{used} KB von {total} KB belegt ({percent}%)");
+          storageText.innerText = template
+            .replace("{used}", usedKB)
+            .replace("{total}", totalKB)
+            .replace("{percent}", percent);
+            
           storageBar.style.width = percent + "%";
 
           if(data.length === 0) {
-            fileListDiv.innerHTML = '<div style="color:#666; font-style:italic">Keine Dateien gefunden.</div>';
+            const noFilesText = getTranslation("upload_js_no_files", "Keine Dateien gefunden.");
+            fileListDiv.innerHTML = `<div style="color:#666; font-style:italic; text-align:center;">${noFilesText}</div>`;
           }
 
           data.forEach(file => {
@@ -104,13 +102,14 @@
         })
         .catch(err => {
           console.error(err);
-          storageText.innerText = "Fehler beim Laden der Dateiliste";
+          storageText.innerText = getTranslation("upload_js_error", "Fehler beim Laden der Dateiliste");
         });
     }
 
     form.addEventListener('submit', function(e) {
       e.preventDefault();
-      const file = document.getElementById('fileInput').files[0];
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
       if (!file) return;
 
       const folder = document.getElementById('folderInput').value.trim();
@@ -122,7 +121,7 @@
       formData.append('file', file);
       formData.append('path', fullPath); 
 
-      statusDiv.innerText = "⏳ Upload läuft...";
+      statusDiv.innerText = "⏳ " + getTranslation("upload_js_running", "Upload läuft...");
       statusDiv.style.color = "#00bcd4";
       progressBar.style.width = "0%";
 
@@ -131,12 +130,12 @@
         body: formData
       })
       .then(response => {
-        if(response.status === 507) throw new Error('Speicher voll!');
-        if(!response.ok) throw new Error('Server-Fehler: ' + response.status);
+        if(response.status === 507) throw new Error(getTranslation("upload_js_full", "Speicher voll!"));
+        if(!response.ok) throw new Error(getTranslation("upload_js_server_error", "Server-Fehler: ") + response.status);
         return response.text();
       })
       .then(data => {
-        statusDiv.innerText = "✅ Erfolgreich: " + file.name;
+        statusDiv.innerText = "✅ " + getTranslation("upload_js_success", "Erfolgreich: ") + file.name;
         statusDiv.style.color = "#4caf50";
         progressBar.style.width = "100%";
         form.reset();

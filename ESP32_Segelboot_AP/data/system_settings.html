@@ -3,214 +3,184 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="navis.css">
-	<title>System Einstellungen</title>
-</head>
-<body>
-	<nav id="navbar">
-		<a href="index.html" class="navbtn">Dashboard</a>
-		<a href="polar.html" class="navbtn">Boot Polar</a>
-		<a href="upload.html" class="navbtn">Datei upload</a>
+	<link rel="stylesheet" href="css/style.css">
+<header data-i18n="sys_title">System Einstellungen</header>
 
-		<div style="padding:10px;">
-			<select id="langSelect" onchange="changeLanguage(this.value)">
-				<!-- Standard-Sprachen -->
-				<option value="de" data-i18n="index_txt_10">Deutsch</option>
-				<option value="en" data-i18n="index_txt_11">English</option>
-				<option value="fr" data-i18n="index_txt_12">Français</option>
-				<option value="it" data-i18n="index_txt_13">Italiano</option>
-				<option value="es" data-i18n="index_txt_43">Español</option>
-				<option value="da" data-i18n="index_txt_44">Dansk</option>
-				<option value="nl" data-i18n="index_txt_45">Nederlands</option>
-				<option value="no" data-i18n="index_txt_46">Norsk</option>
-				<option value="sv" data-i18n="index_txt_47">Svenska</option>
-				<option value="ru" data-i18n="index_txt_48">Русский</option>
-				<option value="pl" data-i18n="index_txt_49">Polski</option>
-				<option value="tr" data-i18n="index_txt_50">Türkçe</option>
-				<option value="el" data-i18n="index_txt_51">Ελληνικά</option>
-			</select>
-		</div>
-	</nav>
-  <h1>⚙️ System Einstellungen</h1>
-  <!-- Abschnitt A bis E bleiben identisch wie in deinem Code -->
-  <h2>A – WLAN Access Point</h2>
-  <table>
-    <tr><td>SSID:</td><td><input type="text" id="ap_ssid"></td></tr>
-    <tr><td>Passwort:</td><td><input type="text" id="ap_password"></td></tr>
-  </table>
-
-  <h2>B – Sensor Abtastraten (Hz)</h2>
-  <table>
-    <tr><th>Sensor</th><th>Hz</th></tr>
-    <tr><td>GPS hz</td> <td><input type="number" id="gpsHz"></td></tr>
-    <tr><td>AHRS Steps</td> <td><input type="number" id="ahrsHz"></td></tr>
-    <tr><td>MPU Hz</td> <td><input type="number" id="mpuHz"></td></tr>
-    <tr><td>Wind Hz</td> <td><input type="number" id="windHz"></td></tr>
-    <tr><td>SD Logging /min</td> <td><input type="number" id="sdHz"></td></tr>
-    <tr><td>Sensordaten Update / Hz</td><td><input type="number" id="sensorUpdateHz"></td></tr>
-  </table>
-
-  <h2>C – Navigation / Missweisung</h2>
-  <label><input type="checkbox" id="use_decl_compass"> Kompass Missweisung verwenden</label><br>
-  <label><input type="checkbox" id="use_decl_wind"> Wind Missweisung verwenden</label><br>
-
-  <h2>D – Boots Parameter</h2>
-  <table>
-    <tr><td>Sensor to Tiefgang (m)</td><td><input type="number" step="0.01" id="wassertiefe_einbau"></td></tr>
-    <tr><td>Tiefgang Boot (m)</td><td><input type="number" step="0.01" id="tiefgang_boot"></td></tr>
-  </table>
-
-  <h2>E – Wasser Parameter</h2>
-  <table>
-    <tr><td>Wassertemperatur (°C)</td><td><input type="number" id="wassertemperatur"></td></tr>
-    <tr><td>Salinität (‰)</td><td><input type="number" step="0.1" id="waterSalinity"></td></tr>
-  </table>
-
-
- <h2>F – Datenquellen-Matrix (Externe Eingänge)</h2>
-  <table>
-    <tr>
-      <th>Sensor / System</th>
-      <th style="text-align:center;">NMEA 2000<br><span class="info-text_checkbox">(CAN-Bus)</span></th>
-      <th style="text-align:center;">NMEA 0183<br><span class="info-text_checkbox">(Seriell RS-422)</span></th>
-      <th style="text-align:center;">Netzwerk Stream<br><span class="info-text_checkbox">(UDP TCP via WLAN)</span></th>
-    </tr>
-    <!-- GPS Zeile -->
-    <tr>
-      <td><strong>GPS-Daten</strong></td>
-      <td style="text-align:center;"><input type="checkbox" id="gps_use_n2k"></td>
-      <td style="text-align:center;"><input type="checkbox" id="gps_use_0183"></td>
-      <td style="text-align:center;"><input type="checkbox" id="gps_use_udp"></td>
-    </tr>
-    <!-- Wind Zeile -->
-    <tr>
-      <td><strong>Winddaten</strong></td>
-      <td style="text-align:center;"><input type="checkbox" id="wind_use_n2k"></td>
-      <td style="text-align:center;"><input type="checkbox" id="wind_use_0183"></td>
-      <td style="text-align:center;"><input type="checkbox" id="wind_use_udp"></td>
-    </tr>
-    <!-- Echolot Zeile -->
-    <tr>
-      <td><strong>Echolot (Tiefe)</strong></td>
-      <td style="text-align:center;"><input type="checkbox" id="depth_use_n2k"></td>
-      <td style="text-align:center;"><input type="checkbox" id="depth_use_0183"></td>
-      <td style="text-align:center;"><input type="checkbox" id="depth_use_udp_tcp"></td>
-    </tr>
-  </table>
-
-  <!-- ===================== NEUER ABSCHNITT H: Kalibrierung ===================== -->
-	<h2>G – Boot Parameter Geschwindigkeiten</h2>
-	<table>
-		<tr>
-		<th>Boot / Windwinkel</th>
-		<th style="text-align:center;">Geschwindigkeit<br></th>
-		<tr><td>Wind aus 45°</td><td><input type="number" step="0.1" id="geschwindigkeit45"></td></tr>
-		<tr><td>Wind aus 50°</td><td><input type="number" step="0.1" id="geschwindigkeit50"></td></tr>
-	</table>
-
-  <!-- ===================== NEUER ABSCHNITT H: Kalibrierung ===================== -->
-  <h2>H – Sensor Kalibrierung</h2>
-  <table>
-    <tr>
-      <th colspan="2">Aktion & Anleitung</th>
-    </tr>
-	<!-- Roll & Pitch Nullung -->
-	<tr>
-	  <td class="calib-cell">
-		<button id="calibLevelBtn" onclick="calibrate('level')">⚖️ Lage nullen</button>
-	  </td>
-	  <td>
-		<strong>Warum?</strong> Korrigiert die Einbaulage der IMU (Schiefstand im Boot).<br>
-		<strong>Ablauf:</strong> Boot muss möglichst gerade im Wasser liegen (keine Krängung, keine Bewegung).<br>
-		<span class="info-text">
-		  Hinweis: Diese Funktion setzt Roll & Pitch auf 0° und speichert die Offsets dauerhaft.
-		</span>
-	  </td>
-	</tr>
-    <!-- Kompass -->
-    <tr>
-      <td class="calib-cell">
-        <button id="calibCompassBtn" onclick="calibrate('compass')">🧭 Kompass kalibrieren</button>
-      </td>
-      <td>
-        <strong>Warum?</strong> Korrigiert magnetische Störeinflüsse durch das Boot (Eisen, Kabel).<br>
-        <strong>Ablauf:</strong> Nach Start ca. 30 Sek. Zeit. Drehen Sie das Boot langsam um 360° (Vollkreis).<br>
-        <span class="info-text">Hinweis: Nur bei ruhigem Wasser und ohne große Metallschiffe in der Nähe durchführen.</span>
-      </td>
-    </tr>
+<main>
+	<h1 data-i18n="sys_main_header">⚙️ System Einstellungen</h1>
 	
-    <!-- Gyro -->
-    <tr>
-      <td class="calib-cell">
-        <button id="calibGyroBtn" onclick="calibrate('gyro')">🔄 Gyro kalibrieren</button>
-      </td>
-      <td>
-        <strong>Warum?</strong> Verhindert das "Wandern" des Horizonts und verbessert die Kursstabilität.<br>
-        <strong>Ablauf:</strong> Das Boot muss während der Messung <u>absolut still</u> liegen.<br>
-        <span class="info-text">Hinweis: Am besten im Hafen bei Ententeich-Bedingungen durchführen.</span>
-      </td>
-    </tr>
-  </table>
-  <!-- 3D Ansicht Kalibrieren -->
-	<div id="mag3dContainer" style="
-		width:100%;
-		max-width:520px;
-		height:320px;
-		margin:15px auto;
-		background:#001a26;
-		border:1px solid #007a99;
-		border-radius:10px;
-	"></div>
+	<div class="settings-group">
+		<h2>A – <span data-i18n="sys_sec_ap">WLAN Access Point</span></h2>
+		<table>
+			<tr><td>SSID:</td><td><input type="text" id="ap_ssid"></td></tr>
+			<tr><td data-i18n="sys_td_password">Passwort:</td><td><input type="text" id="ap_password"></td></tr>
+		</table>
+	</div>
 
-  <!-- ===================== Haupt-Buttons ===================== -->
-  <div class="buttonBar">
-    <button id="saveBtn" onclick="saveSystem()">💾 Einstellungen Speichern</button>
-    <button id="cancelBtn" onclick="cancel()">❌ Abbrechen</button>
-  </div>
-<h2>📂 Gespeicherte Systemdateien (Filesystem)</h2>
+	<div class="settings-group">
+		<h2>B – <span data-i18n="sys_sec_rates">Sensor Abtastraten (Hz)</span></h2>
+		<table>
+			<tr><th data-i18n="sys_th_sensor">Sensor</th><th>Hz</th></tr>
+			<tr><td>GPS hz</td> <td><input type="number" id="gpsHz"></td></tr>
+			<tr><td>AHRS Steps</td> <td><input type="number" id="ahrsHz"></td></tr>
+			<tr><td>MPU Hz</td> <td><input type="number" id="mpuHz"></td></tr>
+			<tr><td>Wind Hz</td> <td><input type="number" id="windHz"></td></tr>
+			<tr><td>SD Logging /min</td> <td><input type="number" id="sdHz"></td></tr>
+			<tr><td><span data-i18n="sys_td_update_rate">Sensordaten Update</span> / Hz</td><td><input type="number" id="sensorUpdateHz"></td></tr>
+		</table>
+	</div>
 
-<table>
-  <tr>
-    <th>Datei</th>
-    <th>Inhalt (Read-Only)</th>
-  </tr>
+	<div class="settings-group">
+		<h2>C – <span data-i18n="sys_sec_nav">Navigation / Missweisung</span></h2>
+		<label><input type="checkbox" id="use_decl_compass"> <span data-i18n="sys_chk_decl_compass">Kompass Missweisung verwenden</span></label><br>
+		<label><input type="checkbox" id="use_decl_wind"> <span data-i18n="sys_chk_decl_wind">Wind Missweisung verwenden</span></label><br>
+	</div>
 
-  <tr>
-    <td>/system_config.json</td>
-    <td>
-      <textarea id="fs_system"
-        rows="10"
-        readonly
-        style="width:100%; background:#001820; color:#0fd; font-family:monospace;">
-Lade…
-      </textarea>
-    </td>
-  </tr>
+	<div class="settings-group">
+		<h2>D – <span data-i18n="sys_sec_boat_params">Boots Parameter</span></h2>
+		<table>
+			<tr><td><span data-i18n="sys_td_sensor_depth">Sensor to Tiefgang</span> (m)</td><td><input type="number" step="0.01" id="wassertiefe_einbau"></td></tr>
+			<tr><td><span data-i18n="sys_td_boat_draft">Tiefgang Boot</span> (m)</td><td><input type="number" step="0.01" id="tiefgang_boot"></td></tr>
+		</table>
+	</div>
 
-  <tr>
-    <td>/settings/IMU_mag.json</td>
-    <td>
-      <textarea id="fs_mag"
-        rows="8"
-        readonly
-        style="width:100%; background:#001820; color:#ffd54f; font-family:monospace;">
-Lade…
-      </textarea>
-    </td>
-  </tr>
+	<div class="settings-group">
+		<h2>E – <span data-i18n="sys_sec_water_params">Wasser Parameter</span></h2>
+		<table>
+			<tr><td><span data-i18n="sys_td_water_temp">Wassertemperatur</span> (°C)</td><td><input type="number" id="wassertemperatur"></td></tr>
+			<tr><td><span data-i18n="sys_td_salinity">Salinität</span> (‰)</td><td><input type="number" step="0.1" id="waterSalinity"></td></tr>
+		</table>
+	</div>
 
-  <tr>
-    <td>/settings/IMU_gyro.json</td>
-    <td>
-      <textarea id="fs_gyro"
-        rows="8"
-        readonly
-        style="width:100%; background:#001820; color:#ff8a80; font-family:monospace;">
-Lade…
-      </textarea>
-    </td>
-  </tr>
-</table>
+	<div class="settings-group">
+		<h2>F – <span data-i18n="sys_sec_matrix">Datenquellen-Matrix (Externe Eingänge)</span></h2>
+		<table>
+			<tr>
+				<th data-i18n="sys_th_matrix_system">Sensor / System</th>
+				<th style="text-align:center;">NMEA 2000<br><span class="info-text_checkbox">(CAN-Bus)</span></th>
+				<th style="text-align:center;">NMEA 0183<br><span class="info-text_checkbox" data-i18n="sys_matrix_serial">(Seriell RS-422)</span></th>
+				<th style="text-align:center;"><span data-i18n="sys_matrix_stream">Netzwerk Stream</span><br><span class="info-text_checkbox">(UDP TCP via WLAN)</span></th>
+			</tr>
+			<!-- GPS Zeile -->
+			<tr>
+				<td><strong data-i18n="sys_matrix_gps">GPS-Daten</strong></td>
+				<td style="text-align:center;"><input type="checkbox" id="gps_use_n2k"></td>
+				<td style="text-align:center;"><input type="checkbox" id="gps_use_0183"></td>
+				<td style="text-align:center;"><input type="checkbox" id="gps_use_udp"></td>
+			</tr>
+			<!-- Wind Zeile -->
+			<tr>
+				<td><strong data-i18n="sys_matrix_wind">Winddaten</strong></td>
+				<td style="text-align:center;"><input type="checkbox" id="wind_use_n2k"></td>
+				<td style="text-align:center;"><input type="checkbox" id="wind_use_0183"></td>
+				<td style="text-align:center;"><input type="checkbox" id="wind_use_udp"></td>
+			</tr>
+			<!-- Echolot Zeile -->
+			<tr>
+				<td><strong data-i18n="sys_matrix_depth">Echolot (Tiefe)</strong></td>
+				<td style="text-align:center;"><input type="checkbox" id="depth_use_n2k"></td>
+				<td style="text-align:center;"><input type="checkbox" id="depth_use_0183"></td>
+				<td style="text-align:center;"><input type="checkbox" id="depth_use_udp_tcp"></td>
+			</tr>
+		</table>
+	</div>
+
+	<div class="settings-group">
+		<h2>G – <span data-i18n="sys_sec_speeds">Boot Parameter Geschwindigkeiten</span></h2>
+		<table>
+			<tr>
+				<th data-i18n="sys_th_twa_angle">Boot / Windwinkel</th>
+				<th style="text-align:center;" data-i18n="sys_th_twa_speed">Geschwindigkeit</th>
+			</tr>
+			<tr><td><span data-i18n="sys_lbl_wind_from">Wind aus</span> 45°</td><td><input type="number" step="0.1" id="geschwindigkeit45"></td></tr>
+			<tr><td><span data-i18n="sys_lbl_wind_from">Wind aus</span> 50°</td><td><input type="number" step="0.1" id="geschwindigkeit50"></td></tr>
+		</table>
+	</div>
+
+	<div class="settings-group">
+		<h2>H – <span data-i18n="sys_sec_calib">Sensor Kalibrierung</span></h2>
+		<table>
+			<tr>
+				<th colspan="2" data-i18n="sys_th_calib_action">Aktion & Anleitung</th>
+			</tr>
+			<!-- Roll & Pitch Nullung -->
+			<tr>
+				<td class="calib-cell">
+					<button class="btn btn-navis" onclick="calibrate('level')">⚖️ <span data-i18n="sys_btn_calib_level">Lage nullen</span></button>
+				</td>
+				<td>
+					<strong data-i18n="sys_calib_level_why_title">Warum?</strong> <span data-i18n="sys_calib_level_why_desc">Korrigiert die Einbaulage der IMU (Schiefstand im Boot).</span><br>
+					<strong data-i18n="sys_calib_level_flow_title">Ablauf:</strong> <span data-i18n="sys_calib_level_flow_desc">Boot muss möglichst gerade im Wasser liegen (keine Krängung, keine Bewegung).</span><br>
+					<span class="info-text" data-i18n="sys_calib_level_hint">
+						Hinweis: Diese Funktion setzt Roll & Pitch auf 0° und speichert die Offsets dauerhaft.
+					</span>
+				</td>
+			</tr>
+			<!-- Kompass -->
+			<tr>
+				<td class="calib-cell">
+					<button class="btn btn-orange" onclick="calibrate('compass')">🧭 <span data-i18n="sys_btn_calib_compass">Kompass kalibrieren</span></button>
+				</td>
+				<td>
+					<strong data-i18n="sys_calib_compass_why_title">Warum?</strong> <span data-i18n="sys_calib_compass_why_desc">Korrigiert magnetische Störeinflüsse durch das Boot (Eisen, Kabel).</span><br>
+					<strong data-i18n="sys_calib_compass_flow_title">Ablauf:</strong> <span data-i18n="sys_calib_compass_flow_desc">Nach Start ca. 30 Sek. Zeit. Drehen Sie das Boot langsam um 360° (Vollkreis).</span><br>
+					<span class="info-text" data-i18n="sys_calib_compass_hint">Hinweis: Nur bei ruhigem Wasser und ohne große Metallschiffe in der Nähe durchführen.</span>
+				</td>
+			</tr>
+			<!-- Gyro -->
+			<tr>
+				<td class="calib-cell">
+					<button class="btn btn-red" onclick="calibrate('gyro')">🔄 <span data-i18n="sys_btn_calib_gyro">Gyro kalibrieren</span></button>
+				</td>
+				<td>
+					<strong data-i18n="sys_calib_gyro_why_title">Warum?</strong> <span data-i18n="sys_calib_gyro_why_desc">Verhindert das "Wandern" des Horizonts und verbessert die Kursstabilität.</span><br>
+					<strong data-i18n="sys_calib_gyro_flow_title">Ablauf:</strong> <span data-i18n="sys_calib_gyro_flow_desc">Das Boot muss während der Messung absolut still liegen.</span><br>
+					<span class="info-text" data-i18n="sys_calib_gyro_hint">Hinweis: Am besten im Hafen bei Ententeich-Bedingungen durchführen.</span>
+				</td>
+			</tr>
+		</table>
+		
+		<div id="mag3dContainer" style="width:100%; max-width:520px; height:320px; margin:15px auto; background:#001a26; border:1px solid #007a99; border-radius:10px;"></div>
+	</div>
+
+	<div class="buttonBar">
+		<button class="btn btn-green" onclick="saveSystem()">
+			💾 <span data-i18n="sys_btn_save">Einstellungen Speichern</span>
+		</button>
+		<button class="btn btn-white" onclick="cancel()">❌ <span data-i18n="sys_btn_cancel">Abbrechen</span></button>
+	</div>
+
+	<div class="settings-group">
+		<h2 data-i18n="sys_sec_filesystem">📂 Gespeicherte Systemdateien (Filesystem)</h2>
+		<table>
+			<tr>
+				<th data-i18n="sys_th_file">Datei</th>
+				<th data-i18n="sys_th_content">Inhalt (Read-Only)</th>
+			</tr>
+			<tr>
+				<td>/system_config.json</td>
+				<td>
+					<textarea id="fs_system" rows="10" readonly data-i18n-placeholder="sys_ph_loading" style="width:100%; background:#001820; color:#0fd; font-family:monospace;">Lade…</textarea>
+				</td>
+			</tr>
+			<tr>
+				<td>/settings/IMU_mag.json</td>
+				<td>
+					<textarea id="fs_mag" rows="8" readonly data-i18n-placeholder="sys_ph_loading" style="width:100%; background:#001820; color:#ffd54f; font-family:monospace;">Lade…</textarea>
+				</td>
+			</tr>
+			<tr>
+				<td>/settings/IMU_gyro.json</td>
+				<td>
+					<textarea id="fs_gyro" rows="8" readonly data-i18n-placeholder="sys_ph_loading" style="width:100%; background:#001820; color:#ff8a80; font-family:monospace;">Lade…</textarea>
+				</td>
+			</tr>
+		</table>
+	</div>
+</main>
+
+
+
 
 	<footer>
 		<strong>Marine Dashboard v1.1</strong><br>
@@ -218,8 +188,17 @@ Lade…
 		© 2025 – Bootssystem ESP32 • Live Monitoring
 	</footer>
 	
-<script src="js/three.min.js"></script>
-  <script>
+	<script src="lang/lang_manager_settings.js"></script>
+	<script src="js/navis-navbar.js"></script> 
+	<script src="js/navis-telemetry.js"></script>
+	<script src="js/three.min.js"></script>
+	
+<script>
+	// ======================================================================
+	// Übergibt die gewünschten Seiten-IDs, die in der Navbar erscheinen sollen:
+	// ======================================================================
+	createNavbar(["dashboard", "polar", "upload", "system"]);
+	
     // Laden der vorhandenen System Config
     fetch("/getSystem")
       .then(r => r.json())
