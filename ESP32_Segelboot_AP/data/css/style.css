@@ -1,0 +1,555 @@
+/* ==========================================================================
+   0. DESIGN SYSTEM & VARIABLE DEFINITIONS
+   ========================================================================== */
+:root {
+  --bg-main: #001a26;
+  --bg-panel: #002b3a;
+  --bg-input: #001f2b;
+  --border: #00aacc;
+  --border-dark: #005566;
+  --border-muted: #004455;
+  --accent: #00e5ff;
+  --accent2: #00ffff;
+  --accent-muted: #00bcd4;
+  --button: #0088aa;
+  --button-hover: #00aacc;
+  --text: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+/* ==========================================================================
+   1. GLOBAL STRUCTURE (body & header)
+   ========================================================================== */
+body { 
+  background: var(--bg-main); 
+  color: #00e6e6; 
+  font-family: "Segoe UI", Arial, sans-serif; 
+  margin: 0; 
+  padding: 0 0 20px 0; 
+  overflow-x: hidden; 
+  text-align: center; 
+  line-height: 1.4; 
+}
+
+header { 
+  position: relative; 
+  background: var(--bg-panel); 
+  color: var(--accent2); 
+  padding: 15px; 
+  font-size: 1.6em; 
+  font-weight: bold; 
+  border-bottom: 2px solid var(--border-dark); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  gap: 15px; 
+}
+
+/* ==========================================================================
+   2. WEBSOCKET-STATUS & LED (Als reguläres Nav-Element angepasst)
+   ========================================================================== */
+#wsStatus { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  font-size: 0.85em; 
+  font-weight: bold;
+  color: var(--accent2);
+  background-color: #001f2b; /* Gleicher dunkler Hintergrund wie andere Boxen */
+  border: 1px solid #005566;
+  border-radius: 5px;
+  padding: 4px 10px;
+}
+
+#wsLed { 
+  width: 12px; 
+  height: 12px; 
+  border-radius: 50%; 
+  background: #ff3333; 
+  box-shadow: 0 0 6px rgba(255, 0, 0, 0.8); 
+  display: inline-block;
+}
+
+/* ==========================================================================
+   3. NAVIGATION BAR & LANGUAGE SELECT
+   ========================================================================== */
+#navbar { 
+	display: flex; 
+	flex-wrap: wrap; 
+	justify-content: center; 
+	gap: 8px; 
+	background-color: #002b3a; 
+	padding: 10px 5px; 
+	border-bottom: 1px solid #005566; 
+}
+		
+
+.navbtn { 
+  background: #003d52; 
+  color: var(--accent2); 
+  border: 1px solid #007a99; 
+  border-radius: 5px; 
+  padding: 4px 10px; 
+  text-decoration: none; 
+  font-size: 0.85em; 
+  font-weight: bold; 
+}
+
+.navbtn:hover, .navbtn.active { 
+  background: #00b8d4; 
+  color: var(--bg-main); 
+  border-color: #00e6e6;
+  box-shadow: 0 0 8px rgba(0, 230, 230, 0.4);
+}
+
+.lang-select-container { 
+  margin-left: 10px; 
+}
+
+#langSelect { 
+  background: #003d52; 
+  color: var(--accent2); 
+  border: 1px solid #007a99; 
+  border-radius: 5px; 
+  padding: 4px; 
+  font-size: 0.85em; 
+  font-weight: bold; 
+  cursor: pointer; 
+  outline: none;
+}
+
+#langSelect option { 
+  background: var(--bg-main); 
+  color: var(--accent2); 
+}
+
+/* ==========================================================================
+   4. GLOBAL FOOTER
+   ========================================================================== */
+footer { 
+  margin: 30px 0 20px 0; 
+  padding-top: 10px; 
+  border-top: 1px solid var(--border-dark); 
+  color: #00b8d4; 
+  font-size: 0.85em; 
+  text-align: center; 
+  opacity: 0.9; 
+  line-height: 1.4; 
+}
+
+/* ==========================================================================
+   5. NAVIS Standard Buttons
+   ========================================================================== */
+
+.btn {
+    display: inline-block;
+    min-width: 180px;
+    padding: 12px 20px;
+    margin: 6px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+
+    font-size: 15px;
+    font-weight: bold;
+    text-align: center;
+
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* NAVIS Blau */
+.btn-navis {
+    background: #007a99;
+    color: white;
+}
+
+.btn-navis:hover {
+    background: #00b8d4;
+    color: #001a26;
+}
+
+/* Grün */
+.btn-green {
+    background: #228b22;
+    color: white;
+}
+
+.btn-green:hover {
+    background: #2fb82f;
+}
+
+/* Rot */
+.btn-red {
+    background: #aa2222;
+    color: white;
+}
+
+.btn-red:hover {
+    background: #dd3333;
+}
+
+/* Weiß/Grau */
+.btn-white {
+    background: #dddddd;
+    color: #222;
+}
+
+.btn-white:hover {
+    background: white;
+}
+
+.btn-orange{
+    background:#ff9800;
+    color:#000;
+}
+
+.btn-orange:hover{
+    background:#ffb74d;
+}
+/* ==========================================================================
+   6. Alarm- & Profil-Gruppierungen
+   ========================================================================== */
+.group {
+  background: var(--bg-input);
+  border: 1px solid var(--border-dark);
+  border-radius: 14px;
+  padding: 15px;
+  margin-bottom: 18px;
+  box-shadow: inset 0 0 12px rgba(0,255,255,.05);
+}
+
+.group-title {
+  color: var(--accent2);
+  font-size: 1.2em;
+  margin-bottom: 10px;
+  font-weight: bold;
+  text-align: center;
+  border-bottom: 1px solid #007a99;
+  padding-bottom: 6px;
+}
+
+.alarm-box {
+  background: #003d52;
+  border: 1px solid #007a99;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 12px 0;
+  box-shadow: 0 0 6px rgba(0,255,255,.2);
+  text-align: left;
+}
+
+.alarm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #66ffff;
+  margin-bottom: 6px;
+}
+
+.slider-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+}
+
+.value {
+    min-width: 70px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.main {
+    width: 80%;
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 15px;
+}
+
+#alarmStatus { 
+  background: #2a0000; 
+  border: 1px solid #aa3333; 
+  border-radius: 10px; 
+  padding: 8px; 
+  box-shadow: 0 0 8px rgba(255, 0, 0, .25);
+  text-align: center;
+}
+
+
+#saveBtn { background: #00bcd4; color: #0f1218; }/* Gefahr- & Alarm-Buttons */
+.danger { background: #992222; color: #fff; }
+.danger:hover { background: #cc3333; color: #fff; }
+
+/* ==========================================================================
+   7. LITTLEFS FILE MANAGER & UPLOAD OVERLAYS
+   ========================================================================== */
+.upload-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 0 15px;
+}
+
+.upload-container p {
+  color: #aaa;
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.upload-form, .upload-dashboard {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-dark);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0, 170, 204, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.upload-form input[type="text"], 
+.upload-form input[type="file"] {
+  padding: 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-muted);
+  background: var(--bg-input);
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.upload-form input[type="submit"] {
+  background: var(--accent-muted);
+  color: var(--bg-main);
+  border: none;
+  padding: 0.8rem;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.upload-form input[type="submit"]:hover {
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+
+#status {
+  margin-top: 0.5rem;
+  font-weight: bold;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+#progressBar {
+  width: 100%;
+  height: 10px;
+  background: var(--bg-input);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+#progress {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-muted);
+  transition: width 0.3s ease;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: 0.85rem;
+}
+
+.file-name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 75%;
+}
+
+.file-size {
+  color: var(--accent-muted);
+  font-family: monospace;
+}
+
+.storage-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  margin-top: 5px;
+}
+
+.storage-bar-fill {
+  height: 100%;
+  background: var(--accent-muted);
+  border-radius: 3px;
+}
+
+/* ==========================================================
+   Tabellen
+   ========================================================== */
+
+table{
+    width:100%;
+    border-collapse:collapse;
+
+    margin-bottom:30px;
+
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+}
+
+th{
+    background:#00546b;
+    color:white;
+
+    padding:12px;
+    border:1px solid var(--border);
+
+    text-align:center;
+}
+
+td{
+    padding:10px;
+    border:1px solid var(--border2);
+}
+
+tr:nth-child(even){
+    background:#002533;
+}
+
+/* ==========================================================
+   Formulare
+   ========================================================== */
+
+label{
+    display:block;
+    margin:10px 0;
+    cursor:pointer;
+}
+
+input[type=text],
+input[type=number],
+textarea{
+
+    width:100%;
+
+    padding:8px 10px;
+
+    background:var(--panel2);
+    color:white;
+
+    border:1px solid var(--border);
+
+    border-radius:6px;
+
+    font-size:15px;
+}
+
+input[type=text]:focus,
+input[type=number]:focus,
+textarea:focus{
+
+    outline:none;
+
+    border-color:var(--cyan);
+
+    box-shadow:0 0 8px rgba(0,255,255,.35);
+}
+
+input[type=checkbox]{
+
+    transform:scale(1.2);
+
+    margin-right:8px;
+
+    cursor:pointer;
+}
+
+textarea{
+
+    resize:vertical;
+
+    min-height:120px;
+
+    font-family:Consolas,monospace;
+}
+
+
+main{
+    max-width:1100px;
+    margin:auto;
+    padding:25px;
+}
+.buttonBar{
+    display:flex;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:15px;
+    margin:35px 0;
+}
+.calib-cell{
+    width:220px;
+    text-align:center;
+    vertical-align:middle;
+}
+
+.settings-group{
+
+    background: var(--bg-panel);
+
+    border:1px solid var(--border-dark);
+
+    border-radius:12px;
+
+    margin:22px 0;
+
+    padding:18px;
+
+    box-shadow:0 0 12px rgba(0,170,204,.12);
+}
+
+.settings-group:hover{
+
+    box-shadow:0 0 16px rgba(0,220,255,.18);
+
+    transition:.2s;
+}
+

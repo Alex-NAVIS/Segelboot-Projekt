@@ -1,0 +1,115 @@
+/* 🎨 NAVIS DESIGN SYSTEM */
+:root{ --navis-bg: rgba(0,43,58,0.65); --navis-bg-light: rgba(0,43,58,0.55); --navis-border: rgba(0,255,255,0.25); --navis-shadow: 0 4px 20px rgba(0,0,0,0.5); --navis-title: #00ffff; --navis-label: #00ffaa; --navis-text: #ffffff; --navis-info: #8ab4f8; --navis-input-bg: #003d52; --navis-input-border: #007a99; --navis-radius: 10px; --navis-font: "Segoe UI", Roboto, Arial, sans-serif; --navis-font-title: 14px; --navis-font-label: 12px; --navis-font-text: 12px; --navis-font-small: 11px; }
+
+/* 🟩 PANEL UND KARTE */
+.panel { width:98vw; background:#2a2f38; border-radius:12px; position:relative; margin-top:6px; box-shadow:0 8px 28px rgba(0,0,0,0.6); display:flex; flex-direction:column; align-items:stretch; transition:background 0.6s,box-shadow 0.6s; }
+#map { width:100%; height:93vh; position:relative; z-index:1; transition:filter 0.6s; }
+
+/* 🟪 BUTTONS */
+button { background:rgba(0,0,0,0.4); color:#fff; padding:6px 10px; border-radius:10px; border:none; cursor:pointer; font-size:13px; box-shadow:0 4px 12px rgba(0,0,0,0.6); transition:background 0.3s,color 0.3s,box-shadow 0.3s; }
+button:hover { background:rgba(0,0,0,0.6); }
+#centerToggle, #modeRoute, #nightToggle { position:absolute; right:14px; z-index:1000; }
+#centerToggle { top:14px; }
+#modeRoute { top:48px; }
+#nightToggle { top:82px; }
+#resetLogBtn { top: 116px;} 
+#logDisplay, #resetLogBtn { position: absolute; right: 14px; z-index: 1000; }
+#logDisplay { top: 150px; background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 10px; font-size: 14px; font-weight: bold; }
+
+
+/* 🟫 INFOBOXEN, LEGENDE UND ALARME */
+#waypointInfo { position:absolute; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:10px; font-size:13px; z-index:1000; transition:background 0.6s,color 0.6s; }
+#alarmOverlay { position:absolute; inset:0; background:rgba(0,0,0,0.85); color:red; font-size:6vw; font-weight:bold; display:none; align-items:center; justify-content:center; text-align:center; z-index:2000; animation:blink 1s infinite; }
+#legend { position:absolute; bottom:12px; left:12px; background:rgba(0,0,0,0.5); padding:6px 10px; border-radius:10px; font-size:12px; line-height:1.4; z-index:1000; transition:background 0.6s,color 0.6s; }
+
+@keyframes blink { 0%,50% { opacity:1; } 51%,100% { opacity:0.5; } }
+
+/* 🌙 NACHTMODUS */
+body.night-mode { background:#000; color:#ffb; }
+body.night-mode #map { filter:brightness(0.4) contrast(1.2) sepia(0.9) hue-rotate(-25deg) saturate(1.4); }
+body.night-mode .panel { background:#1a0000; box-shadow:0 0 20px rgba(255,100,50,0.1); }
+body.night-mode #navbar { background:#1a0000; border-bottom:1px solid #330000; }
+body.night-mode .navbtn { background:#330000; color:#ff9966; border:1px solid #663333; }
+body.night-mode .navbtn:hover { background:#660000; color:#fff; }
+body.night-mode button { background:rgba(255,100,50,0.08); color:#ffb199; box-shadow:0 0 10px rgba(255,80,40,0.2); }
+body.night-mode button:hover { background:rgba(255,100,50,0.2); }
+
+/* 🟪 WAYPOINT LISTE & TABELLEN */
+#waypointListContainer { position:absolute; bottom:-100%; left:0; width:95%; max-height:40vh; background:rgba(0,0,0,0.85); color:white; overflow-y:auto; transition:bottom 0.4s ease; z-index:9999; backdrop-filter:blur(6px); padding:10px; }
+#waypointListContainer.visible { bottom:0; }
+#waypointTable { width:100%; border-collapse:collapse; }
+#waypointTable th, #waypointTable td { padding:4px 8px; border-bottom:1px solid #003040; text-align:center; white-space:nowrap; }
+#waypointTable th { background:rgba(0,80,100,0.6); position:sticky; top:0; }
+#waypointTable button { padding:3px 6px; background:#006680; border-radius:5px; color:#fff; border:none; cursor:pointer; }
+#waypointTable button:hover { background:#00b0c0; }
+
+/* ⛅ WETTER & ROUTING BOX STANDARD PANEL */
+.navis-panel{ background:var(--navis-bg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--navis-border); border-radius:var(--navis-radius); box-shadow:var(--navis-shadow); color:var(--navis-text); font-family:var(--navis-font); box-sizing:border-box; }
+
+/* ⛅ WETTER & ROUTING BOX PANEL HEADER */
+.panel-header{ display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0,255,255,.20); padding-bottom:6px; margin-bottom:8px; flex-shrink:0; }
+.panel-header h3{ margin:0; font-size:var(--navis-font-title); font-weight:600; color:var(--navis-title); letter-spacing:.5px; text-transform:uppercase; text-shadow:0 1px 2px rgba(0,0,0,.8); }
+
+/* ⛅ WETTER & ROUTING BOX PIN BUTTON */
+.pin-btn{ background:transparent !important; border:none !important; color:var(--navis-title) !important; cursor:pointer; font-size:14px; font-weight:bold; padding:0 4px; box-shadow:none !important; transition:transform .2s ease; }
+.pin-btn:hover{ background:transparent !important; color:#ffffff !important; transform:scale(1.15); }
+
+/* 🗺️ ROUTING BOX EINGABEFELDER */
+.navis-select, .navis-input{ width:100%; padding:6px; border-radius:4px; border:1px solid var(--navis-input-border); background:var(--navis-input-bg); color:var(--navis-text); font-size:12px; box-sizing:border-box; outline:none; }
+.navis-select:focus, .navis-input:focus{ border-color:#00ffff; box-shadow:0 0 6px rgba(0,255,255,.3); }
+
+/* ⛅ WETTER BOX HAUPTPANEL */
+/* ⛅ WETTER BOX HAUPTPANEL POSITIONIERUNG */
+#navis-weather-panel{ position:absolute; top:50%; right:20px; transform:translateY(-50%); z-index:1000; width:220px; height:53vh; padding:12px; display:flex; flex-direction:column; transition:all .3s ease; }
+#navis-weather-panel[data-state="collapsed"]{ width:220px; }
+#navis-weather-panel[data-state="expanded"]{ width:320px; }
+#navis-weather-panel[data-state="collapsed"]:hover{ width:320px; }
+#navis-weather-panel[data-state="pinned"]{ width:320px; box-shadow:0 6px 25px rgba(0,0,0,.7); }
+
+/* ⛅ WETTER BOX HAUPTPANEL EINGEKLAPPT */
+#navis-weather-panel.collapsed{ top:auto; right:20px; bottom:70px; width:220px; height:42px; transform:none; overflow:hidden; }
+
+/* ⛅ WETTER BOX ELEMENTE & ANZEIGEN */
+.weather-content{ flex-grow:1; display:flex; align-items:center; justify-content:space-between; overflow:hidden; }
+.weather-slider-container{ width:35px; height:80%; display:flex; align-items:center; justify-content:center; position:relative; }
+.weather-slider{ position:absolute; width:110px; height:6px; transform:rotate(90deg); accent-color:var(--navis-title); border-radius:3px; }
+.weather-center{ flex-grow:1; display:flex; flex-direction:column; justify-content:center; text-align:center; }
+.weather-time{ font-size:24px; font-weight:700; color:var(--navis-title); line-height:1; }
+.weather-datetime{ font-size:12px; font-weight:600; color:var(--navis-label); line-height:1.3; margin-top:4px; }
+.weather-divider{ height:1px; margin:12px 0; background:rgba(0,255,255,.2); }
+.weather-footer{ margin-top:auto; display:none; font-size:11px; line-height:1.4; flex-shrink:0; background:rgba(0,61,82,.4); border-top:1px solid rgba(0,255,255,.15); margin-left:-12px; margin-right:-12px; margin-bottom:-12px; padding:8px 12px 12px; }
+.weather-row{ display:flex; justify-content:space-between; align-items:center; }
+.weather-row-compact{ display:flex; justify-content:space-between; margin-top:4px; }
+.weather-label{ color:var(--navis-label); font-size:11px; font-weight:600; }
+.weather-value{ color:var(--navis-title); font-size:11px; font-weight:700; }
+.weather-layer-controls{ display:flex; justify-content:center; gap:15px; }
+.weather-layer-controls label{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--navis-text); cursor:pointer; }
+
+/* 🗺️ ROUTING BOX HAUPTPANEL */
+/* 🗺️ ROUTING BOX HAUPTPANEL POSITIONIERUNG */
+#navis-routing-panel{ position:absolute; top:50%; left:20px; transform:translateY(-50%); z-index:1000; width:320px; padding:12px; display:flex; flex-direction:column; gap:10px; transition:all .3s ease; }
+
+/* 🗺️ ROUTING BOX HAUPTPANEL EINGEKLAPPT */
+#navis-routing-panel.collapsed{ top:auto; left:auto; right:20px; bottom:27px; width:220px; height:42px; transform:none; overflow:hidden; }
+#navis-routing-panel.collapsed .panel-header{ border-bottom:none; padding-bottom:0; margin-bottom:0; }
+
+/* 🗺️ ROUTING BOX INHALTSBEREICH */
+.panel-content{ display:flex; flex-direction:column; gap:10px; opacity:1; transition:opacity .2s ease; }
+#navis-routing-panel.collapsed .panel-content{ opacity:0; pointer-events:none; }
+
+/* 🗺️ ROUTING BOX STRECKENOPTIONEN */
+.routing-section{ display:flex; flex-direction:column; gap:4px; }
+.routing-section label{ font-size:var(--navis-font-label); color:var(--navis-label); font-weight:600; }
+.routing-meta{ font-size:11px; font-family:monospace; color:var(--navis-info); background:rgba(0,0,0,.2); padding:4px 6px; border-radius:4px; }
+.radio-group{ display:flex; flex-direction:column; gap:5px; background:rgba(0,0,0,.15); padding:6px; border-radius:4px; }
+.radio-label{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--navis-text); cursor:pointer; }
+.radio-label input{ width:auto; accent-color:#00ffff; }
+
+/* 🗺️ ROUTING BOX AKTIONS BUTTON */
+.calc-btn{ background:#007a99; color:#fff; border:1px solid #00ffff; padding:8px; border-radius:4px; font-size:12px; font-weight:bold; cursor:pointer; transition:.2s; }
+.calc-btn:hover{ background:#00b8d4; color:#000; }
+
+/* 🗺️ MAP POPUP STYLES */
+.leaflet-popup-content-wrapper{ background:var(--navis-bg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--navis-border); border-radius:var(--navis-radius); box-shadow:var(--navis-shadow); color:var(--navis-text); font-family:var(--navis-font); }
+.leaflet-popup-tip{ background:var(--navis-bg); border:1px solid var(--navis-border); }
+.leaflet-popup-content{ margin:10px; color:var(--navis-text); font-size:var(--navis-font-small); }
