@@ -4,6 +4,9 @@ AI-powered sailing platform for ESP32
 
 Built with GPT-5 and Codex during OpenAI Build Week.
 
+## AI Development Workflow
+GPT-5 and Codex were used throughout the project for architecture discussions, firmware generation, code review, debugging, documentation, user interface development and iterative design.
+
 ⛵ NAVIS — The Modular ESP32 Maritime Core & Autopilot Infrastructure
 **Collaborative Development. Deployed Onboard. Real-Time Processing.**
 
