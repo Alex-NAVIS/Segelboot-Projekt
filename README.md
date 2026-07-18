@@ -1,3 +1,9 @@
+# NAVIS
+
+AI-powered sailing platform for ESP32
+
+Built with GPT-5 and Codex during OpenAI Build Week.
+
 ⛵ NAVIS — The Modular ESP32 Maritime Core & Autopilot Infrastructure
 **Collaborative Development. Deployed Onboard. Real-Time Processing.**
 
