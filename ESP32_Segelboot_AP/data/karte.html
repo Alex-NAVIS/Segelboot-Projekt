@@ -413,24 +413,19 @@ createNavbar(["dashboard", "karte", "kompass", "horizont"]);
    Ordnet alle minimierten Panels automatisch an.
 ========================================================== */
 function layoutCollapsedPanels() {
-    const panels = [
-        document.getElementById("navis-weather-panel"),
-        document.getElementById("navis-waypoint-panel"),
-        document.getElementById("navis-routing-panel"),
-        document.getElementById("navis-ais-panel")
-    ];
-    
+    const panels = document.querySelectorAll(".navis-panel");
     let bottom = 20;
-    const COLLAPSED_HEIGHT = 35; // Feste Höhe eines minimierten Panels in Pixeln
-    
+    const COLLAPSED_HEIGHT = 35;
+    const PANEL_SPACING = 10;
+    const PANEL_RIGHT = 20;
     panels.forEach(panel => {
-        if (!panel || !panel.classList.contains("collapsed")) return;
-        
-        panel.style.right = "20px";
+        if (!panel.classList.contains("collapsed")) return;
+        panel.style.left = "";
+        panel.style.top = "";
+        panel.style.transform = "";
+        panel.style.right = PANEL_RIGHT + "px";
         panel.style.bottom = bottom + "px";
-        
-        // Kein Auslesen der Höhe nötig – wir nutzen den festen Wert
-        bottom += COLLAPSED_HEIGHT + 10; 
+        bottom += COLLAPSED_HEIGHT + PANEL_SPACING;
     });
 }
 

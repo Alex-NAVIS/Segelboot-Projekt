@@ -62,98 +62,71 @@ let currentCurrentLayer = null; // Referenz auf die aktuell animierten Strömung
  * Netzwerkunterbrechungen oder einer fehlerhaften Index-Datei das Dropdown-Menü 
  * mit einer klaren visuellen Rückmeldung ("Keine JSONs" / "Fehler Scan") sichern.
  * ========================================================================= */
-async function initNavisWeather() {
-    const select =
-        document.getElementById(
-            "weather-file-select"
-        );
-    if (!select) {
-        return;
-    }
-    try {
-        const files = await getWeatherIndex();
-        select.innerHTML =
-            '<option value="">-- Revier --</option>';
-        const mode = getWeatherMode();
-        files.forEach(f => {
-            const opt =
-                document.createElement("option");
-            opt.value = mode === "PC"
-                    ? "Wetter/" + f.file
-                    : "/Wetter/" + f.file;
-            opt.text = f.label;
-
-            select.add(opt);
-        });
-        if (files.length === 0) {
-
-            select.innerHTML =
-                '<option value="">Keine JSONs</option>';
-        }
-    } catch (err) {
-        console.error(
-            "Wetterindex konnte nicht geladen werden:",
-            err
-        );
-        select.innerHTML =
-            '<option value="">Fehler Scan</option>';
-    }
-}
-
-/* =========================================================================
- * NAVIS WETTER INDEX
- * =========================================================================
- * Liefert immer ein einheitliches JSON-Array:
- * [
- *   {
- *      file: "ostsee.json",
- *      label: "Ostsee"
- *   }
- * ]
- * ========================================================================= */
-async function getWeatherIndex() {
+function initNavisWeather() {
+    const select = document.getElementById('weather-file-select');
+    if (!select) return;
     const mode = getWeatherMode();
-    // --------------------------------------------------
-    // PC: Ordner scannen und in JSON umwandeln
-    // --------------------------------------------------
-    if (mode === "PC") {
-        const response = await fetch("Wetter/");
-        const htmlText = await response.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, "text/html");
-        const result = [];
-        doc.querySelectorAll("a").forEach(link => {
-            const href = link.getAttribute("href");
-            if (
-                href &&
-                href.endsWith(".json") &&
-                href !== "index.json"
-            ) {
-                let label = href
-                    .replace(".json", "")
-                    .replace(/^wind_/, "")
-                    .split("_")
-                    .map(word =>
-                        word.charAt(0).toUpperCase() +
-                        word.slice(1)
-                    )
-                    .join(" ");
-                result.push({
-                    file: href,
-                    label: label
+	if (mode === "PC") {
+		console.log("⛵ NAVIS: PC-Servermodus aktiv. Scanne Ordner /Wetter/ dynamisch...");
+		// Wir rufen direkt den Ordner auf. Der Python-Server antwortet mit einer HTML-Dateiliste
+		fetch('Wetter/')
+            .then(res => res.text())
+            .then(htmlText => {
+                select.innerHTML = '<option value="">-- Revier --</option>';
+                // Wir nutzen ein temporäres DOM-Element, um die Links aus dem HTML des Python-Servers zu extrahieren
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const links = doc.querySelectorAll('a');
+                let dateiGefunden = false;
+
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    // Filtere nur echte Wetter-JSONs heraus und ignoriere die index.json am PC
+                    if (href && href.endsWith('.json') && href !== 'index.json') {
+                        dateiGefunden = true;
+                        // Erzeuge ein schönes Label aus dem Dateinamen (z.B. wind_ostsee_kiel.json -> Ostsee Kiel)
+                        let label = href
+							.replace('.json', '')
+							.replace(/^wind_/, '')
+							.split('_')
+							.map(word => word.charAt(0).toUpperCase() + word.slice(1))
+							.join(' ');
+                        // Worte im Label groß schreiben (Capitalize)
+                        label = label.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
+                        let opt = document.createElement('option');
+                        opt.value = 'Wetter/' + href; // Relativer Pfad für den PC-Server
+                        opt.text = label;
+                        select.add(opt);
+                    }
                 });
-            }
-        });
-        return result;
+
+                if (!dateiGefunden) {
+                    select.innerHTML = '<option value="">Keine JSONs</option>';
+                }
+            })
+            .catch(err => {
+                console.error("Fehler beim automatischen PC-Ordner-Scan:", err);
+                select.innerHTML = '<option value="">Fehler Scan</option>';
+            });
+    } else {
+        // Normaler Boot-Betrieb über das echte ESP32-LittleFS auf See (Nutzt Ihre index.json)
+        fetch('/api/weather/list?t=' + Date.now())
+            .then(res => {
+                if (!res.ok) throw new Error("Indexdatei auf ESP32 fehlt.");
+                return res.json();
+            })
+            .then(files => {
+                select.innerHTML = '<option value="">-- Revier --</option>';
+                files.forEach(f => {
+                    let opt = document.createElement('option');
+                    opt.value = '/Wetter/' + f.file; // Absoluter Pfad für den ESP32
+                    opt.text = f.label;
+                    select.add(opt);
+                });
+            })
+            .catch(err => console.warn("Wetter-Index konnte nicht vom ESP32 geladen werden:", err));
     }
-    // --------------------------------------------------
-    // ESP32: index.json verwenden
-    // --------------------------------------------------
-    const response = await fetch("/Wetter/index.json?t=" + Date.now());
-    if (!response.ok) {
-        throw new Error("Wetterindex fehlt.");
-    }
-    return await response.json();
 }
 
 /* =========================================================================
@@ -201,20 +174,6 @@ function loadNewWeatherData(fileUrl) {
             return res.json();
         })
         .then(data => {
-			// ------------------------------------
-			// Wetterdatei auf Gültigkeit prüfen
-			// ------------------------------------
-			const ageCheck = checkWeatherFileAge(data.metadata);
-
-			if (!ageCheck.ok) {
-				alert(ageCheck.message);
-				resetWeatherLayers();
-				return;
-			}
-			if (ageCheck.warning) {
-				alert(ageCheck.warning);
-			}
-
             activeWeatherData = data; // Im RAM sichern
             if (slider) {
                 slider.disabled = false;
@@ -798,22 +757,15 @@ function resetWeatherLayers() {
  *      Expansions-Pfeile ("⤢").
  * ========================================================================= */
 function toggleWeatherPanel() {
-
     const panel = document.getElementById("navis-weather-panel");
     const btn = document.getElementById("weather-pin-toggle");
-
     if (panel.classList.contains("collapsed")) {
-
         panel.classList.remove("collapsed");
         btn.innerText = "⤡";
-
     } else {
-
         panel.classList.add("collapsed");
         btn.innerText = "⤢";
-
     }
-	setTimeout(layoutCollapsedPanels, 50);
 }
 
 function openWeatherImportDialog() {
@@ -825,99 +777,12 @@ function openWeatherImportDialog() {
     input.click();
 }
 
-/* =========================================================================
- * VALIDIERUNGS-FUNKTION: CHECK WEATHER FILE AGE (WETTERDATEN-GÜLTIGKEIT PRÜFEN)
- * =========================================================================
- * ZWECK: Überprüft anhand der Datei-Metadaten, ob die geladene Wetterdatei für 
- * den aktuellen Fahrtzeitpunkt gültig ist. Sie stellt sicher, dass der Skipper
- * weder mit veralteten (abgelaufenen) Daten noch mit Daten aus der fernen Zukunft navigiert.
- * 
- * FUNKTIONSWEISE UND LOGIK-AUSTEUERUNG:
- * 1. Zeitzonen-Synchronisation: Da Wetterdaten global auf UTC (Zeitverschiebung = 0)
- *    basieren, wird die lokale Systemzeit des Geräts mittels 'getTimezoneOffset' 
- *    automatisch in echte UTC-Millisekunden umgerechnet, um Fehlinterpretationen zu vermeiden.
- * 2. Startzeit-Prüfung (Einstiegshürde): Ermittelt den Vorhersage-Beginn ('forecast_start').
- *    Liegt die berechnete Systemzeit noch vor diesem Startpunkt, bricht die Funktion 
- *    sofort ab (ok: false), da die Datei für den aktuellen Moment noch keine Gültigkeit besitzt.
- * 3. Endzeit-Bestimmung & Fallback: Ermittelt das Ende des Vorhersagezeitraums. 
- *    Priorisiert wird das echte Enddatum ('forecast_end'). Fehlt dieses, greift ein 
- *    dynamischer Fallback aus Erstellungsdatum ('created') plus Vorhersagedauer ('forecast_hours').
- * 4. Ablauf-Vorgang (Nach-Endzeit): Liegt die Systemzeit hinter dem ermittelten Ende,
- *    gilt die Wetterdatei als abgelaufen und wird für die Navigation blockiert (ok: false).
- * 5. Warn-System (Knappe Restlaufzeit): Befindet sich die Systemzeit im gültigen Fenster,
- *    beträgt die verbleibende Restlaufzeit jedoch weniger als 12 Stunden, wird die Datei 
- *    zwar freigegeben (ok: true), aber eine dringende Warnung für den Nutzer angehängt.
- * ========================================================================= */
-function checkWeatherFileAge(metadata) {
-    if (!metadata) {
-        return { ok: false, message: "Keine Wetter-Metadaten gefunden." };
-    }
-    // Systemzeit direkt in UTC-Millisekunden umrechnen
-    const nowSystem = new Date();
-    const nowUtcMs = nowSystem.getTime() + (nowSystem.getTimezoneOffset() * 60000);
-    const now = new Date(nowUtcMs);
-    // 1. Startzeit bestimmen & prüfen
-    if (!metadata.forecast_start) {
-        return { ok: false, message: "Die Wetterdatei enthält keine Startzeit (forecast_start)." };
-    }
-    const validFrom = new Date(metadata.forecast_start);
-    if (isNaN(validFrom.getTime())) {
-        return { ok: false, message: "Ungültige Startzeit in der Wetterdatei." };
-    }
-    // Systemzeit liegt VOR dem Startzeitpunkt
-    if (now < validFrom) {
-        return {
-            ok: false,
-            message: "Diese Wetterdatei ist noch nicht gültig.\n\nDer Vorhersagezeitraum beginnt erst in der Zukunft."
-        };
-    }
-
-    // 2. Endzeit bestimmen (Priorität: forecast_end, Fallback: created + forecast_hours)
-    let validUntil = null;
-    if (metadata.forecast_end) {
-        validUntil = new Date(metadata.forecast_end);
-    }
-    if (!validUntil || isNaN(validUntil.getTime())) {
-        if (!metadata.created) {
-            return { ok: false, message: "Die Wetterdatei enthält kein Erstellungsdatum." };
-        }
-        const created = new Date(metadata.created);
-        if (isNaN(created.getTime())) {
-            return { ok: false, message: "Ungültiges Erstellungsdatum." };
-        }
-        const hours = metadata.forecast_hours || 72;
-        validUntil = new Date(created.getTime() + hours * 60 * 60 * 1000);
-    }
-    // Systemzeit liegt NACH dem Endzeitpunkt (Abgelaufen)
-    const remainingMs = validUntil.getTime() - now.getTime();
-    if (remainingMs <= 0) {
-        return {
-            ok: false,
-            message: "Diese Wetterdatei ist abgelaufen.\n\nBitte eine aktuelle Wetterdatei verwenden."
-        };
-    }
-
-    // 3. Warnung bei Restlaufzeit < 12 Stunden
-    const remainingHours = remainingMs / 3600000;
-    if (remainingHours < 12) {
-        return {
-            ok: true,
-            warning: "Achtung!\n\n" +
-                     `Diese Wetterdatei ist nur noch ${remainingHours.toFixed(1)} Stunden gültig.\n\n` +
-                     "Für eine sichere Navigation wird eine aktuelle Wetterdatei empfohlen."
-        };
-    }
-    return { ok: true };
-}
-
-
 async function uploadWeatherFile(event) {
     const file = event.target.files[0];
     if (!file) return;
     try {
         const text = await file.text();
         const json = JSON.parse(text);
-		
         // ------------------------------------------------
         // NAVIS Wetterdatei prüfen
         // ------------------------------------------------

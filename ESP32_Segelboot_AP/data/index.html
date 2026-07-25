@@ -18,10 +18,45 @@
 		.switch:hover { background-color: #104a5f; }
 		.led { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-left: 8px; vertical-align: middle; background-color: red; box-shadow: 0 0 6px #ff0000; }
 		.switch.on .led { background-color: limegreen; box-shadow: 0 0 10px #00ff00; }
+		.status-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; background: #001f29; padding: 12px 20px; border-radius: 12px; border: 1px solid #005566; margin: 20px; color: #fff; font-family: sans-serif; font-size: 14px; }
+		.status-item { display: flex; align-items: center; gap: 8px; background: #002d3d; padding: 6px 12px; border-radius: 6px; border: 1px solid #004455; min-width: 130px; }
+		.status-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff3333; box-shadow: 0 0 8px rgba(255,0,0,0.8); transition: background 0.3s, box-shadow 0.3s; }
+		.status-text { color: #ffffff; font-weight: bold; }
+		.logbox-section { margin: 20px; text-align: center; }
+		.logbox { background-color: #00141d; border: 2px solid #005566; border-radius: 10px; height: 150px; max-width: 940px; margin: 10px auto; padding: 10px; overflow-y: auto; text-align: left; font-family: monospace; font-size: 13px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+		.log-entry { margin-bottom: 4px; padding: 3px 6px; border-radius: 4px; line-height: 1.4; }
+		.log-error { background: rgba(255, 51, 51, 0.15); color: #ff4d4d; border-left: 3px solid #ff3333; }
+		.log-warn { background: rgba(255, 204, 0, 0.15); color: #ffcc00; border-left: 3px solid #ffcc00; }
+		.log-ok { background: rgba(0, 255, 102, 0.15); color: #00ff66; border-left: 3px solid #00ff66; }
+		.log-time { color: #88aabb; margin-right: 8px; }
 	</style>
 </head>
 <body>
 	<header data-i18n="index_header">Bootssystem Übersicht</header>
+	<!-- Das System- und Sensor-Statusboard -->
+	<h2 class="section-title" data-i18n="index_sec_status">System-Status</h2>
+	<div class="status-container">
+		<div class="status-item">
+			<span id="wsLed" class="status-dot"></span>
+			<span>System Link</span>
+		</div>
+		<div class="status-item">
+			<span id="gpsLed" class="status-dot"></span>
+			<span>GPS: <span id="gpsTxt" class="status-text">--</span></span>
+		</div>
+		<div class="status-item">
+			<span id="sdLed" class="status-dot"></span>
+			<span>SD: <span id="sdTxt" class="status-text">--</span></span>
+		</div>
+		<div class="status-item">
+			<span id="imuLed" class="status-dot"></span>
+			<span>IMU: <span id="imuTxt" class="status-text">--</span></span>
+		</div>
+		<div class="status-item">
+			<span id="mastLed" class="status-dot"></span>
+			<span>Mast: <span id="mastTxt" class="status-text">--</span></span>
+		</div>
+	</div>
 	<h2 class="section-title" data-i18n="index_sec_telemetry">Telemetrie-Daten</h2>
 	<div class="sensor-data">
 		<div class="data-box">
@@ -82,6 +117,14 @@
 			<div class="switch off" id="relay_b"><span data-i18n="index_light_port_cabin">Koje Backbord</span><span class="led"></span></div>
 		</div>
 	</div>
+	
+	<div class="logbox-section">
+		<h2 class="section-title">System-Meldungen (Log)</h2>
+		<div class="logbox" id="systemLogbox">
+			<div class="log-entry log-ok"><span class="log-time">[System]</span> Navis Dashboard geladen. Sensorüberwachung aktiv.</div>
+		</div>
+	</div>
+	
 	<footer>
 		<strong>Marine Dashboard v1.1</strong><br>
 		Entwickelt von <span style="color:#00ffff;">Eike</span> & <span style="color:#00ffff;">NAVIS</span><br>
@@ -134,13 +177,14 @@ function updateSwitchState(id, value) {
 }
 
 // -------------------------------------------------------------
-// LIVE-DATA LOOP (Optimiert auf 200ms für perfekte Lesbarkeit)
+// LIVE-DATA UPDATE (ereignisgesteuert)
 // -------------------------------------------------------------
-setInterval(() => {
-    const d = window.navisTelemetry;
-    if (!d || typeof d !== "object") return;
+window.addEventListener("navisTelemetryUpdate", (ev) => {
+    const d = ev.detail.display;
+    const r = ev.detail.raw;
 
-    // 1. Basis-Sensoren befüllen
+    if (!d || !r) return;
+    // 1. Basis-Sensoren
     setValue("roll", d.roll);
     setValue("pitch", d.pitch);
     setValue("kompass", d.kompass);
@@ -155,43 +199,61 @@ setInterval(() => {
     setValue("missweisung", d.missweisung);
     setValue("Echolot", d.Echolot);
 
-    // 2. Datum / Zeit formatieren
-    if (d.gps_jahr !== undefined && d.gps_monat !== undefined && d.gps_tag !== undefined) {
-        setText("gps_datum", `${d.gps_jahr}.${String(d.gps_monat).padStart(2,'0')}.${String(d.gps_tag).padStart(2,'0')}`);
+    // Datum
+    if (d.gps_jahr !== undefined) {
+        setText(
+            "gps_datum",
+            `${d.gps_jahr}.${String(d.gps_monat).padStart(2,'0')}.${String(d.gps_tag).padStart(2,'0')}`
+        );
     } else {
-        setText("gps_datum", "--");
+        setText("gps_datum","--");
     }
 
-    if (d.gps_stunde !== undefined && d.gps_minute !== undefined && d.gps_sekunde !== undefined) {
-        setText("gps_uhrzeit", `${String(d.gps_stunde).padStart(2,'0')}:${String(d.gps_minute).padStart(2,'0')}:${String(d.gps_sekunde).padStart(2,'0')}`);
+    // Uhrzeit
+    if (d.gps_stunde !== undefined) {
+        setText(
+            "gps_uhrzeit",
+            `${String(d.gps_stunde).padStart(2,'0')}:${String(d.gps_minute).padStart(2,'0')}:${String(d.gps_sekunde).padStart(2,'0')}`
+        );
     } else {
-        setText("gps_uhrzeit", "--");
+        setText("gps_uhrzeit","--");
     }
 
-    // 3. Relais-Zustände aus dem ESP32-Status spiegeln
+    // Relais
     updateSwitchState("relay_a", d.relay_a);
     updateSwitchState("relay_b", d.relay_b);
     updateSwitchState("relay_c", d.relay_c);
     updateSwitchState("relay_d", d.relay_d);
 
-    // 4. Autopilot-Unterobjekt auswerten
-    const ap = d.autopilot;
-    if (ap && typeof ap === "object") {
-        const modeText = AP_MODE_TEXT[ap.mode] ?? ap.mode ?? "--";
-        setText("ap_mode", modeText);
-        setValue("ap_offset", ap.offset);
-        setValue("ap_lat", ap.target_lat, 6);
-        setValue("ap_lon", ap.target_lon, 6);
+    // Autopilot
+    if (d.autopilot) {
+        setText("ap_mode", AP_MODE_TEXT[d.autopilot.mode] ?? "--");
+        setValue("ap_offset", d.autopilot.offset);
+        setValue("ap_lat", d.autopilot.target_lat, 6);
+        setValue("ap_lon", d.autopilot.target_lon, 6);
     }
 
-    // 5. Automatischer Alarm-Redirect
+    // Status
+    setSensorUi("gpsLed","gpsTxt",r.gps_online,"gps");
+    setSensorUi("sdLed","sdTxt",r.sd_online,"sd");
+    setSensorUi("imuLed","imuTxt",r.imu_online,"imu");
+    setSensorUi("mastLed","mastTxt",r.mast_online,"mast");
+    processSensorLogLogic(r);
+
+    // Alarm
     if (d.alarm_status !== undefined && d.alarm_status !== 0) {
         if (!window.location.href.includes("Alarm.html")) {
-            window.location.href = "Alarm.html";
+            if (window.navisTelemetrySocket) {
+                window.navisTelemetrySocket.onclose = null;
+                window.navisTelemetrySocket.close(1000, "Alarm Redirect");
+                window.navisTelemetrySocket = null;
+            }
+            setTimeout(() => {
+                window.location.href = "Alarm.html";
+            },150);
         }
     }
-}, 200); // GEÄNDERT: Von 50ms auf 200ms erhöht für bessere Performance
-
+});
 
 // -------------------------------------------------------------
 // RELAIS-STEUERUNG (Nutzt jetzt die zentrale sendNavisCommand Funktion)
@@ -211,6 +273,101 @@ document.querySelectorAll('.switch').forEach(sw => {
     });
 });
 
+// Hilfsfunktion zur Zuweisung des dreistufigen Sensor-Zustands im Dashboard
+function setSensorUi(ledId, textId, statusCode, type) {
+    const led = document.getElementById(ledId);
+    const txt = document.getElementById(textId);
+    if (!led || !txt) return;
+    
+    const code = Number(statusCode);
+
+    if (type === "gps") {
+        if (code === 2) {
+            led.style.background = "#00ff66"; led.style.boxShadow = "0 0 10px #00ff00";
+            txt.textContent = "Fix & Time"; txt.style.color = "#00ff66";
+        } else if (code === 1) {
+            led.style.background = "#ffcc00"; led.style.boxShadow = "0 0 10px #ffcc00";
+            txt.textContent = "Suche..."; txt.style.color = "#ffcc00";
+        } else {
+            led.style.background = "#ff3333"; led.style.boxShadow = "0 0 10px #ff0000";
+            txt.textContent = "Offline"; txt.style.color = "#ff3333";
+        }
+    } else if (type === "sd") {
+        if (code === 2) {
+            led.style.background = "#00ff66"; led.style.boxShadow = "0 0 10px #00ff00";
+            txt.textContent = "Bereit"; txt.style.color = "#00ff66";
+        } else if (code === 1) {
+            led.style.background = "#ffcc00"; led.style.boxShadow = "0 0 10px #ffcc00";
+            txt.textContent = "FS-Error"; txt.style.color = "#ffcc00";
+        } else {
+            led.style.background = "#ff3333"; led.style.boxShadow = "0 0 10px #ff0000";
+            txt.textContent = "Fehlt"; txt.style.color = "#ff3333";
+        }
+    } else {
+        if (code >= 1) {
+            led.style.background = "#00ff66"; led.style.boxShadow = "0 0 10px #00ff00";
+            txt.textContent = "Online"; txt.style.color = "#00ff66";
+        } else {
+            led.style.background = "#ff3333"; led.style.boxShadow = "0 0 10px #ff0000";
+            txt.textContent = "Offline"; txt.style.color = "#ff3333";
+        }
+    }
+}
+
+// Logbox-Engine zur Vermeidung doppelter Einträge
+const lastSensorStates = { gps_online: 2, sd_online: 2, imu_online: 1, mast_online: 1 };
+
+function addLogMessage(message, cssClass) {
+    const box = document.getElementById("systemLogbox");
+    if (!box) return;
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    
+    const entry = document.createElement("div");
+    entry.className = `log-entry ${cssClass}`;
+    entry.innerHTML = `<span class="log-time">[${timeStr}]</span> ${message}`;
+    
+    box.appendChild(entry);
+    box.scrollTop = box.scrollHeight; // Auto-Scroll zum neuesten Eintrag
+}
+
+function processSensorLogLogic(currentData) {
+    if (!currentData) return;
+
+    // 1. GPS Überprüfung
+    const gps = Number(currentData.gps_online);
+    if (gps !== lastSensorStates.gps_online) {
+        if (gps === 0) addLogMessage("⚠️ GPS-Sensor komplett verloren (Kabelbruch / Timeout)!", "log-error");
+        else if (gps === 1) addLogMessage("⏳ GPS verbunden. Suche Satelliten-Signal...", "log-warn");
+        else if (gps === 2) addLogMessage("✅ GPS-Fix stabil. Zeit- und Positionsdaten synchronisiert.", "log-ok");
+        lastSensorStates.gps_online = gps;
+    }
+
+    // 2. SD-Karten Überprüfung
+    const sd = Number(currentData.sd_online);
+    if (sd !== lastSensorStates.sd_online) {
+        if (sd === 0) addLogMessage("⚠️ SD-Karte ausgeworfen oder Hardware-Verbindungsfehler!", "log-error");
+        else if (sd === 1) addLogMessage("❗ SD-Karte eingelegt, aber Dateisystem-Fehler (Schreibschutz?)", "log-warn");
+        else if (sd === 2) addLogMessage("✅ SD-Karte bereit. Logbuch-Schreibzugriff aktiv.", "log-ok");
+        lastSensorStates.sd_online = sd;
+    }
+
+    // 3. IMU Überprüfung
+    const imu = Number(currentData.imu_online);
+    if (imu !== lastSensorStates.imu_online) {
+        if (imu === 0) addLogMessage("⚠️ IMU-Sensor ausgefallen! Autopilot-AHRS blockiert.", "log-error");
+        else addLogMessage("✅ IMU-Sensor wieder online. Lagemessung aktiv.", "log-ok");
+        lastSensorStates.imu_online = imu;
+    }
+
+    // 4. Mastsensor Überprüfung
+    const mast = Number(currentData.mast_online);
+    if (mast !== lastSensorStates.mast_online) {
+        if (mast === 0) addLogMessage("⚠️ Masteinheit (Anemometer) reagiert nicht mehr!", "log-error");
+        else addLogMessage("✅ Masteinheit online. Winddaten werden empfangen.", "log-ok");
+        lastSensorStates.mast_online = mast;
+    }
+}
 
 
 </script>

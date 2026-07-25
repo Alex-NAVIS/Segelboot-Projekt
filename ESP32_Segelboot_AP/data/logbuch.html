@@ -84,7 +84,10 @@
 <!-- Freitext -->
 <div class="group">
     <div class="section-title" data-i18n="log_sec_note">Logbuch Notiz</div><br>
-    <textarea id="note" data-i18n-placeholder="log_ph_note" placeholder="Freitext Logbucheintrag..."></textarea><br>
+    <!-- HÄRTUNG: maxlength blockiert die Eingabe im Browser bei exakt 120 Zeichen -->
+    <textarea id="note" maxlength="120" oninput="updateCharCounter()" data-i18n-placeholder="log_ph_note" placeholder="Freitext Logbucheintrag..."></textarea><br>
+    <!-- VISUELLER ANKER: Zeigt dem Skipper live an, wie viel Platz noch ist -->
+    <div id="char-counter" style="font-size: 0.85em; color: #007a99; margin-left: 6px; margin-bottom: 10px;">120 Zeichen übrig</div>
     <button class="logbtn save-btn" onclick="sendNote()" data-i18n="log_btn_save_note">Notiz speichern</button>
 </div>
 
@@ -109,31 +112,82 @@ createNavbar(["dashboard", "karte", "kompass", "horizont"]);
         setTimeout(() => { s.innerText = "Bereit..."; }, 3000);
     }
 
-    function logEvent(type) {
-        fetch("/logbook?type=" + type)
-            .then(r => setStatus("✔ Gespeichert: " + type.replace('_',' ')))
-            .catch(e => setStatus("❌ Fehler!"));
-    }
+	function logEvent(type) {
+		fetch("/logbook?type=" + type)
+			.then(response => {
+				if (response.ok) {
+					setStatus("✔ Gespeichert: " + type.replace(/_/g, ' '));
+				} else {
+					setStatus("❌ Fehler: " + response.status);
+				}
+			})
+			.catch(e => setStatus("❌ Keine WLAN-Verbindung!"));
+	}
 
-    function sendWeather() {
-        let dir = document.getElementById("winddir").value;
-        let wind = document.getElementById("wind").value;
-        let waves = document.getElementById("waves").value;
-        fetch(`/logbook?type=wetter&dir=${dir}&wind=${wind}&waves=${waves}`)
-            .then(r => setStatus("✔ Wetter gespeichert"))
-            .catch(e => setStatus("❌ Fehler!"));
-    }
+	function sendWeather() {
+		let dir = document.getElementById("winddir").value;
+		let wind = document.getElementById("wind").value;
+		let waves = document.getElementById("waves").value;
+		
+		fetch(`/logbook?type=wetter&dir=${dir}&wind=${wind}&waves=${waves}`)
+			.then(response => {
+				if (response.ok) {
+					setStatus("✔ Wetter gespeichert");
+				} else {
+					setStatus("❌ Fehler: " + response.status);
+				}
+			})
+			.catch(e => setStatus("❌ Wetter konnte nicht gesendet werden!"));
+	}
 
-    function sendNote() {
-        let text = document.getElementById("note").value;
-        if(!text) return;
-        fetch("/logbook?type=note&text=" + encodeURIComponent(text))
-            .then(r => {
-                setStatus("✔ Notiz gespeichert");
-                document.getElementById("note").value = "";
-            })
-            .catch(e => setStatus("❌ Fehler!"));
-    }
+	// Live-Zähler für den Skipper im Cockpit
+	function updateCharCounter() {
+		const text = document.getElementById("note").value;
+		const counter = document.getElementById("char-counter");
+		const remaining = 120 - text.length;
+		
+		counter.innerText = remaining + " Zeichen übrig";
+		
+		// Visuelle Warnung bei kritischer Länge
+		if (remaining <= 10) {
+			counter.style.color = "#ff3333"; // Rot bei weniger als 10 Zeichen
+		} else {
+			counter.style.color = "#007a99"; // Standard-Cyan
+		}
+	}
+
+	function sendNote() {
+		let text = document.getElementById("note").value;
+		text = text.trim(); // Fängt reine Leerzeichen-Eingaben ab
+		
+		if (!text) {
+			setStatus("❌ Fehler: Notiz ist leer!");
+			return;
+		}
+
+		// 🔒 JS-VALIDIERUNG: Sicherheitsnetz gegen manipulierte JavaScript-Injektionen oder Browser-Bugs
+		if (text.length > 120) {
+			setStatus("❌ Fehler: Text zu lang (max. 120 Zeichen)!");
+			return;
+		}
+
+		// Übergabe an deinen neuen, gehärteten ESP32-Endpunkt
+		fetch("/logbook?type=note&text=" + encodeURIComponent(text))
+			.then(response => {
+				// Auswertung des neuen C++ HTTP-Statuscodes
+				if (response.ok) {
+					setStatus("✔ Notiz gespeichert");
+					document.getElementById("note").value = "";
+					updateCharCounter(); // Counter wieder auf 120 zurücksetzen
+				} else {
+					setStatus("❌ Server-Fehler: " + response.status);
+				}
+			})
+			.catch(e => {
+				console.error("Netzwerkfehler im Logbuch:", e);
+				setStatus("❌ Netzwerkfehler: Keine Verbindung zum NAVIS!");
+			});
+	}
 </script>
 
 </body>

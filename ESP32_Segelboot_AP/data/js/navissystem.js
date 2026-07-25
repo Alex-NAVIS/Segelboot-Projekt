@@ -390,13 +390,11 @@ window.triggerNavisRouting = function () {
 				{ lat: NAVIS_ROUTE.ziel.lat, lon: NAVIS_ROUTE.ziel.lon },
 				{
 					profile: profile,
-					// 👇 NEU
-					waypoints: NAVIS_ROUTE.waypoints,
 					windAktiv: true,
 					welleAktiv: true,
 					stroemungAktiv: true,
-					kursMalusAktiv: true,
-					xteAktiv: true
+					kursMalusAktiv: true,  // 🌟 AKTIVIEREN: Zwingt das Boot auf gerade Linien
+					xteAktiv: true         // 🌟 AKTIVIEREN: Verhindert das unendliche Ausbrechen nach außen
 				}
 			);
             
@@ -790,13 +788,6 @@ function formatNavisETA(node) {
 
 // --- 4. A* CORE ENGINE ---
 async function planRoute(start, ziel, optionen = {}) {
-    // =====================================================
-    // Wegpunkte vorbereiten
-    // =====================================================
-    const waypoints = Array.isArray(optionen.waypoints)
-        ? optionen.waypoints
-        : [];
-		
     // Labor-Schaltzentrale für die Fehlersuche (Standard: Nur Wind aktiv!)
     const cfg = {
         wind: optionen.windAktiv !== undefined ? optionen.windAktiv : true,
@@ -804,7 +795,6 @@ async function planRoute(start, ziel, optionen = {}) {
         stroemung: optionen.stroemungAktiv !== undefined ? optionen.stroemungAktiv : true,
         kursMalus: optionen.kursMalusAktiv !== undefined ? optionen.kursMalusAktiv : true,
         xteKorridor: optionen.xteAktiv !== undefined ? optionen.xteAktiv : true
-		//xteKorridor: false
     };
 
     const polar = await fetchPolarData();
@@ -832,18 +822,16 @@ async function planRoute(start, ziel, optionen = {}) {
         });
     }
     
-	const startNode = {
-		lat: start.lat,
-		lon: start.lon,
-		waypointIndex: 0,
-		g: 0,
-		cost_g: 0,
-		f: calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon) / 4.5,
-		parent: null
-	};
+    const startNode = {
+        lat: start.lat, lon: start.lon,
+        g: 0, 
+        cost_g: 0, 
+        f: calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon) / 4.5,
+        parent: null
+    };
     
     // Präziser Key verhindert Gitter-Verzerrungen und Überlagerungen
-    const startKey4D = `${start.lat.toFixed(2)},${start.lon.toFixed(2)},${NAVIS_ROUTE.weatherFrame},0`;
+    const startKey4D = `${start.lat.toFixed(2)},${start.lon.toFixed(2)},${NAVIS_ROUTE.weatherFrame}`;
     openHeap.insert(startNode);
     openMap.set(startKey4D, startNode.cost_g);
 
@@ -854,37 +842,16 @@ async function planRoute(start, ziel, optionen = {}) {
 		//const currentHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.round(current.g), 71);
 		const currentHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.floor(current.g), 71);
 		
-        const currentKey4D = `${current.lat.toFixed(2)},${current.lon.toFixed(2)},${currentHoursAhead},${current.waypointIndex}`;
+        
+        const currentKey4D = `${current.lat.toFixed(2)},${current.lon.toFixed(2)},${currentHoursAhead}`;
         
         if (closedSet.has(currentKey4D)) continue;
         closedSet.add(currentKey4D);
 		openMap.delete(currentKey4D);
         
-        // =====================================================
-		// Aktuelles Ziel bestimmen
-		// =====================================================
-		const currentTarget = (waypoints.length > 0 && current.waypointIndex < waypoints.length) ? waypoints[current.waypointIndex] : ziel;
-		let waypointDistance = Infinity;
-
-		if (current.waypointIndex < waypoints.length) {
-			waypointDistance = calculateDistance(current.lat, current.lon, currentTarget.lat, currentTarget.lon);
-		}
-		
-		// =====================================================
-		// Zielprüfung
-		// =====================================================
-		if (calculateDistance( current.lat, current.lon, currentTarget.lat, currentTarget.lon) <= goalRadiusNM) {
-			// -------------------------------------------------
-			// Letzten Wegpunkt erreicht?
-			// -------------------------------------------------
-			if (current.waypointIndex < waypoints.length) {
-				const waypointNode = {...current, waypointIndex: current.waypointIndex + 1};
-				openHeap.insert(waypointNode);
-				continue;
-			} else {
-				return reconstructPath(current);
-			}
-		}
+        if (calculateDistance(current.lat, current.lon, ziel.lat, ziel.lon) <= goalRadiusNM) {
+            return reconstructPath(current);
+        }
         
         let incomingBearing = null;
         if (current.parent) {
@@ -959,7 +926,7 @@ async function planRoute(start, ziel, optionen = {}) {
             
             const effectiveSpeed = Math.max(0.1, speedOverGround);
 			let travelTime = dist / effectiveSpeed;
-			const targetBearing = calculateBearing(current.lat, current.lon, currentTarget.lat, currentTarget.lon);
+			const targetBearing = calculateBearing(current.lat, current.lon, ziel.lat, ziel.lon);
 			let targetAngle = Math.abs(heading - targetBearing);
 
 			if (targetAngle > 180)
@@ -971,15 +938,7 @@ async function planRoute(start, ziel, optionen = {}) {
 			}
 
 			let cost = travelTime;
-			
-			// =====================================================
-			// Wegpunkt-Anziehung
-			// =====================================================
-			if (current.waypointIndex < waypoints.length) {
-				const waypointBonus = Math.max(0, (20 - waypointDistance)) * 0.08;
-				cost -= waypointBonus;
-			}
-			
+
 			// schlechte Zielannäherung bestrafen
 			cost += (boatSpeed - vmgToTarget) * 0.25;
 
@@ -988,20 +947,8 @@ async function planRoute(start, ziel, optionen = {}) {
 				cost += (targetAngle / 180) * 0.15;
 			}
 			
-			const oldDistance = calculateDistance(
-				current.lat,
-				current.lon,
-				currentTarget.lat,
-				currentTarget.lon
-			);
-
-			const newDistance = calculateDistance(
-				neighborLat,
-				neighborLon,
-				currentTarget.lat,
-				currentTarget.lon
-			);
-			
+			const oldDistance = calculateDistance(current.lat, current.lon, ziel.lat, ziel.lon);
+			const newDistance = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon);
 			const progressNM = oldDistance - newDistance;
 			
 			const profile = optionen.profile || "fastest";
@@ -1198,12 +1145,11 @@ async function planRoute(start, ziel, optionen = {}) {
 			}
 
             // Cross-Track-Error (XTE Korridor schließt unkontrollierte Bögen aus)
-            //if (cfg.xteKorridor) {
-			if (cfg.xteKorridor && current.waypointIndex === 0) {
-                const distStartToTarget = calculateDistance(current.lat, current.lon, currentTarget.lat, currentTarget.lon);
+            if (cfg.xteKorridor) {
+                const distStartToTarget = calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon);
                 if (distStartToTarget > 0.3) {
                     const distStartToNeighbor = calculateDistance(start.lat, start.lon, neighborLat, neighborLon);
-					const bearingStartToTarget = calculateBearing(current.lat, current.lon, currentTarget.lat, currentTarget.lon);
+                    const bearingStartToTarget = calculateBearing(start.lat, start.lon, ziel.lat, ziel.lon);
                     const bearingStartToNeighbor = calculateBearing(start.lat, start.lon, neighborLat, neighborLon);
                     let angleDiff = Math.abs(bearingStartToNeighbor - bearingStartToTarget);
                     if (angleDiff > 180) angleDiff = 360 - angleDiff;
@@ -1225,8 +1171,8 @@ async function planRoute(start, ziel, optionen = {}) {
 			//const neighborHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame +	Math.round(tentative_g), 71);
 			const neighborHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.floor(tentative_g), 71);
 			
-			const neighborKey4D = `${neighborLat.toFixed(2)},${neighborLon.toFixed(2)},${neighborHoursAhead},${current.waypointIndex}`;
-
+			const neighborKey4D = `${neighborLat.toFixed(2)},${neighborLon.toFixed(2)},${neighborHoursAhead}`;
+	
             if (closedSet.has(neighborKey4D)) continue;
             
             const existingCostG = openMap.get(neighborKey4D);
@@ -1234,8 +1180,7 @@ async function planRoute(start, ziel, optionen = {}) {
             if (existingCostG === undefined || tentative_cost_g < existingCostG) {
                 // AUSBALANCIERTE HEURISTIK: Berechnet die verbleibende Luftlinie zum Ziel stabil geteilt durch 4.0 Knoten.
                 // Das zieht den Suchbaum sauber nach vorn, ohne Am-Wind-Kurse künstlich abzustrafen.
-                const h = calculateDistance( neighborLat, neighborLon,  currentTarget.lat, currentTarget.lon) / 6.0;
-				
+                const h = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / 6.0;
                 const etaUTC = new Date(
 					NAVIS_ROUTE.departureTime.getTime()
 					+ tentative_g * 3600 * 1000
@@ -1243,8 +1188,6 @@ async function planRoute(start, ziel, optionen = {}) {
                 const newNode = {
 					lat: neighborLat,
 					lon: neighborLon,
-
-					waypointIndex: current.waypointIndex,
 					g: tentative_g,
 					cost_g: tentative_cost_g,
 
@@ -1303,7 +1246,6 @@ function toggleRoutingPanel() {
         panel.classList.add("collapsed");
         btn.innerText = "⤢"; 
     }
-	setTimeout(layoutCollapsedPanels, 50);
 }
 window.toggleRoutingPanel = toggleRoutingPanel;
 
@@ -1314,7 +1256,6 @@ function reconstructPath(node) {
 		path.push({
 			lat: curr.lat,
 			lon: curr.lon,
-			waypointIndex: curr.waypointIndex ?? 0,
 			eta: curr.g || 0,
 			timeElapsed: curr.g || 0,
 			etaHours: curr.etaHours || 0,

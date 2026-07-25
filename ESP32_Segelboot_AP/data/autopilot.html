@@ -89,8 +89,8 @@
 	<script src="js/navis-navbar.js"></script> 
 	<script src="js/navis-telemetry.js"></script>
 
-	<script>
-	const MODE = { off: 0, kompass: 1, gps: 2, wind: 3 }, PINNE = { stop: 0, einfahren: 1, ausfahren: 2, off: 0 };
+<script>
+		const MODE = { off: 0, kompass: 1, gps: 2, wind: 3 }, PINNE = { stop: 0, einfahren: 1, ausfahren: 2, off: 0 };
 	let lastSendTime = 0, lastSentAngle = null, dragging = false;
 	const THROTTLE_MS = 100, svg = document.getElementById("rotary-svg"), scaleGroup = document.getElementById("scale");
 	const compassGroup = document.getElementById("compassScale");
@@ -101,7 +101,7 @@
 	// ======================================================================
 	createNavbar(["dashboard", "karte", "kompass", "horizont", "autopilot"]);
 
-	// Skala generieren (-45° bis +45°)
+	// Skala generieren (-45° bis +45°) -> EXAKT DEIN ORIGINAL BEIBEHALTEN
 	for (let a = -45; a <= 45; a += 1) {
 		let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
 		line.setAttribute("x1", 100);
@@ -113,7 +113,7 @@
 		scaleGroup.appendChild(line);
 	}
 
-	// 360° Kompass-Skala
+	// 360° Kompass-Skala -> EXAKT DEIN ORIGINAL BEIBEHALTEN
 	for (let a = 0; a < 360; a += 5) {
 		let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
 		line.setAttribute("x1", 100);
@@ -130,6 +130,7 @@
 	// UI-Element-Referenzen
 	const angleInput = document.getElementById("angle_input");
 	const angleValue = document.getElementById("angle_value");
+	const apHeader = document.querySelector("header"); // Visueller Anker für Funk-Feedback
 
 	// -------------------------------------------------------------
 	// LIVE-DATA LOOP (Aktualisiert die Anzeigen alle 50ms aus zentralem WS)
@@ -188,6 +189,7 @@
 		document.getElementById("wind_dir").setAttribute("transform", `rotate(${windDirection} 100 100)`);
 	}
 	
+	// Zeichnet das farbige Kreissegment für Kursabweichungen
 	function updateActiveSegment(angle) {
 		const segment = document.getElementById("activeSegment");
 		if (angle === 0) return segment.setAttribute("d", "");
@@ -198,16 +200,14 @@
 		segment.setAttribute("fill", angle > 0 ? `rgba(0,160,0,${0.2 + Math.abs(angle) / 100})` : `rgba(220,0,0,${0.2 + Math.abs(angle) / 100})`);
 	}
 
-	// Reset Button Logik
+	// Reset Button Logik (Gehärtet nach der NAVIS-Sicherheitsphilosophie)
 	document.getElementById("reset_angle").addEventListener("click", () => {
-		angleInput.value = 0;
-		angleValue.textContent = "0°";
-		updateMarker(0);
+		// Die Nadel bewegt sich erst, wenn der ESP32 den 0°-Zustand via polling bestätigt.
 		send("winkel=0");
 	});
 
 	// -------------------------------------------------------------
-	// HTTP SEND LOGIK (Befehle per GET-Endpunkt an den ESP32)
+	// HÄRTUNG: HTTP SEND LOGIK mit Auswertung der C++ Sicherheits-Rückmeldungen
 	// -------------------------------------------------------------
 	async function send(params) {
 		const now = Date.now();
@@ -217,10 +217,30 @@
 			return;
 		}
 		lastSendTime = now;
+		
 		try {
-			await fetch("/autopilot_data?" + params);
+			const controller = new AbortController();
+			const tId = setTimeout(() => controller.abort(), 3000); // 3 Sek. Netzwerk-Timeout
+
+			// 🎯 PASSENDE ROUTE: Von /autopilotData auf deine C++ Route /autopilot_data umgestellt
+			const response = await fetch("/autopilot_data?" + params, {
+				signal: controller.signal,
+				headers: { 'Cache-Control': 'no-cache' }
+			});
+			
+			clearTimeout(tId);
+
+			if (!response.ok) {
+				const errText = await response.text();
+				console.error(`⚠️ NAVIS-Sperre (${response.status}): ${errText}`);
+				apHeader.style.color = "#ff3333"; // Rot signalisiert: Befehl vom ESP32 abgewiesen (z.B. Limitüberschreitung)
+				setTimeout(() => { apHeader.style.color = "#00ffff"; }, 2000);
+			} else {
+				apHeader.style.color = "#00ffff"; // Erfolg (Zurücksetzen auf Cyan)
+			}
 		} catch (e) {
-			console.warn("HTTP Send Fehler:", e);
+			console.warn("❌ NAVIS-Netzwerkfehler: Befehl verloren", e);
+			apHeader.style.color = "#ffaa00"; // Orange signalisiert Funkstörung/WLAN-Abriss im Cockpit
 		}
 	}
 

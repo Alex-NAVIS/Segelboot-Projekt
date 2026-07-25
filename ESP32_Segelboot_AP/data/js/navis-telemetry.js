@@ -1,9 +1,48 @@
 /* ============================================================
    NAVIS TELEMETRY & WEBSOCKET CLIENT (UNIVERSAL)
    ============================================================ */
+   
+// ------------------------------------------------------------
+// Filterstärken
+// Größer = reagiert schneller
+// Kleiner = stärker geglättet
+// ------------------------------------------------------------
+const FILTER = {
+    roll: 0.20,
+    pitch: 0.20,
+    kompass: 0.08
+};
 
-// Zentraler Datenspeicher für ALLE Seiten
+// ============================================================
+// Zentraler Datenspeicher
+// ============================================================
+
+// Originaldaten vom ESP (niemals verändern)
 window.navisTelemetry = {};
+
+// Geglättete Daten ausschließlich für die Anzeige
+window.navisTelemetryDisplay = {
+    roll: 0,
+    pitch: 0,
+    kompass: 0
+};
+
+// Anzeige wurde bereits initialisiert?
+let displayInitialized = false;
+
+// ------------------------------------------------------------
+// Tiefpassfilter
+// ------------------------------------------------------------
+function lowpass(oldValue, newValue, alpha = 0.15) {
+    return oldValue + alpha * (newValue - oldValue);
+}
+
+// ------------------------------------------------------------
+// Winkeldifferenz (0° / 360° korrekt behandeln)
+// ------------------------------------------------------------
+function angleDiff(a, b) {
+    return ((b - a + 540) % 360) - 180;
+}
 
 // Globaler Socket für Steuerbefehle aus der index.html
 window.navisTelemetrySocket = null; 
@@ -51,13 +90,62 @@ function connectWS() {
     window.navisTelemetrySocket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            
-            // Daten im globalen Speicher zusammenführen
-            Object.assign(window.navisTelemetry, data);
+			// ------------------------------------------------------------
+			// Originaldaten speichern
+			// ------------------------------------------------------------
+			Object.assign(window.navisTelemetry, data);
 
-            // NEU: Event feuern, damit UI-Komponenten (Kompass, Karte) reagieren können
-            const updateEvent = new CustomEvent("navisTelemetryUpdate", { detail: data });
-            window.dispatchEvent(updateEvent);
+
+			// ------------------------------------------------------------
+			// Anzeige weichzeichnen
+			// ------------------------------------------------------------
+			const d = window.navisTelemetry;
+			const f = window.navisTelemetryDisplay;
+
+			// Zuerst alle Rohdaten übernehmen
+			Object.assign(f, d);
+
+			// Roll / Pitch / Kompass nur einmal initialisieren
+			if (!displayInitialized) {
+
+				f.roll = Number(d.roll) || 0;
+				f.pitch = Number(d.pitch) || 0;
+				f.kompass = Number(d.kompass) || 0;
+
+				displayInitialized = true;
+			}
+			else {
+
+				if (isFinite(d.roll))
+					f.roll = lowpass(f.roll, Number(d.roll), FILTER.roll);
+
+				if (isFinite(d.pitch))
+					f.pitch = lowpass(f.pitch, Number(d.pitch), FILTER.pitch);
+
+				if (isFinite(d.kompass)) {
+
+					f.kompass += angleDiff(f.kompass, Number(d.kompass)) * FILTER.kompass;
+
+					if (f.kompass < 0)
+						f.kompass += 360;
+
+					if (f.kompass >= 360)
+						f.kompass -= 360;
+				}
+			}
+
+
+			// ------------------------------------------------------------
+			// Event feuern
+			// ------------------------------------------------------------
+			const updateEvent = new CustomEvent("navisTelemetryUpdate", {
+				detail: {
+					raw: window.navisTelemetry,
+					display: window.navisTelemetryDisplay
+				}
+			});
+
+			window.dispatchEvent(updateEvent);
 
         } catch (e) {
             console.warn("WS Datenfehler", e);
