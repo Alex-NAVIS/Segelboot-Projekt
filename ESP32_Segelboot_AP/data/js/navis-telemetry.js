@@ -63,6 +63,37 @@ function ledDisconnected() { updateWsLed("#ff3333", "rgba(255,0,0,0.8)"); }
 function ledConnecting()   { updateWsLed("#ffcc00", "rgba(255,204,0,0.8)"); }
 function ledConnected()    { updateWsLed("#00ff66", "rgba(0,255,102,0.9)"); }
 
+// NAVIS Hardware Status Bewertung
+const isOnline = value => Number(value) === 1 || Number(value) === 2;
+
+function checkHardwareStatus(data) {
+    const issues = [];
+
+    // Masteinheit & IMU
+    if (!isOnline(data.mast_online)) issues.push({ level: "error", text: "Masteinheit OFFLINE" });
+    if (!isOnline(data.imu_online)) issues.push({ level: "error", text: "IMU Sensor Fehler" });
+
+    // GPS
+    const gps = Number(data.gps_online);
+    if (gps === 1) issues.push({ level: "warning", text: "GPS sucht Satelliten" });
+    else if (gps !== 2) issues.push({ level: "error", text: "GPS Sensor Fehler" });
+
+    // SD Karte
+    const sd = Number(data.sd_online);
+    if (sd === 1) issues.push({ level: "warning", text: "SD Karte voll" });
+    else if (sd !== 2) issues.push({ level: "error", text: "SD Karte fehlt" });
+
+    // Status-Objekt zusammenbauen
+    const status = {
+        ok: issues.length === 0,
+        hasErrors: issues.some(i => i.level === "error"),
+        hasWarnings: issues.some(i => i.level === "warning"),
+        issues: issues
+    };
+
+    window.dispatchEvent(new CustomEvent("navisSystemStatus", { detail: status }));
+}
+
 // NEU: Globale Funktion zum sicheren Senden von Befehlen an den ESP32
 window.sendNavisCommand = function(commandObject) {
     if (window.navisTelemetrySocket && window.navisTelemetrySocket.readyState === WebSocket.OPEN) {
@@ -90,6 +121,7 @@ function connectWS() {
     window.navisTelemetrySocket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+			console.log("NAVIS RAW DATA:", data);
 			// ------------------------------------------------------------
 			// Originaldaten speichern
 			// ------------------------------------------------------------
@@ -101,6 +133,9 @@ function connectWS() {
 			// ------------------------------------------------------------
 			const d = window.navisTelemetry;
 			const f = window.navisTelemetryDisplay;
+
+			// Hardwarestatus prüfen
+			checkHardwareStatus(d);
 
 			// Zuerst alle Rohdaten übernehmen
 			Object.assign(f, d);

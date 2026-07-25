@@ -30,12 +30,17 @@ function createNavbar(activeButtons = []) {
         ? allPages.filter(page => activeButtons.includes(page.id))
         : allPages;
 
-    let linksHtml = `
-        <div id="wsStatus">
-            <div id="wsLed"></div>
-            <span>WS</span>
-        </div>
-    `;
+	let linksHtml = `
+		<div id="wsStatus">
+			<div id="wsLed"></div>
+			<span>WS</span>
+		</div>
+		<div id="systemStatusBar" class="status-ok">
+			<span id="systemStatusText">
+				✓ NAVIS System OK
+			</span>
+		</div>
+	`;
 
     pagesToRender.forEach(page => {
         linksHtml += `<a href="${page.href}" class="navbtn" id="nav-${page.id}" data-i18n="nav_${page.id}">${page.text}</a>`;
@@ -73,6 +78,90 @@ function createNavbar(activeButtons = []) {
 
     const selectEl = document.getElementById("langSelect");
     if (selectEl) {
+		
+		// ==========================================================
+		// NAVIS Zentrale Status- und Alarmanzeige
+		// ==========================================================
+		const systemBar = document.getElementById("systemStatusBar");
+		const systemText = document.getElementById("systemStatusText");
+
+// ----------------------------------------------------------
+// Gemeinsame Anzeige-Funktion
+// ----------------------------------------------------------
+function updateNavisStatus(level, text)
+{
+    if (!systemBar || !systemText) return;
+    systemBar.style.display = "flex";
+    systemText.innerHTML = text;
+    switch(level)
+    {
+        case "error":
+            systemBar.className = "status-error";
+            break;
+        case "warning":
+            systemBar.className = "status-warning";
+            break;
+        case "info":
+            systemBar.className = "status-info";
+            break;
+        default:
+            systemBar.className = "status-ok";
+            break;
+    }
+}
+
+// ----------------------------------------------------------
+// Hardware / Systemstatus
+// kommt von navis-telemetry.js
+// ----------------------------------------------------------
+window.addEventListener("navisSystemStatus", (event)=>{
+    const status = event.detail;
+    if(!status)
+        return;
+    if(status.ok)
+    {
+        updateNavisStatus(
+            "ok",
+            "✓ System OK"
+        );
+        return;
+    }
+    const text =
+        status.issues
+        .map(issue =>
+            issue.text
+        )
+        .join(" &nbsp; | &nbsp; ");
+    if(status.hasErrors)
+    {
+        updateNavisStatus(
+            "error",
+            text
+        );
+    }
+    else
+    {
+        updateNavisStatus(
+            "warning",
+            text
+        );
+    }
+});
+
+// ----------------------------------------------------------
+// Allgemeine NAVIS Meldungen
+// AIS, Autopilot, Batterie, Wind usw.
+// ----------------------------------------------------------
+window.addEventListener("navisAlertUpdate",(event)=>{
+    const alert = event.detail;
+    if(!alert)
+        return;
+    updateNavisStatus(
+        alert.level,
+        `<b>${alert.source}</b> : ${alert.text}`
+    );
+});
+
         const savedLang = localStorage.getItem('selectedLang') || navigator.language.slice(0, 2) || 'de';
         selectEl.value = savedLang;
 
