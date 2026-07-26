@@ -324,13 +324,125 @@ function updateWaypointDisplay() {
     }
 }
 
+// ======================================================
+// NAVIS CHECK: Wetterdaten-Abdeckung
+// ======================================================
+function checkWeatherCoverage(points) {
+    if (
+        typeof activeWeatherData === "undefined" ||
+        !activeWeatherData ||
+        !activeWeatherData.metadata
+    ) {
+        return {
+            ok: false,
+            reason: "Keine Wetterdaten geladen."
+        };
+    }
+
+    const meta = activeWeatherData.metadata;
+    const minLat = Math.min(meta.la1, meta.la2);
+    const maxLat = Math.max(meta.la1, meta.la2);
+    const minLon = Math.min(meta.lo1, meta.lo2);
+    const maxLon = Math.max(meta.lo1, meta.lo2);
+
+    for (const p of points) {
+        if (
+            p.lat < minLat ||
+            p.lat > maxLat ||
+            p.lon < minLon ||
+            p.lon > maxLon
+        ) {
+            return {
+                ok:false,
+                reason:
+                `Punkt außerhalb Wetterbereich:
+                 Lat ${p.lat.toFixed(3)}
+                 Lon ${p.lon.toFixed(3)}`
+            };
+        }
+    }
+    return {
+        ok:true
+    };
+}
+
+// ======================================================
+// NAVIS CHECK: Navigation Tiles vorhanden
+// ======================================================
+async function checkNavTileCoverage(points) {
+    for (const p of points) {
+        const tileX = Math.floor(p.lon / TILE_SPAN);
+        const tileY = Math.floor(p.lat / TILE_SPAN);
+        const tileName = `t_${tileX}_${tileY}.nav.gz`;
+
+        try {
+            const response = await fetch(
+                `tiles_nav/${tileName}`,
+                {
+                    method:"HEAD"
+                }
+            );
+
+            if (!response.ok) {
+                return {
+                    ok:false,
+                    reason:
+                    `Keine NAVIS-Karte vorhanden:
+                    ${tileName}`
+                };
+            }
+        }
+        catch(e){
+            return {
+                ok:false,
+                reason:
+                `Fehler beim Prüfen der NAVIS-Kachel:
+                ${tileName}`
+            };
+        }
+    }
+    return {
+        ok:true
+    };
+}
+
 // Routenberechnung ausführen
-window.triggerNavisRouting = function () {
+window.triggerNavisRouting = async function () {
     // 1. Validierung der Pflichtfelder
     if (!NAVIS_ROUTE.start || !NAVIS_ROUTE.ziel) {
         alert("Bitte zuerst Start- und Zielpunkt per Rechtsklick markieren!");
         return;
     }
+	// ======================================================
+	// NAVIS ROUTING VORPRÜFUNGEN
+	// ======================================================
+	const routePoints = [NAVIS_ROUTE.start, ...NAVIS_ROUTE.waypoints, NAVIS_ROUTE.ziel];
+
+	// ------------------------------
+	// Wetterprüfung
+	// ------------------------------
+	const weatherCheck = checkWeatherCoverage(routePoints);
+	if (!weatherCheck.ok) {
+		alert(
+			"🌦️ NAVIS Routing abgebrochen\n\n" +
+			weatherCheck.reason
+		);
+		return;
+	}
+
+	// ------------------------------
+	// Kartenprüfung
+	// ------------------------------
+	const tileCheck = await checkNavTileCoverage(routePoints);
+	if (!tileCheck.ok) {
+		alert(
+			"🗺️ NAVIS Routing abgebrochen\n\n" +
+			tileCheck.reason
+		);
+		return;
+	}
+	console.log("✅ Wetterbereich OK");
+	console.log("✅ NAVIS Tile-Abdeckung OK");
 
     // 2. Variablen-Initialisierung
     const startPos = NAVIS_ROUTE.start;
@@ -340,10 +452,11 @@ window.triggerNavisRouting = function () {
     const profile = document.querySelector('input[name="routingProfile"]:checked').value;
     const strategy = document.getElementById("routing-time-strategy").value;
   
-    let weatherFrameIdx = 0;
 
     // 3. Wetter-Frame-Index berechnen
-    if (activeWeatherData && activeWeatherData.metadata && activeWeatherData.metadata.created) {
+    let weatherFrameIdx = 0;
+
+	if (typeof activeWeatherData !== "undefined" && activeWeatherData && activeWeatherData.metadata && activeWeatherData.metadata.created && activeWeatherData.frames) {
         const timeDiffHours = (departureTime - new Date(activeWeatherData.metadata.created)) / (1000 * 60 * 60);
         weatherFrameIdx = Math.max(0, Math.min( activeWeatherData.frames.length - 1, Math.floor(timeDiffHours)));
     }
@@ -580,16 +693,19 @@ function getWeatherData(hoursAhead, lat, lon) {
 	) {
 		const frame = activeWeatherData.frames[hoursAhead];
 		const meta = activeWeatherData.metadata;
-		const latPos = (meta.la1 - lat) / meta.dy;
-		const lonPos = (lon - meta.lo1) / meta.dx;
-		if (lonPos < 0 || lonPos > meta.nx - 1 || latPos < 0 || latPos > meta.ny - 1) {
+		const weatherResolution = Math.max(Math.abs(meta.dx), Math.abs(meta.dy));
+		const latPos = (meta.la1 - lat) / Math.abs(meta.dy);
+		const lonPos = (lon - meta.lo1) / Math.abs(meta.dx);
+		
+		if (lonPos < 0 || latPos < 0 || lonPos > meta.nx - 1 ||	latPos > meta.ny - 1) {
 			return {
-				windDir: 240,
-				windSpeed: 12,
-				waveHeight: 0.5,
-				waveDir: 240,
-				currentDir: 90,
-				currentSpeed: 0.2
+				windDir: 0,
+				windSpeed: 0,
+				waveHeight: 0,
+				waveDir: 0,
+				currentDir: 0,
+				currentSpeed: 0,
+				invalid: true
 			};
 		}
 
@@ -786,6 +902,54 @@ function formatNavisETA(node) {
     };
 }
 
+// =========================================================================
+// GLOBAL NAUTICAL WEIGHT MATRIX (Rein positive Koeffizienten für maximale Lesbarkeit)
+// =========================================================================
+const PROFILE_WEIGHTS = {
+    fastest: {
+        heuristic: 2.2, time: 1.0, vmgTarget: 0.5, speedEfficiency: 2.0,
+        windAngle: 1.0, waveHeight: 0.5, waveAngle: 1.0, 
+        currentSpeed: 1.0, currentDirection: 2.0, 
+        courseChange: 1.5, coastalBonus: 0.0, xte: 2.0
+    },
+    coastal: {
+        heuristic: 1.2, time: 1.0, vmgTarget: 0.2, speedEfficiency: 1.0,
+        windAngle: 1.0, waveHeight: 1.5, waveAngle: 1.0, 
+        currentSpeed: 0.5, currentDirection: 1.0, 
+        courseChange: 0.1, coastalBonus: 5.0, xte: 0.5 // coastalBonus zieht Kosten ab
+    },
+    safest: {
+        heuristic: 1.5, time: 1.0, vmgTarget: 0.1, speedEfficiency: 0.5,
+        windAngle: 2.0, waveHeight: 8.0, waveAngle: 4.0, 
+        currentSpeed: 2.0, currentDirection: 3.0, 
+        courseChange: 2.5, coastalBonus: -3.0, xte: 1.5 // Negativer Bonus = Bestrafung von Flachwasser/Küste
+    },
+    comfort: {
+        heuristic: 1.6, time: 1.0, vmgTarget: 0.2, speedEfficiency: 0.8,
+        windAngle: 1.5, waveHeight: 4.0, waveAngle: 5.0, 
+        currentSpeed: 1.0, currentDirection: 1.5, 
+        courseChange: 1.8, coastalBonus: 0.0, xte: 1.0
+    },
+    avoid_wind: {
+        heuristic: 1.6, time: 1.0, vmgTarget: 0.3, speedEfficiency: 0.2,
+        windAngle: 1.0, waveHeight: 1.0, waveAngle: 1.0, 
+        currentSpeed: 1.0, currentDirection: 1.0, 
+        courseChange: 1.0, coastalBonus: 0.0, xte: 1.0
+    },
+    avoid_waves: {
+        heuristic: 1.8, time: 1.0, vmgTarget: 0.3, speedEfficiency: 0.5,
+        windAngle: 1.0, waveHeight: 8.0, waveAngle: 2.0, 
+        currentSpeed: 1.0, currentDirection: 1.0, 
+        courseChange: 1.0, coastalBonus: 0.0, xte: 1.0
+    },
+    eco: {
+        heuristic: 1.5, time: 1.0, vmgTarget: 0.4, speedEfficiency: 4.0, // Fokus auf maximale Polar-Effizienz
+        windAngle: 3.0, waveHeight: 0.8, waveAngle: 1.0, 
+        currentSpeed: 1.2, currentDirection: 1.5, 
+        courseChange: 1.0, coastalBonus: 0.0, xte: 1.0
+    }
+};
+
 // --- 4. A* CORE ENGINE ---
 async function planRoute(start, ziel, optionen = {}) {
     // Labor-Schaltzentrale für die Fehlersuche (Standard: Nur Wind aktiv!)
@@ -801,14 +965,43 @@ async function planRoute(start, ziel, optionen = {}) {
     const openHeap = new MinHeap();
     const openMap = new Map(); 
     const closedSet = new Set();
-    const goalRadiusNM = 0.25; 
-    const stepSize = 0.01; 
     
-    const cosLat = Math.cos(start.lat * Math.PI / 180);
-    const stepSizeLon = stepSize / Math.max(0.1, cosLat); 
+	// ======================================================
+	// NAVIS DYNAMISCHE ROUTING AUFLÖSUNG (Aus Teil 1)
+	// ======================================================
+	const totalDistance = calculateDistance(start.lat, start.lon, ziel.lat, ziel.lon);
+	
+	let goalRadiusNM;
+	if(totalDistance < 5){
+		goalRadiusNM = 0.05;
+	}
+	else if(totalDistance < 50){
+		goalRadiusNM = 0.05;
+	}
+	else{
+		goalRadiusNM = 0.5;
+	}
+
+	let stepSize;
+
+	if (totalDistance < 5) {
+		stepSize = 0.01;
+	}
+	else if (totalDistance < 50) {
+		stepSize = 0.01;
+	}
+	else {
+		stepSize = 0.01;
+	}
+
+	console.log(`NAVIS Routing Auflösung: ${stepSize} Grad Distanz: ${totalDistance.toFixed(1)} NM`
+	);
+
+	const stepSizeLon = stepSize / Math.max(0.1, Math.cos(start.lat * Math.PI / 180));
     
     // 64 High-Res Richtungen generieren (Nautisch eingenordet)
-    const NUM_DIRECTIONS = 32;
+    let NUM_DIRECTIONS = 32;
+	
     const directions = [];
     for (let i = 0; i < NUM_DIRECTIONS; i++) {
         const angleDeg = (i * 360) / NUM_DIRECTIONS;
@@ -830,26 +1023,39 @@ async function planRoute(start, ziel, optionen = {}) {
         parent: null
     };
     
-    // Präziser Key verhindert Gitter-Verzerrungen und Überlagerungen
-    const startKey4D = `${start.lat.toFixed(2)},${start.lon.toFixed(2)},${NAVIS_ROUTE.weatherFrame}`;
+    // KORREKTUR: .toFixed(4) Präzisions-Key verhindert Sektoren-Kollaps bei feinen Rastern (0.005 Grad)
+    const startKey4D = `${start.lat.toFixed(4)},${start.lon.toFixed(4)},${NAVIS_ROUTE.weatherFrame}`;
     openHeap.insert(startNode);
     openMap.set(startKey4D, startNode.cost_g);
 
     while (openHeap.size() > 0) {
+		console.log("A* Schritt", closedSet.size, 
+    "Heap:", openHeap.size());
 		let current = openHeap.extractMin();
 
 		// const currentHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.floor(current.g), 71);
 		//const currentHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.round(current.g), 71);
 		const currentHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.floor(current.g), 71);
 		
-        
-        const currentKey4D = `${current.lat.toFixed(2)},${current.lon.toFixed(2)},${currentHoursAhead}`;
+        const currentKey4D = `${current.lat.toFixed(4)},${current.lon.toFixed(4)},${currentHoursAhead}`;
         
         if (closedSet.has(currentKey4D)) continue;
         closedSet.add(currentKey4D);
 		openMap.delete(currentKey4D);
         
-        if (calculateDistance(current.lat, current.lon, ziel.lat, ziel.lon) <= goalRadiusNM) {
+        const distToGoal = calculateDistance(current.lat, current.lon, ziel.lat, ziel.lon);
+
+		if (distToGoal < 2) {
+			console.log(
+				"🎯 Nähe Ziel:",
+				distToGoal.toFixed(3),
+				"NM",
+				current.lat,
+				current.lon
+			);
+		}
+
+		if (distToGoal <= goalRadiusNM) {
             return reconstructPath(current);
         }
         
@@ -912,35 +1118,71 @@ async function planRoute(start, ziel, optionen = {}) {
             }
             let speedOverGround = Math.sqrt((boatX + streamX) ** 2 + (boatY + streamY) ** 2);
             
-            if (cfg.welle) {
-                let waveEncounterAngle = Math.abs(heading - weather.waveDir);
-				if (waveEncounterAngle > 180)
-					waveEncounterAngle = 360 - waveEncounterAngle;
+            // Belohnt das Segeln auf schnellen Punkten der Polar (speedEfficiency)
+            const polarEfficiency = boatSpeed / Math.max(8.5, boatSpeed);
+
+            // Windwinkel-Faktor (windAngle) entkoppelt berechnet
+            let windAngleCostFactor = 0.0;
+            if (twaDeg < 60)        windAngleCostFactor = 1.5;  // Hart Am Wind kostet Energie
+            else if (twaDeg > 150)  windAngleCostFactor = 1.0;  // Platt vor dem Wind verliert oft VMG
+            else                    windAngleCostFactor = -0.5; // Halbwind / Raumschots belohnen
+            
+                        // =========================================================================
+            // 3. WELLEN (ENTKOPPELT: HEIGHT vs. ANSTRÖMWINKEL SPIEGELUNG)
+            // =========================================================================
+            let waveEncounterAngle = Math.abs(heading - weather.waveDir);
+            if (waveEncounterAngle > 180) {
+                waveEncounterAngle = 360 - waveEncounterAngle;
+            }
 				
+            if (cfg.welle) {
                 const waveCos = Math.cos(waveEncounterAngle * Math.PI / 180);
                 let waveFactor = 1.0;
-                if (waveCos > 0) waveFactor = Math.max(0.4, 1.0 - (waveCos * weather.waveHeight * 0.4));
-                else waveFactor = Math.min(1.5, 1.0 + (Math.abs(waveCos) * weather.waveHeight * 0.15));
+                if (waveCos > 0) waveFactor = Math.max(0.4, 1.0 - (waveCos * weather.waveHeight * 0.4)); // Gegensee bremst
+                else waveFactor = Math.min(1.5, 1.0 + (Math.abs(waveCos) * weather.waveHeight * 0.15)); // Achterliche See schiebt
                 speedOverGround = speedOverGround * waveFactor;
             }
             
             const effectiveSpeed = Math.max(0.1, speedOverGround);
 			let travelTime = dist / effectiveSpeed;
+
+            // Winkelbewertung gespiegelt auf 0-180° laut deiner nautischen Richtungs-Tabelle
+            let waveAngleCostFactor = 0.0;
+            if (waveEncounterAngle <= 30)       waveAngleCostFactor = 3.0;  // 0–30°: Extremer Malus (Gegensee)
+            else if (waveEncounterAngle <= 60)  waveAngleCostFactor = 1.5;  // 30–60°: Großer Malus
+            else if (waveEncounterAngle <= 90)  waveAngleCostFactor = 0.5;  // 60–90°: Kleiner Malus
+            else if (waveEncounterAngle <= 120) waveAngleCostFactor = 0.0;  // 90–120°: Neutral
+            else if (waveEncounterAngle <= 150) waveAngleCostFactor = -0.5; // 120–150°: Bonus (Mitlaufend)
+            else                                waveAngleCostFactor = -1.5; // 150–180°: Großer Bonus (Surfen)
+
 			const targetBearing = calculateBearing(current.lat, current.lon, ziel.lat, ziel.lon);
 			let targetAngle = Math.abs(heading - targetBearing);
 
 			if (targetAngle > 180)
 				targetAngle = 360 - targetAngle;
 			const vmgToTarget = boatSpeed * Math.cos(targetAngle * Math.PI / 180);
-			// Kurs bringt uns nicht zum Ziel
-			if (vmgToTarget < 0) {
+			
+			// Kurs bringt uns nicht zum Ziel (Blockade bei Wind ab 6 Knoten)
+			if (vmgToTarget < 0 && weather.windSpeed >= 6) {
 				continue;
 			}
-
+			
 			let cost = travelTime;
-
 			// schlechte Zielannäherung bestrafen
 			cost += (boatSpeed - vmgToTarget) * 0.25;
+
+			// =========================================================================
+			// AB HIER LOGISCHER EINBAU VON TEIL 2: PHYSIKALISCHE MATRIX-KOSTEN
+			// =========================================================================
+			const profile = optionen.profile || NAVIS_ROUTE.profile || "fastest";
+			const weight = PROFILE_WEIGHTS[profile] || PROFILE_WEIGHTS.fastest;
+			let heuristicWeight = weight.heuristic;
+
+            // Zeitkoeffizient einrechnen
+            cost = cost * weight.time;
+
+            // Zielausrichtung (vmgTarget) über das Profil gewichtet aufschlagen
+            cost += (boatSpeed - vmgToTarget) * 0.25 * weight.vmgTarget;
 
 			// Bei Flaute stärker Richtung Ziel zwingen
 			if (weather.windSpeed < 6) {
@@ -951,198 +1193,53 @@ async function planRoute(start, ziel, optionen = {}) {
 			const newDistance = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon);
 			const progressNM = oldDistance - newDistance;
 			
-			const profile = optionen.profile || "fastest";
-			// Standard-Heuristikgewicht
-			let heuristicWeight = 1.0;
+			if (progressNM < 0) {
+				cost += Math.abs(progressNM) * 10;
+			}
+			
 			// =====================================================
-			// GLOBALE STRÖMUNGS-BEWERTUNG
-			// Gilt für ALLE Routing-Profile
+			// GLOBALE STRÖMUNGS-BEWERTUNG (Mit neuer Nomenklatur)
 			// =====================================================
-			let currentAngle =
-				Math.abs(((weather.currentDir - heading + 540) % 360) - 180);
+			let currentAngle = Math.abs(((weather.currentDir - heading + 540) % 360) - 180);
+			const currentAlignment = Math.cos(currentAngle * Math.PI / 180); // -1 = voller Gegenstrom, +1 = voller Rückenstrom
 
-			// Rückenstrom = 180°
-			// Gegenstrom = 0°
-			// Querströmung = 90°
-			const currentAlignment = Math.cos(currentAngle * Math.PI / 180);
-
-			// -1 = voller Gegenstrom
-			//  0 = Querströmung
-			// +1 = voller Rückenstrom
-
-			// =====================================================
-			// GLOBALE STRÖMUNGS-BEWERTUNG
-			// =====================================================
 			if (cfg.stroemung) {
+                // Entkoppelte Gewichtung von Strömungsausrichtung (currentDirection) und exponentieller Stärke (currentSpeed)
 				if (currentAlignment < 0) {
-					// Gegenstrom deutlich vermeiden
-					cost += Math.abs(currentAlignment) * weather.currentSpeed * 1.50;
+					cost += Math.abs(currentAlignment) * (Math.pow(weather.currentSpeed, 1.5) * weight.currentSpeed) * 1.50 * weight.currentDirection;
 				} else {
-					// Rückenstrom stärker nutzen
-					cost -= currentAlignment * weather.currentSpeed * 1.00;
+					cost -= currentAlignment * (Math.pow(weather.currentSpeed, 1.5) * weight.currentSpeed) * 1.00 * weight.currentDirection;
 				}
 			}
 
-			// ------------------------------------
-			// ⚡ Schnellste Route
-			// ------------------------------------
-			if (profile === "fastest") {
-				heuristicWeight = 2.0;
-				// Nur bei Flaute
-	
-			}
+            // Polar-Geschwindigkeitseffizienz verrechnen
+            cost -= polarEfficiency * weight.speedEfficiency;
+
+            // Bevorzugte/Ineffiziente Windwinkel verrechnen
+            cost += windAngleCostFactor * weight.windAngle;
+
+            // Wellen-Kosten (Getrennt nach Höhe und Sektor-Winkel) aufschlagen
+            cost += weather.waveHeight * weight.waveHeight;
+            cost += (waveAngleCostFactor * weather.waveHeight) * weight.waveAngle;
 
 			// ------------------------------------
-			// ⚓ Küstenroute
-			// ------------------------------------
-			else if (profile === "coastal") {
-				heuristicWeight = 1.5;
-				if (tileValue === 1) {
-					// Küstenzellen massiv bevorzugen
-					cost *= 0.45;
-				} else {
-					// Offene See deutlich verteuern
-					cost *= 1.50;
-				}
-				// Hohe See zusätzlich vermeiden
-				cost += weather.waveHeight * 0.75;
-				// Starker Wind küstennah bevorzugt umgehen
-				if (weather.windSpeed > 20) {
-					cost += (weather.windSpeed - 20) * 0.20;
-				}
-			}
-
-			// ------------------------------------
-			// 🛡 Sicherste Route
-			// ------------------------------------
-			else if (profile === "safest") {
-
-				heuristicWeight = 1.8;
-
-				cost += weather.waveHeight * 3.0;
-				cost += weather.windSpeed * 0.40;
-
-				if (weather.waveHeight > 2.5) {
-					cost += (weather.waveHeight - 2.5) * 4.0;
-				}
-
-				if (weather.windSpeed > 25) {
-					cost += (weather.windSpeed - 25) * 0.8;
-				}
-			}
-
-			// ------------------------------------
-			// 🛋 Komfort-Route
-			// ------------------------------------
-			else if (profile === "comfort") {
-				heuristicWeight = 1.8;
-				cost += weather.waveHeight * 2.5;
-				cost += weather.windSpeed * 0.20;
-				let waveEncounterAngle = Math.abs(heading - weather.waveDir);
-				if (waveEncounterAngle > 180) {
-					waveEncounterAngle = 360 - waveEncounterAngle;
-				}
-
-				// Harte Bugsee
-				if (waveEncounterAngle < 45) {
-					cost += weather.waveHeight * 6.0;
-				}
-
-				// Schräge See
-				else if (waveEncounterAngle < 90) {
-					cost += weather.waveHeight * 3.0;
-				}
-
-				// Achterliche See
-				else if (waveEncounterAngle > 150) {
-					cost -= weather.waveHeight * 1.0;
-				}
-
-				// Krängung vermeiden
-				if (twaDeg > 60 && twaDeg < 120) {
-					cost += weather.windSpeed * 0.30;
-				}
-
-				// Starkwind deutlich meiden
-				if (weather.windSpeed > 20) {
-					cost += (weather.windSpeed - 20) * 0.50;
-				}
-
-				// Hohe Wellen exponentiell bestrafen
-				if (weather.waveHeight > 2.0) {
-					cost += Math.pow(weather.waveHeight - 2.0, 2 ) * 3.0;
-				}
-			}
-
-			// ------------------------------------
-			// 💨 Wind vermeiden
-			// ------------------------------------
-			else if (profile === "avoid_wind") {
-
-				heuristicWeight = 1.6;
-
-				if (weather.windSpeed > 15) {
-
-					cost +=
-						Math.pow(
-							(weather.windSpeed - 15) / 5,
-							2
-						);
-				}
-			}
-
-			// ------------------------------------
-			// 🌊 Wellen vermeiden
-			// ------------------------------------
-			else if (profile === "avoid_waves") {
-
-				heuristicWeight = 1.8;
-
-				cost +=
-					Math.pow(weather.waveHeight, 2) * 3.0;
-			}
-
-			// ------------------------------------
-			// 🔋 Energieeffizient
-			// ------------------------------------
-			else if (profile === "eco") {
-
-				heuristicWeight = 1.5;
-
-				// Kreuzschläge vermeiden
-				if (twaDeg < 60) {
-
-					cost +=
-						Math.pow(
-							(60 - twaDeg) / 10,
-							2
-						);
-				}
-
-				// Zu tiefe Kurse vermeiden
-				if (twaDeg > 150) {
-
-					cost +=
-						Math.pow(
-							(twaDeg - 150) / 10,
-							2
-						);
-				}
-
-				cost += weather.waveHeight * 0.75;
-			}
-
-			// ------------------------------------
-			// Kurswechsel-Malus
+			// Kurswechsel-Malus (courseChange)
 			// ------------------------------------
 			if (cfg.kursMalus && incomingBearing !== null) {
 				let headingChange =	Math.abs(heading - incomingBearing);
 				if (headingChange > 180)
 					headingChange = 360 - headingChange;
 				if (headingChange > 4.0) {
-					cost += Math.pow(headingChange / 30, 2) * 1.50;
+					cost += Math.pow(headingChange / 30, 2) * 1.50 * weight.courseChange;
 				}
 			}
+
+            // Küstenroute-Präferenz (Echter, rein positiver Abzug des coastalBonus)
+            if (tileValue === 1) {
+                cost -= weight.coastalBonus; 
+            } else {
+                if (profile === "coastal") cost += 4.0; // Bestrafung der offenen See nur für Küstenprofil
+            }
 
             // Cross-Track-Error (XTE Korridor schließt unkontrollierte Bögen aus)
             if (cfg.xteKorridor) {
@@ -1159,32 +1256,34 @@ async function planRoute(start, ziel, optionen = {}) {
 					
                     if (Math.abs(crossTrackErrorNM) > maxAllowedCrosstrackNM) {
                         const xteExcess = Math.abs(crossTrackErrorNM) - maxAllowedCrosstrackNM;
-                        cost += travelTime * Math.pow(xteExcess, 2) * 4.0; 
+                        cost += travelTime * Math.pow(xteExcess, 2) * 4.0 * weight.xte; 
                     }
                 }
+            }
+
+            // Spezifische mathematische Profil-Overrides für Extremkonditionen
+            if (profile === "avoid_wind" && weather.windSpeed > 15) {
+                cost += Math.pow(weather.windSpeed - 15, 2) * 2.0;
+            }
+            if (profile === "eco" && (twaDeg < 60 || twaDeg > 150)) {
+                cost += 5.0; 
             }
 
             let tentative_g = current.g + travelTime;      
             let tentative_cost_g = current.cost_g + cost; 
             
-			//const neighborHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame +	Math.floor(tentative_g), 71);
-			//const neighborHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame +	Math.round(tentative_g), 71);
 			const neighborHoursAhead = Math.min(NAVIS_ROUTE.weatherFrame + Math.floor(tentative_g), 71);
-			
-			const neighborKey4D = `${neighborLat.toFixed(2)},${neighborLon.toFixed(2)},${neighborHoursAhead}`;
+			const neighborKey4D = `${neighborLat.toFixed(4)},${neighborLon.toFixed(4)},${neighborHoursAhead}`;
 	
             if (closedSet.has(neighborKey4D)) continue;
             
             const existingCostG = openMap.get(neighborKey4D);
             
             if (existingCostG === undefined || tentative_cost_g < existingCostG) {
-                // AUSBALANCIERTE HEURISTIK: Berechnet die verbleibende Luftlinie zum Ziel stabil geteilt durch 4.0 Knoten.
-                // Das zieht den Suchbaum sauber nach vorn, ohne Am-Wind-Kurse künstlich abzustrafen.
                 const h = calculateDistance(neighborLat, neighborLon, ziel.lat, ziel.lon) / 6.0;
-                const etaUTC = new Date(
-					NAVIS_ROUTE.departureTime.getTime()
-					+ tentative_g * 3600 * 1000
-				);
+                const routingDeparture = NAVIS_ROUTE.departureTime || new Date();
+				const etaUTC = new Date(routingDeparture.getTime() + tentative_g * 3600 * 1000);
+                
                 const newNode = {
 					lat: neighborLat,
 					lon: neighborLon,
@@ -1215,14 +1314,12 @@ async function planRoute(start, ziel, optionen = {}) {
 					// Strömung
 					currentSpeed: weather.currentSpeed,
 					currentDir: weather.currentDir,
-					currentAngle:
-						Math.abs(((weather.currentDir - heading + 540) % 360) - 180),
+					currentAngle: currentAngle,
 
 					// Wellen
 					waveHeight: weather.waveHeight,
 					waveDir: weather.waveDir,
-					waveAngle:
-						Math.abs(((weather.waveDir - heading + 540) % 360) - 180),
+					waveAngle: waveEncounterAngle,
 
 					parent: current
 				};
@@ -1231,8 +1328,31 @@ async function planRoute(start, ziel, optionen = {}) {
             }
         }
     }
+    console.error("A* Routing fehlgeschlagen: Kein Pfad zum Ziel gefunden.");
     return []; 
 }
+
+// Hilfsfunktion: Rekonstruiert den Pfad vom Ziel zurück zum Start
+function reconstructPath(currentNode) {
+    const path = [];
+    let curr = currentNode;
+    while (curr !== null) {
+        path.push({
+            lat: curr.lat,
+            lon: curr.lon,
+            g: curr.g,
+            heading: curr.heading,
+            sog: curr.sog,
+            boatSpeed: curr.boatSpeed,
+            etaUTC: curr.etaUTC
+        });
+        curr = curr.parent;
+    }
+    return path.reverse();
+}
+
+				
+
 
 // --- 5. INTERFACE PANELS CONTROL ---
 function toggleRoutingPanel() {
