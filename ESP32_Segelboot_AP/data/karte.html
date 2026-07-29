@@ -501,7 +501,7 @@ const layerOSM = new L.TileLayer.Throttled(
     maxZoom: 16,
     maxNativeZoom: 16,
     attribution: '© OpenStreetMap contributors (offline)',
-    throttleDelay: 50
+    throttleDelay: 350
   }
 );
 layerOSM.addTo(map);
@@ -1226,48 +1226,83 @@ function drawCalculatedRoute(route) {
         interactive: false    
     }).addTo(map);
 
-    // 3. RADIKALER MANÖVER-FILTER
-    const filteredRoute = [];
-    filteredRoute.push(route[0]); 
-    
-    let currentSegmentStartIdx = 0;
+	// =========================================================================
+	// 3. INTELLIGENTER GERADENFILTER V2
+	// =========================================================================
+	const filteredRoute = [];
+	filteredRoute.push(route[0]);
+	let anchor = 0;
+	const lastIndex = route.length - 1;
+	while (anchor < lastIndex - 1) {
+		let lastGood = anchor + 1;
+		for (let test = anchor + 2; test < lastIndex; test++) {
+			const start = route[anchor];
+			const end = route[test];
+			let keepSegment = true;
+			const segmentBearing = calculateBearing(start.lat, start.lon, end.lat, end.lon);
+			for (let i = anchor + 1; i < test; i++) {
+				const prev = route[i - 1];
+				const p = route[i];
+				const next = route[i + 1];
+				// 1. Kurs auf Geraden
+				const bearing = calculateBearing(start.lat, start.lon, p.lat, p.lon);
+				let delta = Math.abs(segmentBearing - bearing);
+				if (delta > 180) delta = 360 - delta;
+				// 2. Seitliche Abweichung
+				const direct = calculateDistance(start.lat, start.lon, end.lat, end.lon);
+				const via = calculateDistance(start.lat, start.lon, p.lat, p.lon) + calculateDistance(p.lat, p.lon, end.lat, end.lon);
+				const deviation = via - direct;
+				// 3. Echter Kurswechsel am Wegpunkt?
+				const b1 = calculateBearing(prev.lat, prev.lon, p.lat, p.lon);
+				const b2 = calculateBearing(p.lat, p.lon, next.lat, next.lon);
+				let maneuver = Math.abs(b2 - b1);
+				if (maneuver > 180) maneuver = 360 - maneuver;
+				if (delta > NAVIS_CONFIG.MANEUVER_THRESHOLD || deviation > 0.03 || maneuver > NAVIS_CONFIG.MANEUVER_THRESHOLD) {
+					keepSegment = false;
+					break;
+				}
+			}
+			if (keepSegment) lastGood = test;
+			else break;
+		}
+		filteredRoute.push(route[lastGood]);
+		anchor = lastGood;
+	}
+	// Vorletzten Punkt nur übernehmen, wenn dort ein echter Kurswechsel beginnt
+	if (route.length >= 3) {
+		const a = route[lastIndex - 2];
+		const b = route[lastIndex - 1];
+		const c = route[lastIndex];
+		const b1 = calculateBearing(a.lat, a.lon, b.lat, b.lon);
+		const b2 = calculateBearing(b.lat, b.lon, c.lat, c.lon);
+		let delta = Math.abs(b2 - b1);
+		if (delta > 180) delta = 360 - delta;
+		if (delta >= NAVIS_CONFIG.MANEUVER_THRESHOLD) {
+			if (filteredRoute[filteredRoute.length - 1] !== b) filteredRoute.push(b);
+		}
+	}
+	// Ziel immer übernehmen
+	if (filteredRoute[filteredRoute.length - 1] !== route[lastIndex]) {
+		filteredRoute.push(route[lastIndex]);
+	}
+	// NEU: ZIELGEBIET-FILTER (Löscht den vorletzten Punkt nur, wenn dort KEINE ordentliche Kursänderung vorliegt)
+	if (NAVIS_CONFIG.FILTER_DESTINATION_KINK && filteredRoute.length >= 3) {
+		const targetPt = filteredRoute[filteredRoute.length - 1];
+		const secondLastPt = filteredRoute[filteredRoute.length - 2];
+		const thirdLastPt = filteredRoute[filteredRoute.length - 3];
+		const distanceMeters = L.latLng(targetPt.lat, targetPt.lon).distanceTo(L.latLng(secondLastPt.lat, secondLastPt.lon));
+		const distanceNM = distanceMeters / 1852;
+		if (distanceNM <= 0.2) {
+			const b1 = calculateBearing(thirdLastPt.lat, thirdLastPt.lon, secondLastPt.lat, secondLastPt.lon);
+			const b2 = calculateBearing(secondLastPt.lat, secondLastPt.lon, targetPt.lat, targetPt.lon);
+			let maneuver = Math.abs(b2 - b1);
+			if (maneuver > 180) maneuver = 360 - maneuver;
+			if (maneuver < NAVIS_CONFIG.MANEUVER_THRESHOLD) {
+				filteredRoute.splice(filteredRoute.length - 2, 1);
+			}
+		}
+	}
 
-    for (let i = 1; i < route.length - 1; i++) {
-        const startPt = route[currentSegmentStartIdx];
-        const pivotPt = route[i];
-        const nextPt = route[i + 1];
-
-        const bearingBefore = calculateBearing(startPt.lat, startPt.lon, pivotPt.lat, pivotPt.lon);
-        const bearingAfter = calculateBearing(pivotPt.lat, pivotPt.lon, nextPt.lat, nextPt.lon);
-
-        let deltaBearing = Math.abs(bearingAfter - bearingBefore);
-        if (deltaBearing > 180) deltaBearing = 360 - deltaBearing;
-
-        // NUTZT DIE GLOBALE KONFIGURATION
-        if (deltaBearing > NAVIS_CONFIG.MANEUVER_THRESHOLD) {
-            filteredRoute.push(pivotPt);
-            currentSegmentStartIdx = i;
-        }
-    }
-
-    if (filteredRoute[filteredRoute.length - 1] !== route[route.length - 1]) {
-        filteredRoute.push(route[route.length - 1]);
-    }
-
-    // NEU: ZIELGEBIET-FILTER
-    if (NAVIS_CONFIG.FILTER_DESTINATION_KINK && filteredRoute.length >= 3) {
-        const targetPt = filteredRoute[filteredRoute.length - 1];
-        const secondLastPt = filteredRoute[filteredRoute.length - 2];
-
-        const distanceMeters = L.latLng(targetPt.lat, targetPt.lon).distanceTo(L.latLng(secondLastPt.lat, secondLastPt.lon));
-        const distanceNM = distanceMeters / 1852;
-
-        // NUTZT DIE GLOBALE KONFIGURATION
-        if (distanceNM <= NAVIS_CONFIG.DESTINATION_FILTER_NM) {
-            filteredRoute.splice(filteredRoute.length - 2, 1);
-            console.log(`🧹 ZIEL-FILTER: Vorletzter Wegpunkt entfernt (${distanceNM.toFixed(2)} sm vorm Ziel).`);
-        }
-    }
 	
     // =========================================================================
     // 4. NUR DIE GEFILTERTEN MANÖVER-MARKER RENDERN
