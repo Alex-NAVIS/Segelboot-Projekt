@@ -370,3 +370,21 @@ function changeLanguage(lang) {
 // Initialisierung sobald das HTML geladen ist
 document.addEventListener('DOMContentLoaded', applyTranslations);
 
+/**
+ * Holt die Übersetzung für einen bestimmten Schlüssel (Key) 
+ * in der aktuell geladenen Sprache.
+ * @param {string} key - Der Übersetzungsschlüssel (z.B. 'map_leg_compass')
+ * @returns {string} Die Übersetzung oder der Key als Fallback
+ */
+function getTranslation(key) {
+    // Falls das Übersetzungsobjekt oder die Sprache fehlt, Key zurückgeben
+    if (typeof translations === 'undefined' || !translations[currentLang]) {
+        return key;
+    }
+    
+    // Übersetzung holen
+    const translatedText = translations[currentLang][key];
+    
+    // Falls der Schlüssel existiert, Text zurückgeben, andernfalls den Key selbst (Fallback)
+    return translatedText !== undefined ? translatedText : key;
+}

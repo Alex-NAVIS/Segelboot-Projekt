@@ -1,13 +1,15 @@
 /**
- * L.TileLayer.Throttled - Cache-First Version (2026)
+ * L.TileLayer.Throttled - Echtzeit-kontrollierte Version (2026)
+ * Schützt den ESP32 vor Socket-Überlastung durch strikte Limitierung paralleler Requests.
  */
 L.TileLayer.Throttled = L.TileLayer.extend({
 
     initialize: function (url, options) {
         L.TileLayer.prototype.initialize.call(this, url, options);
         this._queue = [];
-        this._timer = null;
-        this._delay = options.throttleDelay || 100;
+        this._activeRequests = 0;
+        // Maximal 2-3 gleichzeitige Requests erlauben (ESP32-S3 verträgt nicht mehr)
+        this._maxParallelRequests = options.maxParallelRequests || 2; 
         this._fallbackSrc = this._createLandTile(options.landColor || '#1c1f26');
     },
 
@@ -19,65 +21,66 @@ L.TileLayer.Throttled = L.TileLayer.extend({
 
         const tileUrl = this.getTileUrl(coords);
 
-        // Standard-Handler
-        tile.onload = () => done(null, tile);
-        tile.onerror = () => {
-            tile.src = this._fallbackSrc;
-            done(null, tile);
-        };
+        // Standardmäßig sofort das leere Land-Tile anzeigen (verhindert weißes Blitzen)
+        tile.src = this._fallbackSrc;
 
-        /**
-         * CACHE-CHECK:
-         * Wir setzen die URL. Wenn der Browser sie im Cache hat, 
-         * wird 'complete' fast augenblicklich auf true gesetzt.
-         */
-        tile.src = tileUrl;
+        // Kachel in die Warteschlange einreihen
+        this._queue.push({
+            tile: tile,
+            url: tileUrl,
+            done: done
+        });
 
-        // Kleiner Timeout (0ms) schiebt die Prüfung ans Ende des aktuellen Execution-Stacks
-        // Das gibt dem Browser Zeit, den Cache-Status zu prüfen.
-        setTimeout(() => {
-            if (tile.complete && tile.naturalWidth !== 0) {
-                // Bild ist im Cache und geladen -> Nichts weiter tun, onload feuert.
-                return;
-            } else {
-                // Bild ist NICHT im Cache -> URL kurz entfernen, Fallback setzen und queue
-                tile.src = this._fallbackSrc;
-                this._queue.push({
-                    tile: tile,
-                    url: tileUrl
-                });
-                this._startQueue();
-            }
-        }, 0);
+        // Warteschlange triggern
+        setTimeout(() => this._processQueue(), 0);
 
         return tile;
     },
 
-    _startQueue: function () {
-        if (this._timer) return;
+    _processQueue: function () {
+        // Wenn das Limit aktiver Requests erreicht ist oder die Queue leer ist -> Stopp
+        if (this._activeRequests >= this._maxParallelRequests || this._queue.length === 0) {
+            return;
+        }
 
-        this._timer = setInterval(() => {
-            if (this._queue.length === 0) {
-                this._stopTimer();
-                return;
-            }
+        // LIFO: Die neueste Kachel (wo der Nutzer gerade hinschaut) zuerst laden
+        const entry = this._queue.pop();
 
-            // Neueste Kacheln zuerst (LIFO)
-            const entry = this._queue.pop(); 
+        if (!entry) return;
 
-            if (entry && entry.tile) {
-                // Nur laden, wenn die Kachel noch Teil der Karte ist (nicht weggezoomt)
-                if (document.body.contains(entry.tile)) {
-                    entry.tile.src = entry.url;
-                }
-            }
-        }, this._delay);
-    },
+        // Prüfen, ob die Kachel überhaupt noch auf der Karte existiert (wichtig beim Zoomen!)
+        if (!document.body.contains(entry.tile)) {
+            entry.done(null, entry.tile); // Feuern, damit Leaflet Ressourcen freigibt
+            setTimeout(() => this._processQueue(), 0);
+            return;
+        }
 
-    _stopTimer: function () {
-        if (this._timer) {
-            clearInterval(this._timer);
-            this._timer = null;
+        // Request wird jetzt aktiv
+        this._activeRequests++;
+
+        // Hilfsfunktion zum Aufräumen nach Erfolg/Fehler
+        const next = () => {
+            this._activeRequests--;
+            this._processQueue(); // Nächsten Request aus der Queue starten
+        };
+
+        entry.tile.onload = () => {
+            entry.done(null, entry.tile);
+            next();
+        };
+
+        entry.tile.onerror = () => {
+            entry.tile.src = this._fallbackSrc;
+            entry.done(null, entry.tile);
+            next();
+        };
+
+        // Erst HIER wird der tatsächliche HTTP-Request an den ESP32 abgesetzt
+        entry.tile.src = entry.url;
+
+        // Falls noch Plätze frei sind, direkt den nächsten Request anstoßen
+        if (this._activeRequests < this._maxParallelRequests) {
+            setTimeout(() => this._processQueue(), 0);
         }
     },
 
@@ -92,7 +95,7 @@ L.TileLayer.Throttled = L.TileLayer.extend({
 
     onRemove: function (map) {
         this._queue = [];
-        this._stopTimer();
+        this._activeRequests = 0;
         L.TileLayer.prototype.onRemove.call(this, map);
     }
 });

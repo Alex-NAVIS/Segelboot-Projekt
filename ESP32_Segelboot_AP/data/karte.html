@@ -494,17 +494,83 @@ const map = L.map('map', { zoomControl: true, attributionControl: false })
 
 const TILE_URL = 'tiles/osm/{z}/{x}/{y}.png';
 
-const layerOSM = new L.TileLayer.Throttled(
-  TILE_URL,
-  {
-    minZoom: 1,
-    maxZoom: 16,
-    maxNativeZoom: 16,
-    attribution: '© OpenStreetMap contributors (offline)',
-    throttleDelay: 350
-  }
+// --- INITIALISIERUNG DER LOKALEN BROWSER-DATENBANK (IndexedDB) ---
+const DB_NAME = 'NavisTileCache';
+const DB_VERSION = 1;
+
+function getLocalDB() {
+    return new Promise((resolve) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('tiles')) {
+                db.createObjectStore('tiles', { keyPath: 'url' });
+            }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = () => resolve(null);
+    });
+}
+
+// --- ERWEITERUNG DES LAYERS: ERST CACHE PRÜFEN, DANN ESP ANFRAGEN ---
+L.TileLayer.OfflineFirst = L.TileLayer.Throttled.extend({
+    createTile: function (coords, done) {
+        // Nutzt die Request-Limitierung aus dem vorherigen Update, um Abstürze zu verhindern
+        const tile = L.TileLayer.Throttled.prototype.createTile.call(this, coords, done);
+        const tileUrl = this.getTileUrl(coords);
+
+        // 1. Zuerst die lokale Datenbank auf dem Gerät (Tablet/PC) abfragen
+        getLocalDB().then(db => {
+            if (!db) {
+                tile.src = tileUrl; // Fallback: Ohne DB direkt vom ESP laden
+                return;
+            }
+
+            const transaction = db.transaction('tiles', 'readonly');
+            const store = transaction.objectStore('tiles');
+            const request = store.get(tileUrl);
+
+            request.onsuccess = (e) => {
+                if (e.target.result) {
+                    // Kachel existiert lokal auf dem Endgerät -> Aus DB laden!
+                    tile.src = e.target.result.blobUrl;
+                } else {
+                    // Kachel fehlt -> Vom ESP32 laden und für das nächste Mal lokal speichern
+                    fetch(tileUrl)
+                        .then(res => res.blob())
+                        .then(blob => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                const base64data = reader.result;
+                                const writeTx = db.transaction('tiles', 'readwrite');
+                                writeTx.objectStore('tiles').put({ url: tileUrl, blobUrl: base64data });
+                            };
+                            reader.readAsDataURL(blob);
+                        }).catch(() => {
+                            // Fehler beim Laden vom ESP (z.B. Offline) -> Zeigt das dunkle Land-Tile
+                        });
+                }
+            };
+        });
+
+        return tile;
+    }
+});
+
+// --- LADE-PROFIL AKTIVIEREN ---
+const layerOSM = new L.TileLayer.OfflineFirst(
+    TILE_URL,
+    {
+        minZoom: 1,
+        maxZoom: 16,
+        maxNativeZoom: 16,
+        attribution: '© OpenStreetMap contributors (offline/cached)',
+        throttleDelay: 100,      // Da die meisten Tiles nun aus dem Cache kommen, können wir schneller nachladen
+        maxParallelRequests: 2   // Falls Daten vom ESP geholt werden müssen, bleibt er geschützt
+    }
 );
 layerOSM.addTo(map);
+
 
 function addLatLonGrid(map, stepSm = 1) {
   const minZoomToShow = 8; // Raster erscheint schon ab Zoom 8
@@ -839,17 +905,21 @@ function updateLogDisplay() {
 let t0 = performance.now()/1000;
 let lastTime = performance.now();
 
+let lastFrame = 0;
 function integrate(now) {
+    if (now - lastFrame < 50) {
+        requestAnimationFrame(integrate);
+        return;
+    }
+    lastFrame = now;
     const dt = (now - lastTime) / 1000;
     lastTime = now;
     const sm = 1 - Math.exp(-2 * dt);
     for (const k in state) {
-        if (typeof target[k] === 'number') {
+        if (typeof target[k] === "number") {
             state[k] += (target[k] - state[k]) * sm;
         }
     }
-
-    // NUR schnelle Animation
     updateBoatGeometry();
     requestAnimationFrame(integrate);
 }
@@ -857,16 +927,16 @@ requestAnimationFrame(integrate);
 
 setInterval(() => {
     updateHeadingLines();
-}, 100);
+}, 250);
 
 setInterval(() => {
     updateLegend();
     updateWaypointInfo();
-}, 1000);
+}, 2000);
 
 setInterval(() => {
     updateRangeCircles();
-}, 2000);
+}, 5000);
 
 async function fetchLiveData(){
   try {
@@ -922,25 +992,28 @@ async function loadTrackHistory() {
 }
 
 window.addEventListener("navisTelemetryUpdate", (event) => {
-    const j = event.detail;
-    if ('gps_lat' in j)
+    const j = event.detail.raw;
+    if ("gps_lat" in j)
         target.gps_lat = Number(j.gps_lat);
-    if ('gps_lon' in j)
+    if ("gps_lon" in j)
         target.gps_lon = Number(j.gps_lon);
-    if ('gps_speed' in j)
+    if ("gps_speed" in j)
         target.gps_speed = Number(j.gps_speed);
-    if ('gps_kurs' in j)
+    if ("gps_kurs" in j)
         target.gps_kurs = Number(j.gps_kurs);
     if ("sm" in j) {
         distanceSM = Number(j.sm);
         updateLogDisplay();
     }
-    if ('kompass' in j)
-        target.kompass = Number(j.kompass);
-    if ('winddir_berechnet' in j)
-        target.winddir_berechnet = Number(j.winddir_berechnet);
-    if ('windspeed_berechnet' in j)
-        target.windspeed_berechnet = Number(j.windspeed_berechnet);
+    if ("kompass" in j)
+		if (target.kompass !== Number(j.kompass))
+			target.kompass = Number(j.kompass);
+    if ("winddir_berechnet" in j)
+		if (target.winddir_berechnet !== Number(j.winddir_berechnet))
+			target.winddir_berechnet = Number(j.winddir_berechnet);
+    if ("windspeed_berechnet" in j)
+		if (target.windspeed_berechnet !==  Number(j.windspeed_berechnet))
+			target.windspeed_berechnet = Number(j.windspeed_berechnet);
 });
 
 // Vorhandenen GPS-Track vom ESP laden
@@ -1008,7 +1081,28 @@ function updateBoat() {
     updateLegend();
 }
   
+  
+let lastFollowUpdate = 0;
+const FOLLOW_INTERVAL = 10000; // ms
+let lastLat = null;
+let lastLon = null;
+let lastHeading = null;
+const GPS_EPSILON = 0.000001;   // ca. 11 cm
+const HDG_EPSILON = 0.2;        // 0,2°
+
 function updateBoatGeometry() {
+	if (
+		Math.abs(state.gps_lat - lastLat) < GPS_EPSILON &&
+		Math.abs(state.gps_lon - lastLon) < GPS_EPSILON &&
+		Math.abs(angleDiff(lastHeading, state.kompass)) < HDG_EPSILON
+	) {
+		return;
+	}
+
+    lastLat = state.gps_lat;
+    lastLon = state.gps_lon;
+    lastHeading = state.kompass;
+	
     const pos = [state.gps_lat, state.gps_lon];
     const pixelSize = 14;
     const angle = state.kompass * Math.PI / 180;
@@ -1028,8 +1122,14 @@ function updateBoatGeometry() {
     try { boatTriangle.bringToFront(); } catch (e) {}
 
     if (followMode) {
-        map.setView(pos, map.getZoom(), { animate: true });
-    }
+		const now = performance.now();
+		if (now - lastFollowUpdate >= FOLLOW_INTERVAL) {
+			lastFollowUpdate = now;
+			map.panTo(pos, {
+				animate: false
+			});
+		}
+	}
 }
 
 function updateHeadingLines() {

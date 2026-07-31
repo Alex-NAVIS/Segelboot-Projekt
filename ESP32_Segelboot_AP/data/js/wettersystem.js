@@ -111,21 +111,21 @@ function initNavisWeather() {
             });
     } else {
         // Normaler Boot-Betrieb über das echte ESP32-LittleFS auf See (Nutzt Ihre index.json)
-        fetch('/api/weather/list?t=' + Date.now())
-            .then(res => {
-                if (!res.ok) throw new Error("Indexdatei auf ESP32 fehlt.");
-                return res.json();
-            })
-            .then(files => {
-                select.innerHTML = '<option value="">-- Revier --</option>';
-                files.forEach(f => {
-                    let opt = document.createElement('option');
-                    opt.value = '/Wetter/' + f.file; // Absoluter Pfad für den ESP32
-                    opt.text = f.label;
-                    select.add(opt);
-                });
-            })
-            .catch(err => console.warn("Wetter-Index konnte nicht vom ESP32 geladen werden:", err));
+		fetch('/Wetter-Index?t=' + Date.now()) // <-- Exakt angepasst an den ESP32-Endpunkt
+			.then(res => {
+				if (!res.ok) throw new Error("Indexdatei auf ESP32 fehlt.");
+				return res.json();
+			})
+		.then(files => {
+			select.innerHTML = '<option value="">-- Revier --</option>';
+			files.forEach(f => {
+				let opt = document.createElement('option');
+				opt.value = '/Wetter/' + f.file; // Absoluter Pfad für den ESP32
+				opt.text = f.label;
+				select.add(opt);
+			});
+		})
+		.catch(err => console.warn("Wetter-Index konnte nicht vom ESP32 geladen werden:", err));
     }
 }
 

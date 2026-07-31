@@ -19,6 +19,13 @@ const FILTER = {
 
 // Originaldaten vom ESP (niemals verändern)
 window.navisTelemetry = {};
+// letzter bekannter Systemstatus
+window.navisSystemStatus = {
+    ok:true,
+    hasErrors:false,
+    hasWarnings:false,
+    issues:[]
+};
 
 // Geglättete Daten ausschließlich für die Anzeige
 window.navisTelemetryDisplay = {
@@ -91,7 +98,13 @@ function checkHardwareStatus(data) {
         issues: issues
     };
 
-    window.dispatchEvent(new CustomEvent("navisSystemStatus", { detail: status }));
+    window.navisSystemStatus = status;
+
+	window.dispatchEvent(
+		new CustomEvent("navisSystemStatus", { 
+			detail: status 
+		})
+	);
 }
 
 // NEU: Globale Funktion zum sicheren Senden von Befehlen an den ESP32
@@ -121,7 +134,6 @@ function connectWS() {
     window.navisTelemetrySocket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-			console.log("NAVIS RAW DATA:", data);
 			// ------------------------------------------------------------
 			// Originaldaten speichern
 			// ------------------------------------------------------------
