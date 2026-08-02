@@ -59,6 +59,10 @@ void setupGPS() {
   // Serielle Schnittstelle starten (GPS_SERIAL_PORT = z.B. Serial1)
   GPS_SERIAL_PORT.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
   GPS_SERIAL_PORT.setRxBufferSize(1024);
+
+  // Hardware-Schnittstelle ist bereitgestellt
+  sensorData.gps_online = 1;
+
   if (DEBUG_MODE) {
     Serial.print(F("[GPS] Port gestartet mit Baudrate: "));
     Serial.println(GPS_BAUDRATE);
@@ -78,57 +82,71 @@ void setupGPS() {
 // Aktualisiert sensorData mit neuen Positions- und Bewegungsdaten.
 // ---------------------------------------------------------
 void readGPS() {
-  // --- Alle verfügbaren Bytes vom GPS auslesen und dekodieren ---
+  // Zeitstempel für den letzten Empfang IRGENDEINES Zeichens vom GPS
+  static uint32_t lastIncomingDataTime = 0;
+  bool bytesReceived = false;
+
+  // --- Alle verfügbaren Bytes auslesen ---
   while (GPS_SERIAL_PORT.available() > 0) {
+    bytesReceived = true;
     gps.encode(GPS_SERIAL_PORT.read());
   }
 
-  // --- Wenn neue Positionsdaten vorhanden sind ---
+  // Wenn Zeichen verarbeitet wurden, merken wir uns die Uhrzeit
+  if (bytesReceived) {
+    lastIncomingDataTime = millis();
+  }
+
+  // --- STATUS-LOGIK ---
+  // FALL 0: Seit mehr als 3 Sekunden kommt absolut gar nichts mehr an (Kabel ab / Modul aus)
+  if (millis() - lastIncomingDataTime > 3000) {
+    sensorData.gps_online = 0;
+  } else {
+    // Es kommen Daten an! Jetzt prüfen wir die Qualität:
+    // FALL 2: Fix vorhanden UND Uhrzeit gültig UND Daten sind frisch (Alter < 2 Sekunden)
+    if (gps.location.isValid() && gps.time.isValid() && gps.location.age() < 2000) {
+      sensorData.gps_online = 2;
+    }
+    // FALL 1: Modul sendet fleißig NMEA-Sätze, hat aber noch keinen Fix (z.B. unter Deck)
+    else {
+      sensorData.gps_online = 1;
+    }
+  }
+
+  // --- VERARBEITUNG (Wenn neue Position da ist) ---
   if (gps.location.isUpdated()) {
-    //GPS Ringspeicher für AHRS System
+
+    // GPS Ringspeicher für AHRS System
     GPS_Point &p = gpsBuffer[gpsWriteIndex];
     p.lat = gps.location.lat();
     p.lon = gps.location.lng();
     p.speed = gps.speed.knots();
     p.kurs = gps.course.deg();
     p.time = millis();
-    // HDOP erfassen
+
     if (gps.hdop.isValid()) {
-      p.hdop = gps.hdop.hdop();  // liefert Float-Wert in Standardeinheit
+      p.hdop = gps.hdop.hdop();
     } else {
-      p.hdop = 99.9f;  // ungültig, sehr schlechter Wert
+      p.hdop = 99.9f;
     }
-    gpsWriteIndex = (gpsWriteIndex + 1) % GPS_BUFFER_SIZE;  // Ringpuffer
+    gpsWriteIndex = (gpsWriteIndex + 1) % GPS_BUFFER_SIZE;
 
     if (GPS_AHRS_SYSTEM) {
       gps_ahrs();
     } else {
-      sensorData.gps_lat = gps.location.lat();   // Breitengrad
-      sensorData.gps_lon = gps.location.lng();   // Längengrad
-      sensorData.gps_speed = gps.speed.knots();  // Geschwindigkeit in kn/h
-      sensorData.gps_kurs = gps.course.deg();    // Kurs über Grund (Grad)
+      sensorData.gps_lat = gps.location.lat();
+      sensorData.gps_lon = gps.location.lng();
+      sensorData.gps_speed = gps.speed.knots();
+      sensorData.gps_kurs = gps.course.deg();
     }
+  } // <--- HIER SCHLIESSEN (Wichtig!)
 
-    // --- Optional: Debug-Ausgabe ---
-    if (DEBUG_MODE_GPS) {
-      Serial.println(F("[GPS] Neue Daten empfangen:"));
-      Serial.print(F("  Lat: "));
-      Serial.println(sensorData.gps_lat, 6);
-      Serial.print(F("  Lon: "));
-      Serial.println(sensorData.gps_lon, 6);
-      Serial.print(F("  Speed (km/h): "));
-      Serial.println(sensorData.gps_speed, 2);
-      Serial.print(F("  Kurs (°): "));
-      Serial.println(sensorData.gps_kurs, 2);
-    }
-  }
-
-  // --- Nur wenn gültiges Datum & Zeit vorhanden ---
+  // --- ZEIT-VERARBEITUNG (Unabhängig von der Position ausführen) ---
   if (gps.date.isValid() && gps.time.isValid()) {
     // Berechne lokale Zeit basierend auf GPS-Koordinaten
     updateLocalTime(gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second());
 
-    //Systemzeit auf Zeitzone 0
+    // Systemzeit auf Zeitzone 0
     time_t now = time(nullptr);
     if (now < 1600000000) {  // Systemzeit noch ungültig
       setSystemTimeFromGPS(gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second());
@@ -359,7 +377,7 @@ void gps_ahrs() {
   }
 
   // Für stabile Vektorketten (mindestens zwei Segmente) brauchen wir 3 Punkte
-  if (validCount < 3) return; 
+  if (validCount < 3) return;
 
   // 2. Explizite chronologische Sortierung nach Zeitstempel (Garantie gegen Puffer-Lücken)
   // Einfacher Insertion-Sort, da GPS_BUFFER_SIZE sehr klein ist (ressourcenschonend für ESP32)
@@ -388,16 +406,16 @@ void gps_ahrs() {
   // Rückkopplungsfreie Geschwindigkeitsbasis direkt aus den Rohdaten
   double current_speed = last.speed;
   if (isnan(current_speed) || current_speed < 0.0) {
-    current_speed = sensorData.gps_speed; // Fallback auf das letzte Filterergebnis
+    current_speed = sensorData.gps_speed;  // Fallback auf das letzte Filterergebnis
   }
 
   // 3. Iteration über die nun garantiert chronologische Vektorkette
   for (int i = 0; i < validCount - 1; ++i) {
     int idxA = validIdx[i];
     int idxB = validIdx[i + 1];
-    
+
     double dt = double(gpsBuffer[idxB].time - gpsBuffer[idxA].time);
-    if (dt <= 0.0 || dt > 15.0) continue; // Zeitsprungfilter
+    if (dt <= 0.0 || dt > 15.0) continue;  // Zeitsprungfilter
 
     double dlat_deg = 0.0;
     double dlon_deg = 0.0;
@@ -406,21 +424,21 @@ void gps_ahrs() {
     if (gpsBuffer[idxA].lat != 0.0 && gpsBuffer[idxB].lat != 0.0) {
       dlat_deg = gpsBuffer[idxB].lat - gpsBuffer[idxA].lat;
       dlon_deg = gpsBuffer[idxB].lon - gpsBuffer[idxA].lon;
-      
+
       // Korrektur der Datumsgrenze (Antimeridian-Passage)
-      if (dlon_deg > 180.0)       dlon_deg -= 360.0;
+      if (dlon_deg > 180.0) dlon_deg -= 360.0;
       else if (dlon_deg < -180.0) dlon_deg += 360.0;
-    } 
+    }
     // COG/SOG nur als Fallback
     else if (!isnan(gpsBuffer[idxA].speed) && gpsBuffer[idxA].speed >= 0.0 && !isnan(gpsBuffer[idxA].kurs)) {
-      double distance_deg = (gpsBuffer[idxA].speed * dt) / 216000.0; 
+      double distance_deg = (gpsBuffer[idxA].speed * dt) / 216000.0;
       double kurs_rad = gpsBuffer[idxA].kurs * M_PI / 180.0;
-      
+
       double cosLatFallback = cos(gpsBuffer[idxA].lat * M_PI / 180.0);
       if (fabs(cosLatFallback) < 0.01) {
         cosLatFallback = (cosLatFallback >= 0.0) ? 0.01 : -0.01;
       }
-      
+
       dlat_deg = distance_deg * cos(kurs_rad);
       dlon_deg = (distance_deg * sin(kurs_rad)) / cosLatFallback;
     }
@@ -429,12 +447,12 @@ void gps_ahrs() {
     float hdop = gpsBuffer[idxB].hdop;
     if (hdop <= 0.0f || isnan(hdop)) hdop = 4.0f;
     double w = 1.0 / (double(hdop) + 0.1);
-    if (w > 1.0) w = 1.0; 
+    if (w > 1.0) w = 1.0;
     if (w < 0.1) w = 0.1;
 
     // Moderate Zeitgewichtung (0.7 bis 1.0) gegen Wellenschlag-Peaks
     double progress = double(i + 1) / double(validCount);
-    double recency_factor = 0.7 + 0.3 * progress; 
+    double recency_factor = 0.7 + 0.3 * progress;
     w *= recency_factor;
 
     // Segment-Aufteilung über die chronologisch jüngsten Segmente
@@ -461,18 +479,18 @@ void gps_ahrs() {
 
   double vec_lat_long = (sum_dlat_long / sum_w_long) / avg_dt_long;
   double vec_lon_long = (sum_dlon_long / sum_w_long) / avg_dt_long;
-  
+
   double vec_lat_short = (sum_dlat_short / sum_w_short) / avg_dt_short;
   double vec_lon_short = (sum_dlon_short / sum_w_short) / avg_dt_short;
 
   // Adaptive Vektormischung (Alpha) basierend auf der stabilen Roh-Geschwindigkeit
   double alpha;
   if (current_speed < 2.0) {
-    alpha = 0.2; 
+    alpha = 0.2;
   } else if (current_speed > 6.0) {
-    alpha = 0.5; 
+    alpha = 0.5;
   } else {
-    alpha = 0.2 + (current_speed - 2.0) * (0.3 / 4.0); 
+    alpha = 0.2 + (current_speed - 2.0) * (0.3 / 4.0);
   }
 
   // Vektoren final mischen (Bewegung pro Sekunde)
@@ -484,7 +502,7 @@ void gps_ahrs() {
   sensorData.gps_lon = last.lon;
 
   // --- BERECHNUNG DER PRÄDIKTION (GETRENNT SPEICHERN) ---
-  double predict_s = GPS_PREDICT_S; 
+  double predict_s = GPS_PREDICT_S;
   sensorData.gps_predict_lat = last.lat + (final_vec_lat * predict_s);
   sensorData.gps_predict_lon = last.lon + (final_vec_lon * predict_s);
 
@@ -496,12 +514,12 @@ void gps_ahrs() {
   }
 
   // Antimeridian-Normalisierung für die berechnete Prädiktion
-  while (sensorData.gps_predict_lon > 180.0)  sensorData.gps_predict_lon -= 360.0;
+  while (sensorData.gps_predict_lon > 180.0) sensorData.gps_predict_lon -= 360.0;
   while (sensorData.gps_predict_lon < -180.0) sensorData.gps_predict_lon += 360.0;
 
   // Pol-Überquerungsschutz für die Prädiktions-Latitude
-  if (sensorData.gps_predict_lat > 90.0)   sensorData.gps_predict_lat = 90.0;
-  if (sensorData.gps_predict_lat < -90.0)  sensorData.gps_predict_lat = -90.0;
+  if (sensorData.gps_predict_lat > 90.0) sensorData.gps_predict_lat = 90.0;
+  if (sensorData.gps_predict_lat < -90.0) sensorData.gps_predict_lat = -90.0;
 
   // SOG (Knoten) ableiten
   double dlon_adj = final_vec_lon * cosLat;
@@ -516,16 +534,16 @@ void gps_ahrs() {
   // Filterung bei sehr geringer Fahrt (Rauschen im Stand blockieren)
   if (speed_knots < GPS_MIN_VALID_SPEED) {
     speed_knots = 0.0;
-    kurs_deg = sensorData.gps_kurs; 
+    kurs_deg = sensorData.gps_kurs;
   } else {
     // 4. Adaptiver, sprungfreier Kurs-Tiefpass mit defensiver Bereichsabsicherung
     double course_alpha;
     if (speed_knots < 2.0) {
-      course_alpha = 0.15; 
+      course_alpha = 0.15;
     } else if (speed_knots > 6.0) {
-      course_alpha = 0.50; 
+      course_alpha = 0.50;
     } else {
-      course_alpha = 0.15 + (speed_knots - 2.0) * (0.35 / 4.0); 
+      course_alpha = 0.15 + (speed_knots - 2.0) * (0.35 / 4.0);
     }
 
     // Gegen zukünftige Codeänderungen absichern (Garantiebereich [0.15 ... 0.50])
@@ -533,11 +551,11 @@ void gps_ahrs() {
     if (course_alpha > 0.50) course_alpha = 0.50;
 
     double diff = kurs_deg - sensorData.gps_kurs;
-    if (diff > 180.0)  diff -= 360.0;
+    if (diff > 180.0) diff -= 360.0;
     if (diff < -180.0) diff += 360.0;
-    
+
     kurs_deg = sensorData.gps_kurs + course_alpha * diff;
-    if (kurs_deg < 0.0)   kurs_deg += 360.0;
+    if (kurs_deg < 0.0) kurs_deg += 360.0;
     if (kurs_deg >= 360.0) kurs_deg -= 360.0;
   }
 
@@ -554,11 +572,11 @@ void gps_ahrs() {
 uint32_t getGPSTimestamp() {
   struct tm t;
   t.tm_year = gps.date.year() - 1900;
-  t.tm_mon  = gps.date.month() - 1;
+  t.tm_mon = gps.date.month() - 1;
   t.tm_mday = gps.date.day();
   t.tm_hour = gps.time.hour();
-  t.tm_min  = gps.time.minute();
-  t.tm_sec  = gps.time.second();
+  t.tm_min = gps.time.minute();
+  t.tm_sec = gps.time.second();
   t.tm_isdst = 0;
   return (uint32_t)mktime(&t);
 }
