@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navis Raymarine-Style Dashboard</title>
+    <!-- Bindet die zentralen Styles für die Navbar ein wie in kompass.html -->
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body { 
+            background-color: #0c0e12; 
+            color: #fff; 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-y: auto; 
+            overflow-x: hidden;
+        }
+        
+        #dashboardContainer {
+            width: 100%;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 0;
+            box-sizing: border-box;
+        }
+
+        canvas {
+            display: block;
+            width: 1024px;
+            height: 576px;
+            max-width: 100%; 
+            background-color: #0c0e12;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. DIE NAVBAR WIRD HIER DIREKT ALS ALLERERSTES GENERIERT -->
+    <script src="lang/lang_manager.js"></script>
+    <script src="js/navis-navbar.js"></script>
+    <script src="js/navis-telemetry.js"></script>
+    <script>
+        if (typeof createNavbar === "function") {
+            createNavbar(["dashboard", "autopilot"]);
+        }
+    </script>
+
+    <!-- 2. DAS DASHBOARD FOLGT IM LAYOUT-FLUSS DARUNTER -->
+    <div id="dashboardContainer">
+        <canvas id="navisCanvas" width="1024" height="576"></canvas>
+    </div>
+
+    <!-- 3. DIE RENDER-ENGINE STARTET ERST GANZ AM ENDE, WENN DIE NAVBAR SCHON STEHT -->
+    <script src="js/dashboard-render.js"></script>
+</body>
+</html>
