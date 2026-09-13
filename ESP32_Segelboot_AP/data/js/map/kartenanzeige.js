@@ -79,95 +79,24 @@ if (window.navisTelemetry) {
     Object.assign(target, window.navisTelemetry);
 }
 
+// ======================================================================
+// Karten-Grundaufbau
+// ======================================================================
+
+const {
+    map,
+    layerOSM
+} = initKarte(
+    state.gps_lat,
+    state.gps_lon
+);
+
 const trackPoints = [];
 let liveTrackLine = null;
 
 let routePoints = [];       // LatLng-Objekte
 let routeMarkers = [];      // L.marker-Objekte
 let routeLine = null;       // L.polyline für die blaue Linie
-
-const map = L.map('map', { zoomControl: true, attributionControl: false })
-  .setView([state.gps_lat, state.gps_lon], 10);
-
-const TILE_URL = 'tiles/osm/{z}/{x}/{y}.png';
-
-// --- INITIALISIERUNG DER LOKALEN BROWSER-DATENBANK (IndexedDB) ---
-const DB_NAME = 'NavisTileCache';
-const DB_VERSION = 1;
-
-function getLocalDB() {
-    return new Promise((resolve) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains('tiles')) {
-                db.createObjectStore('tiles', { keyPath: 'url' });
-            }
-        };
-        request.onsuccess = (e) => resolve(e.target.result);
-        request.onerror = () => resolve(null);
-    });
-}
-
-// --- ERWEITERUNG DES LAYERS: ERST CACHE PRÜFEN, DANN ESP ANFRAGEN ---
-L.TileLayer.OfflineFirst = L.TileLayer.Throttled.extend({
-    createTile: function (coords, done) {
-        // Nutzt die Request-Limitierung aus dem vorherigen Update, um Abstürze zu verhindern
-        const tile = L.TileLayer.Throttled.prototype.createTile.call(this, coords, done);
-        const tileUrl = this.getTileUrl(coords);
-
-        // 1. Zuerst die lokale Datenbank auf dem Gerät (Tablet/PC) abfragen
-        getLocalDB().then(db => {
-            if (!db) {
-                tile.src = tileUrl; // Fallback: Ohne DB direkt vom ESP laden
-                return;
-            }
-
-            const transaction = db.transaction('tiles', 'readonly');
-            const store = transaction.objectStore('tiles');
-            const request = store.get(tileUrl);
-
-            request.onsuccess = (e) => {
-                if (e.target.result) {
-                    // Kachel existiert lokal auf dem Endgerät -> Aus DB laden!
-                    tile.src = e.target.result.blobUrl;
-                } else {
-                    // Kachel fehlt -> Vom ESP32 laden und für das nächste Mal lokal speichern
-                    fetch(tileUrl)
-                        .then(res => res.blob())
-                        .then(blob => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                                const base64data = reader.result;
-                                const writeTx = db.transaction('tiles', 'readwrite');
-                                writeTx.objectStore('tiles').put({ url: tileUrl, blobUrl: base64data });
-                            };
-                            reader.readAsDataURL(blob);
-                        }).catch(() => {
-                            // Fehler beim Laden vom ESP (z.B. Offline) -> Zeigt das dunkle Land-Tile
-                        });
-                }
-            };
-        });
-
-        return tile;
-    }
-});
-
-// --- LADE-PROFIL AKTIVIEREN ---
-const layerOSM = new L.TileLayer.OfflineFirst(
-    TILE_URL,
-    {
-        minZoom: 1,
-        maxZoom: 16,
-        maxNativeZoom: 16,
-        attribution: '© OpenStreetMap contributors (offline/cached)',
-        throttleDelay: 100,      // Da die meisten Tiles nun aus dem Cache kommen, können wir schneller nachladen
-        maxParallelRequests: 2   // Falls Daten vom ESP geholt werden müssen, bleibt er geschützt
-    }
-);
-layerOSM.addTo(map);
-
 
 function addLatLonGrid(map, stepSm = 1) {
   const minZoomToShow = 8; // Raster erscheint schon ab Zoom 8
@@ -248,8 +177,6 @@ map.on("mousemove", (e) => {
 });
 
 map.getContainer().addEventListener("mouseleave", () => { const c = coordBox.getContainer(); if (c) c.innerHTML = "—"; });
-
-layerOSM.on('tileerror', () => { if (!map.hasLayer(layerOSM)) map.addLayer(layerOSM); });
 
 /* ------------------------------
    Bootsdreieck + Linien (unverändert)
