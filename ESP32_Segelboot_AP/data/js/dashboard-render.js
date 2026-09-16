@@ -1,5 +1,5 @@
 /* ============================================================
-   NAVIS RAYMARINE-STYLE CANVAS ENGINE (TEIL 1 VON 3)
+   NAVIS NAVIS-STYLE CANVAS ENGINE (TEIL 1 VON 3)
    ============================================================ */
 
 const canvas = document.getElementById('navisCanvas');
@@ -43,7 +43,7 @@ let twdDeltaStats = { min: 0, max: 0, currentGlobal: 0, deviation: 0 };
 // Letzter Zeitstempel für den 1-Sekunden-Takt
 let lastWindLogTime = 0;
 // Konstante für die maximale optische Breite des Dreiecks (z.B. max. 15 Grad Abweichung)
-const MAX_WIND_DEVIATION_LIMIT = 15; 
+const MAX_WIND_DEVIATION_LIMIT = 35; 
 
 
 // ============================================================
@@ -89,7 +89,7 @@ function animationLoop() {
     requestAnimationFrame(animationLoop);
 }
 /* ============================================================
-   NAVIS RAYMARINE-STYLE CANVAS ENGINE 
+   NAVIS NAVIS-STYLE CANVAS ENGINE 
    ============================================================ */
 // Sichert den aktuellen Zustand der Kacheln permanent im Browser-Speicher
 function saveDashboardLayout() {
@@ -237,14 +237,26 @@ function drawLeftColumn(display, raw) {
                 drawDataBlock(field.type, val, unit, 25, field.yText, GL_SIZE);
                 break;
             case "AWA":
+                // Globale Windrichtung berechnen (Kompass + Winkel)
+                let globalAwa = (Math.round(Number(display.kompass) + Number(display.winddir_gemessen)) + 360) % 360;
                 val = formatValue(display.winddir_gemessen, 0); unit = "°";
+                
+                // Der Trendpfeil errechnet seine Position (Y) passend zur Boxenhöhe
                 drawWindTrendArrow(170, field.yStart + 40, display.winddir_gemessen); 
-                drawDataBlock(field.type, val, unit, 25, field.yText, GL_SIZE);
+                
+                // Name erweitert um die globale Richtung nach Kompass (TWD)
+                drawDataBlock(`AWA (${globalAwa.toString().padStart(3,'0')}°)`, val, unit, 25, field.yText, GL_SIZE);
                 break;
             case "TWA":
+                // Globale Windrichtung berechnen (Kompass + Winkel)
+                let globalTwa = (Math.round(Number(display.kompass) + Number(display.winddir_berechnet)) + 360) % 360;
                 val = formatValue(display.winddir_berechnet, 0); unit = "°";
+                
+                // Der Trendpfeil errechnet seine Position (Y) passend zur Boxenhöhe
                 drawWindTrendArrow(170, field.yStart + 40, display.winddir_berechnet); 
-                drawDataBlock(field.type, val, unit, 25, field.yText, GL_SIZE);
+                
+                // Name erweitert um die globale Richtung nach Kompass (TWD)
+                drawDataBlock(`TWA (${globalTwa.toString().padStart(3,'0')}°)`, val, unit, 25, field.yText, GL_SIZE);
                 break;
             case "SOG":
                 val = formatValue(display.gps_speed); unit = "kn";
@@ -358,12 +370,17 @@ function drawRightColumn(display, raw) {
             case "AWA":
                 drawDataBlock("AWA", formatValue(display.winddir_gemessen, 0), "°", 825, field.yText, GL_SIZE);
                 break;
+            case "AWA":
+                let rGlobalAwa = (Math.round(Number(display.kompass) + Number(display.winddir_gemessen)) + 360) % 360;
+                val = formatValue(display.winddir_gemessen, 0);
+                drawDataBlock(`AWA (${rGlobalAwa.toString().padStart(3,'0')}°)`, val, "°", 825, field.yText, GL_SIZE);
+                break;
             case "TWA":
-                drawDataBlock("TWA", formatValue(display.winddir_berechnet, 0), "°", 825, field.yText, GL_SIZE);
+                let rGlobalTwa = (Math.round(Number(display.kompass) + Number(display.winddir_berechnet)) + 360) % 360;
+                val = formatValue(display.winddir_berechnet, 0);
+                drawDataBlock(`TWA (${rGlobalTwa.toString().padStart(3,'0')}°)`, val, "°", 825, field.yText, GL_SIZE);
                 break;
-            case "TWD":
-                drawDataBlock("TWD", formatValue(display.winddir_berechnet, 0), "°M", 825, field.yText, GL_SIZE);
-                break;
+
         }
     });
 }
@@ -475,7 +492,7 @@ if (!touchOverlay) {
     let title = document.createElement('h3');
     title.id = 'touchMenuTitle';
     title.style.margin = '0 0 20px 0';
-    title.style.color = '#ff9900'; // Raymarine Orange
+    title.style.color = '#ff9900'; // NAVIS Orange
     title.style.fontFamily = 'Arial, sans-serif';
     title.style.fontSize = '22px';
     title.style.textAlign = 'center';
@@ -721,7 +738,7 @@ function initCenterSettingsMenu(overlay) {
     resetBtn.textContent = "🔄 Standardwerte wiederherstellen";
     resetBtn.style.width = '100%';
     resetBtn.style.background = '#2a3547'; // Dezentes Dunkelgrau/Blau
-    resetBtn.style.color = '#ff9900';     // Raymarine Orange für den Text
+    resetBtn.style.color = '#ff9900';     // NAVIS Orange für den Text
     resetBtn.style.border = '1px solid #4e5a6b';
     resetBtn.style.borderRadius = '8px';
     resetBtn.style.padding = '12px';
@@ -1325,7 +1342,7 @@ function drawBoatIndicator(x, y, roll, pitch) {
     ctx.translate(x, y);
     // Das Boot bleibt fest verankert und starr aufrecht
 
-    // Äußere Form der Boots-Silhouette im Raymarine-Design
+    // Äußere Form der Boots-Silhouette im NAVIS-Design
     ctx.strokeStyle = "#40526e"; 
     ctx.lineWidth = 3; 
     ctx.beginPath();
@@ -1746,3 +1763,156 @@ window.addEventListener("navisTelemetryUpdate", (ev) => {
 // Startet die flüssige 60 FPS Render-Schleife der Anzeige
 animationLoop();
 
+// ============================================================
+// COMPACT HIGH-FIDELITY PHYSIC SIMULATOR INJECTION FUNCTION
+// ============================================================
+function startNavisSim() {
+    if (window.navisSimInterval) {
+        clearInterval(window.navisSimInterval);
+        console.log("⚓ Laufender Simulator wurde zurückgesetzt.");
+    }
+
+    // --- INTERNE SIMULATIONS-VARIABLEN ---
+    window.simHeading = window.simHeading !== undefined ? window.simHeading : 15.0;
+    window.simTargetHeading = window.simTargetHeading !== undefined ? window.simTargetHeading : 15.0;
+    window.simSpeed = window.simSpeed !== undefined ? window.simSpeed : 0.0;
+    window.simLat = window.simLat !== undefined ? window.simLat : 12.6145;
+    window.simLon = window.simLon !== undefined ? window.simLon : -51.0704;
+
+    window.simTWD = window.simTWD !== undefined ? window.simTWD : 65.0;
+    window.simTWS = window.simTWS !== undefined ? window.simTWS : 14.0;
+    window.simStromDir = window.simStromDir !== undefined ? window.simStromDir : 310.0;
+    window.simStromSpeed = window.simStromSpeed !== undefined ? window.simStromSpeed : 0.8;
+
+    const MAX_BOAT_SPEED = 7.2;
+    let tick = 0;
+
+    if (typeof autopilotCache === 'undefined') {
+        window.autopilotCache = { mode: 0, offset: 0.0, target_lat: null, target_lon: null, pinne: 0 };
+    }
+
+    // 10 Hz Hauptschleife starten
+    window.navisSimInterval = setInterval(() => {
+        tick++;
+
+        // 1. AUTOPILOT CONTROL LOOP
+        if (autopilotCache && autopilotCache.mode > 0) {
+            if (autopilotCache.mode === 2 && autopilotCache.target_lat !== null) {
+                window.simTargetHeading = 286.0; 
+            }
+            let diff = window.simTargetHeading - window.simHeading;
+            while (diff < -180) diff += 360;
+            while (diff > 180) diff -= 360;
+            let targetOffset = Math.max(-15, Math.min(15, diff * 0.8));
+            if (Math.abs(diff) > 0.4) {
+                autopilotCache.pinne = diff > 0 ? 2 : 1;
+                window.simHeading += (targetOffset * 0.03); 
+            } else {
+                autopilotCache.pinne = 0;
+            }
+            autopilotCache.offset = targetOffset;
+        } else {
+            window.simHeading += Math.sin(tick * 0.02) * 0.15;
+            if (autopilotCache) { autopilotCache.pinne = 0; autopilotCache.offset = 0; }
+        }
+        window.simHeading = (window.simHeading + 360) % 360;
+
+        // 2. AERODYNAMIK (WIND VECTOR SYSTEM)
+        let dynamicTWD = (window.simTWD + Math.sin(tick * 0.03) * 2.5 + 360) % 360;
+        let dynamicTWS = window.simTWS + Math.cos(tick * 0.04) * 0.8;
+        let twa = (dynamicTWD - window.simHeading + 360) % 360;
+        if (twa > 180) twa -= 360;
+        let twaRad = Math.abs(twa) * Math.PI / 180;
+        
+        let windEfficiency = 0;
+        if (Math.abs(twa) < 30) windEfficiency = 0;
+        else if (Math.abs(twa) <= 90) windEfficiency = Math.sin((Math.abs(twa) - 30) * (90 / 60) * Math.PI / 180);
+        else windEfficiency = Math.cos((Math.abs(twa) - 90) * (90 / 90) * Math.PI / 180) * 0.85 + 0.15;
+
+        let targetSTW = MAX_BOAT_SPEED * windEfficiency * (dynamicTWS / 15.0);
+        if (targetSTW > MAX_BOAT_SPEED) targetSTW = MAX_BOAT_SPEED;
+        window.simSpeed += (targetSTW - window.simSpeed) * 0.05;
+
+        let twdX = dynamicTWS * Math.cos(twaRad);
+        let twdY = dynamicTWS * Math.sin(twaRad);
+        let awaX = twdX + window.simSpeed; 
+        let awaY = twdY;
+        let currentAWS = Math.sqrt(awaX * awaX + awaY * awaY);
+        let currentAWA = Math.atan2(awaY, awaX) * 180 / Math.PI;
+        if (twa < 0) currentAWA = -currentAWA;
+        let currentVMG = window.simSpeed * Math.cos(twaRad);
+
+        // 3. HYDRODYNAMIK (HEEL & DRIFT VECTOR)
+        let windHeel = (awaY * 1.2) * (twa < 0 ? -1 : 1);
+        let currentRoll = windHeel + Math.sin(tick * 0.05) * 3.5;
+        let currentPitch = -0.5 + (Math.cos(tick * 0.07) * (1.5 + window.simSpeed * 0.2));
+        let leewayAngle = (windHeel * 0.25);
+        let headingThroughWater = window.simHeading + (twa < 0 ? leewayAngle : -leewayAngle);
+
+        let boatX = window.simSpeed * Math.cos(headingThroughWater * Math.PI / 180);
+        let boatY = window.simSpeed * Math.sin(headingThroughWater * Math.PI / 180);
+        let streamX = window.simStromSpeed * Math.cos(window.simStromDir * Math.PI / 180);
+        let streamY = window.simStromSpeed * Math.sin(window.simStromDir * Math.PI / 180);
+        let totalX = boatX + streamX;
+        let totalY = boatY + streamY;
+
+        let currentSOG = Math.sqrt(totalX * totalX + totalY * totalY);
+        let currentCOG = (Math.atan2(totalY, totalX) * 180 / Math.PI + 360) % 360;
+
+        let cogRad = currentCOG * Math.PI / 180;
+        window.simLat += (currentSOG * 0.00000005) * Math.cos(cogRad);
+        window.simLon += (currentSOG * 0.00000005) * Math.sin(cogRad);
+        let currentDepth = 34.5 + Math.sin(tick * 0.004) * 18.2;
+        let now = new Date();
+
+        // 4. IN RENDER-SYSTEM INJIZIEREN
+        if (typeof targetState !== 'undefined') {
+            targetState.kompass = window.simHeading;
+            targetState.roll = currentRoll;
+            targetState.pitch = currentPitch;
+            targetState.winddir_gemessen = currentAWA;
+            targetState.winddir_berechnet = twa;
+            targetState.windspeed_gemessen = currentAWS;
+            targetState.windspeed_berechnet = dynamicTWS;
+            targetState.gps_speed = window.simSpeed;
+            targetState.vmg_cse = currentVMG;
+            targetState.gps_kurs = currentCOG;
+            targetState.Echolot = currentDepth;
+            targetState.missweisung = 2.2;
+            targetState.autopilot_offset = autopilotCache.offset;
+        }
+
+        if (typeof latestRawData !== 'undefined') {
+            latestRawData.gps_speed = currentSOG;
+            latestRawData.vmg_cse = currentVMG;
+            latestRawData.gps_kurs = currentCOG;
+            latestRawData.gps_lat = window.simLat;
+            latestRawData.gps_lon = window.simLon;
+            latestRawData.Echolot = currentDepth;
+            latestRawData.gps_stunde = now.getHours();
+            latestRawData.gps_minute = now.getMinutes();
+            latestRawData.gps_sekunde = now.getSeconds();
+        }
+    }, 100);
+
+    // BINDUNG AN DAS WINDOW-OBJECT FÜR EINFACHEN ZUGRIFF VIA REINEM TEXT
+    window.navis = {
+        setWind: (dir, speed) => { window.simTWD = dir; window.simTWS = speed; console.log(`Wind: ${dir}°, ${speed} kn`); },
+        setKurs: (k) => { window.simTargetHeading = k; console.log(`AP-Sollkurs: ${k}°`); },
+        setStrom: (dir, speed) => { window.simStromDir = dir; window.simStromSpeed = speed; console.log(`Strömung: ${dir}°, ${speed} kn`); },
+        setMode: (m) => { autopilotCache.mode = m; if (m === 2) { autopilotCache.target_lat = 12.6500; autopilotCache.target_lon = -51.0500; } console.log(`AP Mode: ${m}`); },
+        stop: () => { clearInterval(window.navisSimInterval); console.log("Simulator gestoppt."); }
+    };
+
+    console.clear();
+    console.log("%c⚓ PHYS PHYSIK-SIMULATOR INJIZIERT ⚓", "color: #ff9900; font-weight: bold; font-size: 14px;");
+    console.log("Das Dashboard läuft! Nutze nun diese Kurz-Befehle in der Konsole:");
+    console.log("👉 %cnavis.setWind(45, 15)%c -> Setzt wahren Wind (45°, 15 kn)", "color: #00ff66; font-weight: bold;", "color: #cbd5e1;");
+    console.log("👉 %cnavis.setKurs(210)%c  -> Ändert Autopilot-Sollkurs auf 210°", "color: #00ff66; font-weight: bold;", "color: #cbd5e1;");
+    console.log("👉 %cnavis.setStrom(90, 2)%c -> Simuliert Gezeitenstrom aus Ost mit 2 kn", "color: #3498db; font-weight: bold;", "color: #cbd5e1;");
+    console.log("👉 %cnavis.setMode(1)%c   -> Schaltet AP auf AUTO (0=Off, 1=Auto, 2=GPS)", "color: #3498db; font-weight: bold;", "color: #cbd5e1;");
+    console.log("👉 %cnavis.stop()%c         -> Simulator anhalten", "color: #ff3b30; font-weight: bold;", "color: #cbd5e1;");
+}
+
+// Direkter Autostart bei erster Injizierung in der Konsole
+startNavisSim();
