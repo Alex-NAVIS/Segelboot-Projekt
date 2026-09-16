@@ -159,7 +159,7 @@ git clone https://github.com
 •	Controller: ESP32 Development Board (z. B. ESP32-WROOM-32E oder ESP32-S3).
 •	GNSS: NMEA-fähiges GPS/Glonass-Modul (z. B. NEO-M8N) via serieller Schnittstelle (UART).
 •	Sensorik: 9-Achsen IMU (z. B. BNO055 oder MPU9250) via I2C für Neigung und Kompass.
-•	Peripherie: SD-Karten-Slot (SPI) für die Reiseaufzeichnung. [1]
+•	Peripherie: SD-Karten-Slot (SPI) für die Reiseaufzeichnung.
 3. Firmware & Webinterface flashen
 •	Öffne das Projekt in deiner bevorzugten IDE (z.B. PlatformIO).
 •	Nutze das Dateisystem-Tool der IDE, um den Ordner data/ mittels LittleFS auf den ESP32 zu schreiben. Dadurch werden das Webinterface und die Basis-Kartenkonfigurationen übertragen.
@@ -167,10 +167,27 @@ git clone https://github.com
 ________________________________________
 💡 Wichtige Praxis-Hinweise für den Bordbetrieb
 •	Magnetische Ablenkung (Deviationsausgleich): Boote enthalten viel Metall (Motor, Kielbolzen, Wantenspanner). Wird die IMU in der Nähe montiert, verfälscht dies das Heading. Führe nach dem Festeinbau unbedingt eine Kalibrierungsfahrt (Kreise fahren) durch, um die Offsets über das Webinterface persistent zu speichern.
-•	Offline-Karten-Caching: Da auf offener See kein Mobilfunknetz verfügbar ist, nutzt das Webinterface den LocalStorage des Browsers oder Service Worker, um einmal geladene OpenSeaMap-Kacheln für den Offline-Einsatz auf dem Tablet zwischenzuspeichern. [1, 2]
+•	Offline-Karten-Caching: Da auf offener See kein Mobilfunknetz verfügbar ist, nutzt das Webinterface den LocalStorage des Browsers oder Service Worker, um einmal geladene OpenSeaMap-Kacheln für den Offline-Einsatz auf dem Tablet zwischenzuspeichern.
 ________________________________________
 🚀 Roadmap / Nächste Schritte
 •	Ausbau des Leaflet/OpenLayers Frontends zur direkten Speicherung von Offline-Kartenpaketen (mbtiles).
 •	Erweiterung des NMEA0183- / NMEA2000-Outputs zur direkten Kopplung mit externen Autopiloten.
-•	Integration einer Over-The-Air (OTA) Updatefunktion, um Software-Updates kabellos am Liegeplatz einzuspielen. [1, 2]
+•	Integration einer Over-The-Air (OTA) Updatefunktion, um Software-Updates kabellos am Liegeplatz einzuspielen.
+
+---
+
+## ⚖️ Haftungsausschluss / Disclaimer
+
+### Deutsch
+**WICHTIGER HINWEIS ZUR NUTZUNG:**  
+Dieses Projekt (einschließlich aller Software, Code-Auszüge, Schaltungen und Dokumentationen) wurde als reines Hobby- und Freizeitprojekt für den privaten Gebrauch entwickelt. Die Nutzung aller Komponenten – insbesondere der Autopiloten-Steuerung und der Navigationsdaten – erfolgt **vollständig auf eigene Gefahr und eigenes Risiko**. 
+
+Der Entwickler übernimmt keinerlei Haftung für die Richtigkeit, Vollständigkeit oder Aktualität der angezeigten Daten sowie für Fehlfunktionen der Software oder Hardware. Das System ersetzt unter keinen Umständen die vorgeschriebene, professionelle Navigation und die lückenlose Ausguckpflicht des Schiffsführers auf See. Eine Haftung für Sachschäden, Personenschäden oder finanzielle Verluste, die durch die Nutzung dieses Projekts entstehen, wird ausdrücklich und vollumfänglich ausgeschlossen.
+
+### English
+**IMPORTANT NOTICE:**  
+This project (including all software, source code, schematics, and documentation) was developed purely as a hobby and recreational project for private use. The use of all components – especially the autopilot control loop and navigation data – is **entirely at your own risk**.
+
+The developer assumes no liability for the accuracy, completeness, or reliability of the displayed data, nor for any malfunctions of the software or hardware. This system is under no circumstances a substitute for mandatory professional navigation tools and the skipper's duty to maintain a proper lookout at sea. Any liability for material damage, personal injury, or financial loss resulting from the use of this project is expressly and completely excluded.
+
 
