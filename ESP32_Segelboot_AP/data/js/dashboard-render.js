@@ -15,7 +15,6 @@ const ANIMATION_SETTINGS = {
     enabled: true,       // true = weich gleitend (60 FPS), false = sprunghaft direkt
     smoothFactor: 0.1,  // Dämpfung: 0.01 (sehr träge) bis 1.0 (direkt)
 };
-
 // Interne Zustände für die flüssige Bewegung (State)
 let currentRenderState = {
     kompass: 7, roll: -2, pitch: -1,
@@ -25,10 +24,8 @@ let currentRenderState = {
     missweisung: 2.2, Echolot: 31.1,
     autopilot_offset: 0.0
 };
-
 // Ziel-Zustände (Hier landen die echten Daten vom ESP32)
 let targetState = { ...currentRenderState };
-
 // Globale Zwischenspeicher für strukturierte Objekte (Verhindert undefined-Crashs)
 let latestRawData = { 
     gps_speed: 6.6, vmg_cse: 8.04, gps_kurs: 286,
@@ -36,9 +33,18 @@ let latestRawData = {
     gps_lat: 12.6145, gps_lon: -51.0704
 }; 
 let autopilotCache = { mode: 0, offset: 0.0, target_lat: null };
-
 // Einheitliche Schriftgröße für das Hauptlayout
 const GL_SIZE = 32;
+
+// Datenstruktur für die hochauflösende Wind-Trendanalyse (1 Hz)
+let twdHistory = [];
+const MAX_HISTORY_POINTS = 300; // 5 Minuten im 1-Sekunden-Takt = 300 Punkte
+let twdDeltaStats = { min: 0, max: 0, currentGlobal: 0, deviation: 0 };
+// Letzter Zeitstempel für den 1-Sekunden-Takt
+let lastWindLogTime = 0;
+// Konstante für die maximale optische Breite des Dreiecks (z.B. max. 15 Grad Abweichung)
+const MAX_WIND_DEVIATION_LIMIT = 15; 
+
 
 // ============================================================
 // MATHEMATISCHE ENGINE-FUNKTIONEN (LERP)
@@ -60,13 +66,11 @@ function lerpAngle(start, end, amt) {
  */
 function animationLoop() {
     if (ANIMATION_SETTINGS.enabled) {
-        const factor = ANIMATION_SETTINGS.smoothFactor;
-        
+        const factor = ANIMATION_SETTINGS.smoothFactor; 
         currentRenderState.kompass = lerpAngle(currentRenderState.kompass, targetState.kompass, factor);
         currentRenderState.gps_kurs = lerpAngle(currentRenderState.gps_kurs, targetState.gps_kurs, factor);
         currentRenderState.winddir_gemessen = lerpAngle(currentRenderState.winddir_gemessen, targetState.winddir_gemessen, factor);
         currentRenderState.winddir_berechnet = lerpAngle(currentRenderState.winddir_berechnet, targetState.winddir_berechnet, factor);
-        
         currentRenderState.roll = lerp(currentRenderState.roll, targetState.roll, factor);
         currentRenderState.pitch = lerp(currentRenderState.pitch, targetState.pitch, factor);
         currentRenderState.gps_speed = lerp(currentRenderState.gps_speed, targetState.gps_speed, factor);
@@ -79,10 +83,8 @@ function animationLoop() {
     } else {
         currentRenderState = { ...targetState };
     }
-
     // Übergibt die beruhigten Animationswerte an das eigentliche Grafik-Raster (In Teil 2 definiert)
     drawDashboardFrame(currentRenderState, latestRawData);
-    
     // Schleife ununterbrochen am Laufen halten
     requestAnimationFrame(animationLoop);
 }
@@ -99,36 +101,37 @@ function saveDashboardLayout() {
 
 // Konfiguration für die 4 linken, frei tauschbaren Felder
 // Standard-Belegung für die linke Seite (falls kein Speicher vorhanden ist)
+// Die originalen Kachel-Startwerte ganz vom Beginn des Chats
 const DEFAULT_LEFT_FIELDS = [
-    { yStart: 0,   yText: 20,  type: "BOAT SPEED" }, 
-    { yStart: 135, yText: 155, type: "VMG CSE" },     
-    { yStart: 275, yText: 295, type: "AWA" },         
-    { yStart: 415, yText: 430, type: "TWA" }          
+    { yStart: 0,   yText: 20,  type: "BOAT SPEED" }, // Feld 1 (Ganz oben)
+    { yStart: 135, yText: 155, type: "VMG CSE" },     // Feld 2
+    { yStart: 275, yText: 295, type: "AWA" },         // Feld 3
+    { yStart: 415, yText: 430, type: "TWA" }          // Feld 4
 ];
 
-// Standard-Belegung für die rechte Seite (falls kein Speicher vorhanden ist)
 const DEFAULT_RIGHT_FIELDS = [
-    { yStart: 0,   yText: 25,  type: "°M ETW" },          
-    { yStart: 110, yText: 135, type: "SOG / COG" },       
-    { yStart: 220, yText: 245, type: "SEA TEMP / DEPTH" } 
+    { yStart: 0,   yText: 25,  type: "°M ETW" },          // Feld rechts 1 (oben)
+    { yStart: 110, yText: 135, type: "SOG / COG" },       // Feld rechts 2 (Mitte)
+    { yStart: 220, yText: 245, type: "SEA TEMP / DEPTH" } // Feld rechts 3 (unten)
 ];
 
-// Standard-Einstellungen für das Zentrum (falls kein Speicher vorhanden ist)
+// Die originalen Zentrums-Startwerte (Farben exakt aus deinem Quellcode)
 const DEFAULT_CENTER_CONFIG = {
-    showGpsKurs: true,   // Doppeldreieck / 8er-Markierung
-    showWegpunkt: true,  // GKS Sollkurs-Punkt
-    showApKurs: true,    // NEU: Autopilot Kursdreieck
-    showAwa: true,
-    showTwa: true,
-    showAbdrift: true,
-    // Deine Wunschfarben
-    colorGpsKurs: "#ff9900",  // Orange für COG-Doppeldreieck
-    colorWegpunkt: "#00ff66", // Grün für GKS-Punkt
-    colorAwa: "#0055ff",      
-    colorTwa: "#1a75ff"       
+    showGpsKurs: true,   // COG Doppeldreieck
+    showWegpunkt: true,  // GKS Sollkurs-Kreis
+    showApKurs: true,    // Pinnen-Positionszeiger
+    showAwa: true,       // Scheinbarer Wind
+    showTwa: true,       // Wahrer Wind
+    showAbdrift: true,   // Gezeiten/Abdrift-Pfeil
+    // DIE ORIGINALEN FARBEN AUS DEINEM CODE:
+    colorGpsKurs: "#ff9900",  // Originales Fahrten-Orange für COG
+    colorWegpunkt: "#ff9900", // Originales Orange für den Wegpunkt (rgba(255,153,0,0.9))
+    colorApKurs: "#ff9900",   // Originales Orange für den Pinnen-Ist-Winkel
+    colorAwa: "#0055ff",      // Originales sattes Blau für den AWA-Pfeil
+    colorTwa: "#1a75ff"       // Originales helleres Blau für den TWA-Pfeil
 };
 
-// VERSUCHEN, DIE EINSTELLUNGEN AUS DEM LOCALSTORAGE ZU LADEN
+// Auslesen aus dem Speicher beim Skriptstart
 let leftDynamicFields = JSON.parse(localStorage.getItem('navis_left_fields')) || DEFAULT_LEFT_FIELDS;
 let rightDynamicFields = JSON.parse(localStorage.getItem('navis_right_fields')) || DEFAULT_RIGHT_FIELDS;
 let centerConfig = JSON.parse(localStorage.getItem('navis_center_config')) || DEFAULT_CENTER_CONFIG;
@@ -140,32 +143,77 @@ const ALL_DASHBOARD_OPTIONS = [
     "SOG / COG", "SEA TEMP / DEPTH"
 ];
 
+function updateWindTrendAndTactics(display) {
+    const now = Date.now();
+    
+    // Berechne die aktuelle globale Windrichtung (TWD) nach Kompass
+    let currentTWD = (Number(display.kompass) + Number(display.winddir_berechnet)) % 360;
+    if (currentTWD < 0) currentTWD += 360;
+    
+    twdDeltaStats.currentGlobal = currentTWD;
+
+    // KORREKTUR: Jetzt JEDE SEKUNDE (1000ms) einen Datenpunkt erfassen!
+    if (now - lastWindLogTime >= 1000) {
+        lastWindLogTime = now;
+        
+        twdHistory.push(currentTWD);
+        
+        // Puffer auf 300 Punkte (5 Min) begrenzen
+        if (twdHistory.length > MAX_HISTORY_POINTS) {
+            twdHistory.shift();
+        }
+        
+        if (twdHistory.length > 0) {
+            // Mathematisch korrekte Mittelung von Winkeln via Sinus/Cosinus
+            let sumSin = 0, sumCos = 0;
+            twdHistory.forEach(angle => {
+                let rad = angle * Math.PI / 180;
+                sumSin += Math.sin(rad);
+                sumCos += Math.cos(rad);
+            });
+            
+            let avgRad = Math.atan2(sumSin, sumCos);
+            let avgDeg = (avgRad * 180 / Math.PI + 360) % 360;
+            
+            // Ermittle die maximale Abweichung (Delta) vom 5-Minuten-Mittelwert
+            let maxDev = 0;
+            twdHistory.forEach(angle => {
+                let diff = Math.abs(angle - avgDeg);
+                if (diff > 180) diff = 360 - diff;
+                if (diff > maxDev) maxDev = diff;
+            });
+            
+            // KORREKTUR: Begrenze das maximale Delta (z.B. auf 15°), um optische Fehler zu vermeiden!
+            if (maxDev > MAX_WIND_DEVIATION_LIMIT) {
+                maxDev = MAX_WIND_DEVIATION_LIMIT;
+            }
+            
+            // Werte geglättet für den Zeichner bereitstellen
+            twdDeltaStats.min = (avgDeg - maxDev + 360) % 360;
+            twdDeltaStats.max = (avgDeg + maxDev) % 360;
+            twdDeltaStats.deviation = maxDev; // Gedämpfter Sektor
+        }
+    }
+}
+
 // ============================================================
 // MODUL 1: MATHEMATISCHE LIVE-BERECHNUNG FÜR WEGPUNKT
 // ============================================================
 function calculateWaypointData(raw, apTargetLat, apTargetLon) {
     if (apTargetLat !== null && apTargetLon !== null &&
         raw.gps_lat !== undefined && raw.gps_lon !== undefined) {
-        
         const R_EARTH_NM = 3440.065; 
         const lat1 = (raw.gps_lat * Math.PI) / 180;
         const lon1 = (raw.gps_lon * Math.PI) / 180;
         const lat2 = (apTargetLat * Math.PI) / 180;
         const lon2 = (apTargetLon * Math.PI) / 180;
-
         const dLat = lat2 - lat1;
         const dLon = lon2 - lon1;
-
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(lat1) * Math.cos(lat2) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        
         raw.wpt_dist = R_EARTH_NM * c;
-
         const yCoord = Math.sin(dLon) * Math.cos(lat2);
         const xCoord = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-        
         let bearingDeg = (Math.atan2(yCoord, xCoord) * 180) / Math.PI;
         raw.wpt_brg = (bearingDeg + 360) % 360;
     }
@@ -179,7 +227,6 @@ function drawLeftColumn(display, raw) {
         let val = "--";
         let unit = "";
         const pairSize = 20;
-        
         switch(field.type) {
             case "BOAT SPEED":
                 val = formatValue(display.gps_speed); unit = "kn";
@@ -236,7 +283,6 @@ function drawLeftColumn(display, raw) {
                 break;
         }
     });
-
     // Statische Felder unten links
     drawDataBlock("TWD", formatValue(display.winddir_berechnet, 0), "°M", 25, 510, 24);
     ctx.fillStyle = "#8a96a3"; ctx.font = "13px Arial"; ctx.textAlign = "left";
@@ -269,14 +315,12 @@ function drawCenterInstruments(cx, cy, radius, display, raw) {
     }
 }
 
-
 // ============================================================
 // MODUL 4: RECHTE OBERE DYNAMISCHE SPALTE
 // ============================================================
 function drawRightColumn(display, raw) {
     rightDynamicFields.forEach(field => {
         const pairSize = 20;
-
         switch(field.type) {
             case "°M ETW":
                 let timeStr = "--:--:--";
@@ -330,15 +374,12 @@ function drawRightColumn(display, raw) {
 function drawRightBottom(display, raw, apTargetLat, apTargetLon) {
     let apMode = autopilotCache ? AP_MODE_TEXT[autopilotCache.mode] : "OFF";
     let hasWpt = (apTargetLat !== null && raw.wpt_dist !== undefined);
-    
     let apValueString = apMode;
     if (autopilotCache && autopilotCache.mode > 0) {
         let offsetSign = display.autopilot_offset >= 0 ? "+" : "";
         apValueString += ` (${offsetSign}${formatValue(display.autopilot_offset, 1)}°)`;
     }
-    
     drawDataBlock("AUTOPILOT", apValueString, "", 825, 355, 20);
-    
     if (hasWpt) {
         ctx.fillStyle = "#8a96a3"; ctx.font = "11px Arial"; ctx.textAlign = "left";
         ctx.fillText("NAV INFO:", 825, 412);
@@ -346,21 +387,17 @@ function drawRightBottom(display, raw, apTargetLat, apTargetLon) {
         ctx.fillText(`DIST: ${formatValue(raw.wpt_dist, 1)} NM`, 890, 412);
         ctx.fillText(`BRG: ${Math.round(raw.wpt_brg).toString().padStart(3,'0')}°M`, 890, 428);
     }
-
     // Aktuelle Bootsposition
     let curLatStr = Number.isFinite(Number(raw.gps_lat)) ? `${Number(raw.gps_lat) >= 0 ? "N" : "S"} ${Math.abs(Number(raw.gps_lat)).toFixed(4)}°` : "N --°--.---'";
     let curLonStr = Number.isFinite(Number(raw.gps_lon)) ? `${Number(raw.gps_lon) >= 0 ? "E" : "W"} ${Math.abs(Number(raw.gps_lon)).toFixed(4)}°` : "E --°--.---'";
-    
     ctx.fillStyle = "#7f8c8d"; ctx.font = "bold 11px Arial"; ctx.textAlign = "left";
     ctx.fillText("BOAT POS", 825, 465);
     ctx.fillStyle = "#cbd5e1"; ctx.font = "14px monospace";
     ctx.fillText(curLatStr, 825, 482);
     ctx.fillText(curLonStr, 825, 497);
-
     // Wegpunkt-Zielkoordinaten
     let wptLatStr = (apTargetLat !== null && Number.isFinite(Number(apTargetLat))) ? `${Number(apTargetLat) >= 0 ? "N" : "S"} ${Math.abs(Number(apTargetLat)).toFixed(4)}°` : "N --°--.---'";
     let wptLonStr = (apTargetLon !== null && Number.isFinite(Number(apTargetLon))) ? `${Number(apTargetLon) >= 0 ? "E" : "W"} ${Math.abs(Number(apTargetLon)).toFixed(4)}°` : "E --°--.---'";
-    
     ctx.fillStyle = "#7f8c8d"; ctx.font = "bold 11px Arial"; ctx.textAlign = "left";
     ctx.fillText("WPT POS", 825, 520);
     ctx.fillStyle = "#cbd5e1"; ctx.font = "14px monospace";
@@ -372,6 +409,7 @@ function drawRightBottom(display, raw, apTargetLat, apTargetLon) {
 // HAUPTFUNKTION: GENERIERT DAS GESAMTE DASHBOARD
 // ============================================================
 function drawDashboardFrame(display, raw) {
+	updateWindTrendAndTactics(display);
     // 1. Hintergrund leeren & einfärben
     ctx.fillStyle = "#0c0e12";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -390,12 +428,10 @@ function drawDashboardFrame(display, raw) {
     ctx.moveTo(804, 330); ctx.lineTo(1024, 330);
     ctx.moveTo(804, 440); ctx.lineTo(1024, 440);
     ctx.stroke();
-
     // Fixpunkte für die Mitte ermitteln
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
     const radius = 210;
-    
     let apTargetLat = autopilotCache ? autopilotCache.target_lat : null;
     let apTargetLon = autopilotCache ? autopilotCache.target_lon : null;
 
@@ -411,7 +447,6 @@ function drawDashboardFrame(display, raw) {
 // TOUCH-OPTIMIERTES AUSWAHLMENÜ FÜR DAS BOOT
 // ============================================================
 let touchOverlay = document.getElementById('canvasTouchOverlay');
-
 if (!touchOverlay) {
     // 1. Haupt-Container für das abgedunkelte Overlay im Hintergrund erstellen
     touchOverlay = document.createElement('div');
@@ -436,7 +471,6 @@ if (!touchOverlay) {
     menuBox.style.width = '90%';
     menuBox.style.maxWidth = '600px';
     menuBox.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
-
     // Titel für das Menü
     let title = document.createElement('h3');
     title.id = 'touchMenuTitle';
@@ -453,7 +487,6 @@ if (!touchOverlay) {
     grid.style.gridTemplateColumns = 'repeat(2, 1fr)'; // 2 Spalten nebeneinander
     grid.style.gap = '15px';                           // Großer Abstand zwischen Buttons
     grid.style.marginBottom = '20px';
-
     // Alle verfügbaren Anzeige-Optionen als riesige Buttons einbauen
     ALL_DASHBOARD_OPTIONS.forEach(opt => {
         let btn = document.createElement('button');
@@ -468,11 +501,9 @@ if (!touchOverlay) {
         btn.style.fontFamily = 'Arial, sans-serif';
         btn.style.cursor = 'pointer';
         btn.style.transition = 'background 0.2s';
-
         // Feedback beim Drücken (Aktiv-Zustand per Touch)
         btn.addEventListener('touchstart', () => btn.style.background = '#ff9900');
         btn.addEventListener('touchend', () => btn.style.background = '#1e2530');
-        
         // Klick/Touch-Event zur Auswahl
         btn.addEventListener('click', function() {
             if (touchOverlay.activeField) {
@@ -499,7 +530,6 @@ if (!touchOverlay) {
     closeBtn.style.fontFamily = 'Arial, sans-serif';
     closeBtn.addEventListener('click', () => touchOverlay.style.display = 'none');
     menuBox.appendChild(closeBtn);
-
     touchOverlay.appendChild(menuBox);
     document.body.appendChild(touchOverlay);
 
@@ -519,7 +549,6 @@ canvas.addEventListener('click', function(event) {
     const rect = canvas.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const clickY = event.clientY - rect.top;
-
     let overlay = document.getElementById('canvasTouchOverlay');
     if (!overlay) return;
 
@@ -529,7 +558,6 @@ canvas.addEventListener('click', function(event) {
             let nextY = leftDynamicFields[index + 1] ? leftDynamicFields[index + 1].yStart : 490;
             return clickY >= f.yStart && clickY < nextY;
         });
-
         if (hitField) {
             // Zeige das Kachel-Raster und verstecke das Zentrums-Menü (falls es existiert)
             showOverlayContainer('grid');
@@ -546,7 +574,6 @@ canvas.addEventListener('click', function(event) {
             let nextY = rightDynamicFields[index + 1] ? rightDynamicFields[index + 1].yStart : 330;
             return clickY >= f.yStart && clickY < nextY;
         });
-
         if (hitField) {
             // Zeige das Kachel-Raster und verstecke das Zentrums-Menü (falls es existiert)
             showOverlayContainer('grid');
@@ -572,7 +599,6 @@ canvas.addEventListener('click', function(event) {
 // ============================================================
 // HILFSFUNKTIONEN FÜR DIE DYNAMISCHE MENÜ-WEICHE
 // ============================================================
-
 // Wechselt die Ansicht im Overlay fliegend hin und her
 function showOverlayContainer(mode) {
     let gridContainer = document.getElementById('touchGridContainer');
@@ -593,6 +619,7 @@ function showOverlayContainer(mode) {
     }
 }
 
+// Baut das Einstellungsmenü für die Mitte einmalig in das bestehende Overlay ein
 // Baut das Einstellungsmenü für die Mitte einmalig in das bestehende Overlay ein
 function initCenterSettingsMenu(overlay) {
     if (document.getElementById('touchCenterContainer')) return; // Bereits gebaut!
@@ -626,7 +653,7 @@ function initCenterSettingsMenu(overlay) {
     const items = [
         { key: "showGpsKurs", label: "GPS Kurs (COG) anzeigen", hasColor: true, colorKey: "colorGpsKurs" },
         { key: "showWegpunkt", label: "Wegpunkt-Zeiger anzeigen", hasColor: true, colorKey: "colorWegpunkt" },
-        { key: "showApKurs", label: "Autopilot Sollkurs-Dreieck anzeigen", hasColor: true, colorKey: "colorApKurs" }, // <-- NEU!
+        { key: "showApKurs", label: "Autopilot Sollkurs-Dreieck anzeigen", hasColor: true, colorKey: "colorApKurs" },
         { key: "showAwa", label: "Scheinbarer Wind (AWA) Pfeil", hasColor: true, colorKey: "colorAwa" },
         { key: "showTwa", label: "Wahrer Wind (TWA) Pfeil", hasColor: true, colorKey: "colorTwa" },
         { key: "showAbdrift", label: "Abdrift (Tide/Drift) anzeigen", hasColor: false }
@@ -654,6 +681,7 @@ function initCenterSettingsMenu(overlay) {
 
         let checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
+        checkbox.id = 'cb_' + item.key; // <-- KORREKTUR: ID ZUGEWIESEN
         checkbox.style.transform = 'scale(1.5)';
         checkbox.checked = centerConfig[item.key];
         
@@ -669,6 +697,7 @@ function initCenterSettingsMenu(overlay) {
         if (item.hasColor) {
             let colorInput = document.createElement('input');
             colorInput.type = 'color';
+            colorInput.id = 'cp_' + item.colorKey; // <-- KORREKTUR: ID ZUGEWIESEN
             colorInput.value = centerConfig[item.colorKey];
             colorInput.style.width = '45px';
             colorInput.style.height = '32px';
@@ -687,8 +716,46 @@ function initCenterSettingsMenu(overlay) {
     });
 
     centerContainer.appendChild(listContainer);
+
+    let resetBtn = document.createElement('button');
+    resetBtn.textContent = "🔄 Standardwerte wiederherstellen";
+    resetBtn.style.width = '100%';
+    resetBtn.style.background = '#2a3547'; // Dezentes Dunkelgrau/Blau
+    resetBtn.style.color = '#ff9900';     // Raymarine Orange für den Text
+    resetBtn.style.border = '1px solid #4e5a6b';
+    resetBtn.style.borderRadius = '8px';
+    resetBtn.style.padding = '12px';
+    resetBtn.style.fontSize = '15px';
+    resetBtn.style.fontWeight = 'bold';
+    resetBtn.style.fontFamily = 'Arial, sans-serif';
+    resetBtn.style.marginBottom = '12px';  // Abstand zum Schließen-Button
+    resetBtn.style.cursor = 'pointer';
+
+    resetBtn.addEventListener('click', () => {
+        if (confirm("Möchtest du alle Zentrum-Einstellungen auf die Startwerte zurücksetzen?")) {
+            // 1. centerConfig mit den originalen Standardwerten überschreiben
+            centerConfig = Object.assign({}, DEFAULT_CENTER_CONFIG);
+            
+            // 2. Sofort im LocalStorage sichern
+            saveDashboardLayout();
+            
+            // 3. Die HTML-Elemente im aktuell offenen Menü sofort live aktualisieren
+            items.forEach(item => {
+                let cb = document.getElementById('cb_' + item.key);
+                if (cb) cb.checked = centerConfig[item.key];
+                
+                if (item.hasColor) {
+                    let cp = document.getElementById('cp_' + item.colorKey);
+                    if (cp) cp.value = centerConfig[item.colorKey];
+                }
+            });
+            
+            console.log("⚓ Zentrum-Filter auf Startwerte zurückgesetzt.");
+        }
+    });
+    centerContainer.appendChild(resetBtn);
     
-    // Sortierung im DOM: Füge das Zentrums-Menü direkt vor dem Schließen-Button ein
+    // Sortierung im DOM: Füge das Zentrums-Menü (inkl. Reset-Button) vor dem Schließen-Button ein
     menuBox.insertBefore(centerContainer, closeBtn);
 
     // Dem Kachelraster (Grid) nachträglich eine ID verpassen, damit wir es steuern können
@@ -697,6 +764,8 @@ function initCenterSettingsMenu(overlay) {
         existingGrid.id = 'touchGridContainer';
     }
 }
+
+
 
 // ============================================================
 // MODULARE GRAPHISCHE ZEICHENFUNKTIONEN
@@ -826,38 +895,114 @@ function drawTopRudderArc(cx, cy, r, ap, config) {
  * 1. Zeichnet die gestrichelten Layline-Steuerlinien (Upwind/Downwind) zum wahren Wind
  */
 function drawCompassLaylines(r, heading) {
-    if (!currentRenderState || currentRenderState.winddir_berechnet === undefined) return;
+    // Falls noch keine Historie da ist, nutzen wir ein kleines Standarddelta von 4 Grad für die Optik
+    let dev = twdDeltaStats.deviation || 4; 
+    
+    // Optimaler Am-Wind-Winkel deines Bootes (z.B. 45° zum wahren Wind)
+    const targetTwa = 45; 
 
-    // TWD holen und aktuellen relativen Windwinkel (TWA) bestimmen
-    const twd = ((currentRenderState.winddir_berechnet % 360) + 360) % 360;
-    const twa = ((currentRenderState.winddir_berechnet - heading + 360) % 360);
-    const isDownwind = (twa > 90 && twa < 270);
+    // Berechnung der theoretischen, globalen Steuerkurse (Soll-Kurse nach Kompass)
+    let headingStarboard = (twdDeltaStats.currentGlobal - targetTwa + 360) % 360;
+    let headingPort = (twdDeltaStats.currentGlobal + targetTwa) % 360;
 
-    // Bestimmung des optimalen wahren Windwinkels (Target TWA) je nach Kurs
-    const targetTWA = isDownwind ? 140 : 45;
+    // Radius-Punkte definieren
+    const innerR = r - 15; // Basis des Dreiecks
+    const outerR = r;      // Spitze an der Skala
+    const symW = 6;        // Halbe Grundbreite des Dreieckskeils
 
-    // Berechnung der beiden optimalen Steuerkurse auf der Kompassrose
-    const laylineSB = (twd + targetTWA) % 360;
-    const laylineBB = (twd - targetTWA + 360) % 360;
+    // --- 1. STEUERBORDBUG (Rote Layline, Dreieck & transparentes Kuchenstück) ---
+    ctx.save();
+    ctx.rotate(headingStarboard * Math.PI / 180);
+    
+    // NEU: Die transparente Gesamtfläche (Kuchenstück inklusive Schwankung) zum Mittelpunkt zeichnen
+    ctx.fillStyle = "rgba(231, 76, 60, 0.06)"; // Sehr sanftes, transparentes Rot für die Fläche
+    ctx.beginPath();
+    ctx.moveTo(0, 0); // Start im Zentrum
+    ctx.lineTo(-symW - (dev * 0.5), -innerR); // Zur linken Ecke der Basis
+    ctx.lineTo(0, -outerR);                    // Zur äußeren Spitze an der Skala
+    ctx.lineTo(symW + (dev * 0.5), -innerR);   // Zur rechten Ecke der Basis
+    ctx.closePath();
+    ctx.fill();
 
-    // Interne Hilfsfunktion zur Linienzeichnung
-    function drawDashedLayline(angleDeg, color) {
-        ctx.save();
-        ctx.rotate(angleDeg * Math.PI / 180);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([6, 4]); // 6px Linie, 4px Pause
-        
-        ctx.beginPath();
-        ctx.moveTo(0, -r * 0.45); 
-        ctx.lineTo(0, -r * 0.98);
-        ctx.stroke();
-        ctx.restore();
-    }
+    // NEU: Feine transparente Begrenzungslinien von den äußeren Dreiecksecken zum Mittelpunkt
+    ctx.strokeStyle = "rgba(231, 76, 60, 0.25)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-symW - (dev * 0.5), -innerR);
+    ctx.moveTo(0, 0); ctx.lineTo(symW + (dev * 0.5), -innerR);
+    ctx.stroke();
 
-    // Steuerbord-Layline (Grün) / Backbord-Layline (Rot)
-    drawDashedLayline(laylineSB, "rgba(46, 204, 113, 0.65)"); 
-    drawDashedLayline(laylineBB, "rgba(231, 76, 60, 0.65)");  
+    // GESTRICHELTE HAUPTLINIE (In der Mitte des Sektors)
+    ctx.strokeStyle = "#e74c3c";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]); 
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -innerR);
+    ctx.stroke();
+    
+    // SCHMALES SCHWANKUNGS-DREIECK (An der Skalenspitze)
+    ctx.setLineDash([]); 
+    ctx.fillStyle = "rgba(231, 76, 60, 0.4)"; 
+    ctx.strokeStyle = "#e74c3c";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -outerR); 
+    ctx.lineTo(-symW - (dev * 0.5), -innerR); 
+    ctx.lineTo(symW + (dev * 0.5), -innerR);  
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+
+    // --- 2. BACKBORDBUG (Grüne Layline, Dreieck & transparentes Kuchenstück) ---
+    ctx.save();
+    ctx.rotate(headingPort * Math.PI / 180);
+    
+    // NEU: Die transparente Gesamtfläche (Kuchenstück inklusive Schwankung) zum Mittelpunkt zeichnen
+    ctx.fillStyle = "rgba(38, 166, 91, 0.06)"; // Sehr sanftes, transparentes Grün für die Fläche
+    ctx.beginPath();
+    ctx.moveTo(0, 0); // Start im Zentrum
+    ctx.lineTo(-symW - (dev * 0.5), -innerR); // Zur linken Ecke der Basis
+    ctx.lineTo(0, -outerR);                    // Zur äußeren Spitze an der Skala
+    ctx.lineTo(symW + (dev * 0.5), -innerR);   // Zur rechten Ecke der Basis
+    ctx.closePath();
+    ctx.fill();
+
+    // NEU: Feine transparente Begrenzungslinien von den äußeren Dreiecksecken zum Mittelpunkt
+    ctx.strokeStyle = "rgba(38, 166, 91, 0.25)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-symW - (dev * 0.5), -innerR);
+    ctx.moveTo(0, 0); ctx.lineTo(symW + (dev * 0.5), -innerR);
+    ctx.stroke();
+
+    // GESTRICHELTE HAUPTLINIE (In der Mitte des Sektors)
+    ctx.strokeStyle = "#26a65b";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]); 
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -innerR);
+    ctx.stroke();
+    
+    // SCHMALES SCHWANKUNGS-DREIECK (An der Skalenspitze)
+    ctx.setLineDash([]); 
+    ctx.fillStyle = "rgba(38, 166, 91, 0.4)"; 
+    ctx.strokeStyle = "#26a65b";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -outerR); 
+    ctx.lineTo(-symW - (dev * 0.5), -innerR); 
+    ctx.lineTo(symW + (dev * 0.5), -innerR);  
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // Setzt den Linienstil global zurück, damit der Rest des Dashboards sauber bleibt
+    ctx.setLineDash([]); 
 }
 
 /**
@@ -1492,6 +1637,7 @@ function openCenterSettingsMenu() {
         if (item.hasColor) {
             let colorInput = document.createElement('input');
             colorInput.type = 'color';
+			colorInput.id = 'cp_' + item.colorKey;
             colorInput.value = centerConfig[item.colorKey];
             colorInput.style.width = '45px';
             colorInput.style.height = '35px';
