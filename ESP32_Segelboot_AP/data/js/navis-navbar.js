@@ -15,6 +15,7 @@ function createNavbar(activeButtons = []) {
 
     const allPages = [
         { id: "dashboard", href: "index.html", text: "Dashboard" },
+        { id: "kombi", href: "kombi.html", text: "Dashboard" },
         { id: "karte", href: "karte.html", text: "Karte" },
         { id: "kompass", href: "kompass.html", text: "Kompass" },
         { id: "autopilot", href: "autopilot.html", text: "Autopilot" },

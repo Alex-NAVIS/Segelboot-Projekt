@@ -2,7 +2,7 @@
 // ======================================================================
 // Übergibt die gewünschten Seiten-IDs, die in der Navbar erscheinen sollen:
 // ======================================================================
-createNavbar(["dashboard", "karte", "kompass", "horizont"]);
+createNavbar(["kombi", "karte"]);
 
 	layoutCollapsedPanels();
 /* ==========================================================
@@ -25,8 +25,6 @@ function layoutCollapsedPanels() {
         bottom += COLLAPSED_HEIGHT + PANEL_SPACING;
     });
 }
-
-
 
 /* ------------------------------
    Konfiguration / global state
@@ -366,7 +364,6 @@ map.on('click', e => {
   }
 });
 
-
 function updateMarkerTooltip(marker, idx) {
   const p = routePoints[idx];
   const prev = idx === 0 ? { lat: state.gps_lat, lng: state.gps_lon } : routePoints[idx - 1];
@@ -426,23 +423,39 @@ let t0 = performance.now()/1000;
 let lastTime = performance.now();
 
 let lastFrame = 0;
-function integrate(now) {
-    if (now - lastFrame < 50) {
-        requestAnimationFrame(integrate);
-        return;
+
+function integrate( now) {
+  if ( now - lastFrame < 50) {
+    requestAnimationFrame( integrate);
+    return;
+  }
+  lastFrame = now;
+  const dt = ( now - lastTime) / 1000;
+  lastTime = now;
+  const sm = 1 - Math. exp(- 2 * dt);
+
+  for ( const k in state) {
+    if ( typeof target[ k] === "number") {
+      // Spezieller Filter für Winkel (Kompass und GPS-Kurs), um falsches Drehen bei 0° zu verhindern
+      if (k === "kompass" || k === "gps_kurs" || k === "winddir_berechnet") {
+        let diff = target[k] - state[k];
+        // Winkel auf den Bereich -180° bis +180° normalisieren
+        while (diff < -180) diff += 360;
+        while (diff > 180) diff -= 360;
+        state[k] += diff * sm;
+        // Sicherstellen, dass der state-Wert im Bereich 0-360° bleibt
+        state[k] = (state[k] + 360) % 360;
+      } else {
+        // Normale lineare Werte (Geschwindigkeit, Breitengrad, Längengrad)
+        state[ k] += ( target[ k] - state[ k]) * sm;
+      }
     }
-    lastFrame = now;
-    const dt = (now - lastTime) / 1000;
-    lastTime = now;
-    const sm = 1 - Math.exp(-2 * dt);
-    for (const k in state) {
-        if (typeof target[k] === "number") {
-            state[k] += (target[k] - state[k]) * sm;
-        }
-    }
-    updateBoatGeometry();
-    requestAnimationFrame(integrate);
+  }
+
+  updateBoatGeometry();
+  requestAnimationFrame( integrate);
 }
+
 requestAnimationFrame(integrate);
 
 setInterval(() => {
@@ -457,6 +470,13 @@ setInterval(() => {
 setInterval(() => {
     updateRangeCircles();
 }, 5000);
+
+// Synchroner 0,5-Sekunden-Taktgeber für alle Boots-Elemente
+setInterval(() => {
+  updateBoatGeometry();
+  updateHeadingLines();
+  updateRangeCircles();
+}, 500);
 
 async function fetchLiveData(){
   try {
@@ -554,7 +574,6 @@ modeRouteBtn.onclick = () => {
         currentModeIndex = 0;
     }
     currentMode = modes[currentModeIndex];
-
     if (currentMode === "bearing") {
         modeRouteBtn.innerHTML = "📍 Modus: Peilung";
         modeRouteBtn.style.background = 'rgba(0,0,0,0.4)';
@@ -573,10 +592,22 @@ modeRouteBtn.onclick = () => {
     waypointInfo.innerHTML = "";
 };
 
-centerToggle.onclick = ()=>{ followMode = !followMode; centerToggle.style.background = followMode ? 'rgba(0,100,0,0.6)' : 'rgba(0,0,0,0.4)'; };
-map.on('movestart', ()=>{ if(followMode){ followMode = false; centerToggle.style.background='rgba(0,0,0,0.4)'; } });
+centerToggle.onclick = () => {
+    followMode = !followMode;
+    centerToggle.style.background = followMode ? 'rgba(0,100,0,0.6)' : 'rgba(0,0,0,0.4)';
+    if (followMode) {
+        map.setView([state.gps_lat, state.gps_lon], map.getZoom(), { animate: true });
+    }
+};
 
- // Reset SM Zähler im ESP32
+// Geändert von 'movestart' auf 'dragstart': Schaltet NUR ab, wenn Sie die Karte aktiv mit dem Finger/Maus wegziehen
+map.on('dragstart', () => {
+    if (followMode) {
+        followMode = false;
+        centerToggle.style.background = 'rgba(0,0,0,0.4)';
+    }
+});
+
 resetLogBtn.onclick = () => {
     fetch("/resetLog")
         .then(() => {
@@ -585,6 +616,7 @@ resetLogBtn.onclick = () => {
         })
         .catch(err => console.error("Reset Fehler:", err));
 };
+
 
 let isNightMode = false;
 document.getElementById('nightToggle').addEventListener('click', () => {
@@ -641,15 +673,12 @@ function updateBoatGeometry() {
 
     try { boatTriangle.bringToFront(); } catch (e) {}
 
-    if (followMode) {
-		const now = performance.now();
-		if (now - lastFollowUpdate >= FOLLOW_INTERVAL) {
-			lastFollowUpdate = now;
-			map.panTo(pos, {
-				animate: false
-			});
-		}
-	}
+     if (followMode) {
+        map.setView(pos, map.getZoom(), {
+            animate: true,
+            duration: 0.25 // Sorgt für ein extrem sanftes Mitwandern der Karte
+        });
+    }
 }
 
 function updateHeadingLines() {
