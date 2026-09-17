@@ -118,6 +118,8 @@ const DEFAULT_RIGHT_FIELDS = [
 // Die originalen Zentrums-Startwerte (Farben exakt aus deinem Quellcode)
 const DEFAULT_CENTER_CONFIG = {
     showGpsKurs: true,   // COG Doppeldreieck
+	showLaylines: true, 
+	targetTwa: 45,
     showWegpunkt: true,  // GKS Sollkurs-Kreis
     showApKurs: true,    // Pinnen-Positionszeiger
     showAwa: true,       // Scheinbarer Wind
@@ -308,12 +310,34 @@ function drawCenterInstruments(cx, cy, radius, display, raw) {
     let tempApObj = { mode: autopilotCache.mode, offset: display.autopilot_offset };
     
     // 1. Basis-Elemente (bleiben immer sichtbar)
-	drawTopRudderArc(cx, cy, radius, tempApObj, centerConfig);
-	drawCompassRose(cx, cy, radius, display.kompass, centerConfig);
+    drawTopRudderArc(cx, cy, radius, tempApObj, centerConfig);
+    drawCompassRose(cx, cy, radius, display.kompass, centerConfig);
     drawRollColorBackground(cx, cy);
     drawRollArcGauge(cx, cy, display.roll);
     drawPitchGauge(cx, cy, display.pitch);
     drawBoatIndicator(cx, cy, display.roll, display.pitch);
+    
+    // ============================================================
+    // NEU: SCHWACHE GESTRICHELTE PEILLINIE AB BUGSPITZE NACH OBEN
+    // ============================================================
+    ctx.save();
+    ctx.translate(cx, cy); // Ins Zentrum des Kompasses wechseln
+    
+    // Y-Offset für die Bugspitze deines Bootsymbols (hier ca. -22 Pixel nach oben).
+    // Falls die Linie zu hoch/tief ansetzt, diesen Wert leicht anpassen (z.B. -25 oder -18).
+    const bugVerschiebungY = -22; 
+    
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)"; // Sehr schwaches Weiß für minimale Ablenkung
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 6]);                       // Feine Strichelung: 4px Linie, 6px Lücke
+    
+    ctx.beginPath();
+    ctx.moveTo(0, bugVerschiebungY);               // Startpunkt exakt an der Spitze des Bugs
+    ctx.lineTo(0, -radius);                        // Linie gerade hoch bis zum inneren Kompasskreis
+    ctx.stroke();
+    
+    ctx.restore();
+    // ============================================================
     
     // 2. Abdrift-Pfeil (Nur wenn in den Einstellungen aktiviert)
     if (centerConfig.showAbdrift) {
@@ -326,6 +350,7 @@ function drawCenterInstruments(cx, cy, radius, display, raw) {
         drawWindArrows(cx, cy, radius, display, centerConfig); 
     }
 }
+
 
 // ============================================================
 // MODUL 4: RECHTE OBERE DYNAMISCHE SPALTE
@@ -637,13 +662,14 @@ function showOverlayContainer(mode) {
 }
 
 // Baut das Einstellungsmenü für die Mitte einmalig in das bestehende Overlay ein
-// Baut das Einstellungsmenü für die Mitte einmalig in das bestehende Overlay ein
 function initCenterSettingsMenu(overlay) {
     if (document.getElementById('touchCenterContainer')) return; // Bereits gebaut!
 
     let menuBox = overlay.querySelector('div');
-    let closeBtn = menuBox.lastChild; // Den Abbrechen-Button finden (wird als ID markiert)
-    closeBtn.id = "touchCloseBtn";
+    let originalCloseBtn = menuBox.lastChild; // Das originale Schließen-Element sichern
+    
+    // Wir lassen den originalen Button unsichtbar im DOM, damit die Logik nicht bricht
+    originalCloseBtn.style.display = 'none'; 
 
     // Haupt-Container für die Zentrums-Einstellungen
     let centerContainer = document.createElement('div');
@@ -651,21 +677,28 @@ function initCenterSettingsMenu(overlay) {
     centerContainer.style.display = 'none';
     centerContainer.style.flexDirection = 'column';
     centerContainer.style.width = '100%';
+    centerContainer.style.maxHeight = '85vh'; 
 
     let cTitle = document.createElement('h3');
     cTitle.textContent = "⚙️ Zentrum Instrumenten-Filter";
-    cTitle.style.margin = '0 0 20px 0';
+    cTitle.style.margin = '0 0 10px 0';
     cTitle.style.color = '#ff9900';
     cTitle.style.fontFamily = 'Arial, sans-serif';
-    cTitle.style.fontSize = '22px';
+    cTitle.style.fontSize = '18px';
     cTitle.style.textAlign = 'center';
     centerContainer.appendChild(cTitle);
 
+    // ============================================================
+    // SCROLLBARE BOX FÜR DIE LISTENELEMENTE & DEN SLIDER
+    // ============================================================
     let listContainer = document.createElement('div');
     listContainer.style.display = 'flex';
     listContainer.style.flexDirection = 'column';
-    listContainer.style.gap = '12px';
-    listContainer.style.marginBottom = '20px';
+    listContainer.style.gap = '8px';          
+    listContainer.style.marginBottom = '12px'; 
+    listContainer.style.maxHeight = '260px';   
+    listContainer.style.overflowY = 'auto';    
+    listContainer.style.paddingRight = '5px';  
 
     const items = [
         { key: "showGpsKurs", label: "GPS Kurs (COG) anzeigen", hasColor: true, colorKey: "colorGpsKurs" },
@@ -673,7 +706,8 @@ function initCenterSettingsMenu(overlay) {
         { key: "showApKurs", label: "Autopilot Sollkurs-Dreieck anzeigen", hasColor: true, colorKey: "colorApKurs" },
         { key: "showAwa", label: "Scheinbarer Wind (AWA) Pfeil", hasColor: true, colorKey: "colorAwa" },
         { key: "showTwa", label: "Wahrer Wind (TWA) Pfeil", hasColor: true, colorKey: "colorTwa" },
-        { key: "showAbdrift", label: "Abdrift (Tide/Drift) anzeigen", hasColor: false }
+        { key: "showAbdrift", label: "Abdrift (Tide/Drift) anzeigen", hasColor: false },
+        { key: "showLaylines", label: "Laylines (An-Wind-Peilung) anzeigen", hasColor: false }
     ];
 
     items.forEach(item => {
@@ -682,24 +716,24 @@ function initCenterSettingsMenu(overlay) {
         row.style.justifyContent = 'space-between';
         row.style.alignItems = 'center';
         row.style.background = '#1e2530';
-        row.style.padding = '10px 15px';
+        row.style.padding = '8px 12px'; 
         row.style.borderRadius = '8px';
         row.style.border = '1px solid #4e5a6b';
 
         let label = document.createElement('label');
         label.style.color = '#ffffff';
         label.style.fontFamily = 'Arial, sans-serif';
-        label.style.fontSize = '16px';
+        label.style.fontSize = '14px'; 
         label.style.display = 'flex';
         label.style.alignItems = 'center';
-        label.style.gap = '15px';
+        label.style.gap = '12px';
         label.style.cursor = 'pointer';
         label.style.flexGrow = '1';
 
         let checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
-        checkbox.id = 'cb_' + item.key; // <-- KORREKTUR: ID ZUGEWIESEN
-        checkbox.style.transform = 'scale(1.5)';
+        checkbox.id = 'cb_' + item.key;
+        checkbox.style.transform = 'scale(1.2)'; 
         checkbox.checked = centerConfig[item.key];
         
         checkbox.addEventListener('change', () => {
@@ -714,10 +748,10 @@ function initCenterSettingsMenu(overlay) {
         if (item.hasColor) {
             let colorInput = document.createElement('input');
             colorInput.type = 'color';
-            colorInput.id = 'cp_' + item.colorKey; // <-- KORREKTUR: ID ZUGEWIESEN
+            colorInput.id = 'cp_' + item.colorKey;
             colorInput.value = centerConfig[item.colorKey];
-            colorInput.style.width = '45px';
-            colorInput.style.height = '32px';
+            colorInput.style.width = '38px';  
+            colorInput.style.height = '26px'; 
             colorInput.style.border = 'none';
             colorInput.style.borderRadius = '4px';
             colorInput.style.cursor = 'pointer';
@@ -732,31 +766,85 @@ function initCenterSettingsMenu(overlay) {
         listContainer.appendChild(row);
     });
 
+    // SLIDER FÜR DEN LAYLINE-WINKEL
+    let sliderRow = document.createElement('div');
+    sliderRow.style.display = 'flex';
+    sliderRow.style.flexDirection = 'column';
+    sliderRow.style.gap = '6px';
+    sliderRow.style.background = '#1e2530';
+    sliderRow.style.padding = '10px 12px';
+    sliderRow.style.borderRadius = '8px';
+    sliderRow.style.border = '1px solid #4e5a6b';
+
+    let sliderHeader = document.createElement('div');
+    sliderHeader.style.display = 'flex';
+    sliderHeader.style.justifyContent = 'space-between';
+    sliderHeader.style.color = '#ffffff';
+    sliderHeader.style.fontFamily = 'Arial, sans-serif';
+    sliderHeader.style.fontSize = '14px';
+
+    let sliderLabel = document.createElement('span');
+    sliderLabel.textContent = "Optimaler Am-Wind-Winkel:";
+    
+    let sliderValText = document.createElement('span');
+    sliderValText.id = 'slider_val_targetTwa';
+    sliderValText.style.color = '#ff9900';
+    sliderValText.style.fontWeight = 'bold';
+    sliderValText.textContent = (centerConfig.targetTwa || 45) + " °";
+
+    sliderHeader.appendChild(sliderLabel);
+    sliderHeader.appendChild(sliderValText);
+    sliderRow.appendChild(sliderHeader);
+
+    let sliderInput = document.createElement('input');
+    sliderInput.type = 'range';
+    sliderInput.id = 'slider_targetTwa';
+    sliderInput.min = '25';
+    sliderInput.max = '55';
+    sliderInput.value = centerConfig.targetTwa || 45;
+    sliderInput.style.width = '100%';
+    sliderInput.style.cursor = 'pointer';
+    sliderInput.style.accentColor = '#ff9900';
+
+    sliderInput.addEventListener('input', () => {
+        let val = parseInt(sliderInput.value);
+        sliderValText.textContent = val + " °";
+        centerConfig.targetTwa = val;
+        saveDashboardLayout();
+    });
+    sliderRow.appendChild(sliderInput);
+    listContainer.appendChild(sliderRow); 
+
     centerContainer.appendChild(listContainer);
 
+    // ============================================================
+    // NEU: KORRIGIERTE BUTTON ZEILE (1/3 ZU 2/3)
+    // ============================================================
+    let buttonRow = document.createElement('div');
+    buttonRow.style.display = 'flex';
+    buttonRow.style.gap = '10px';
+    buttonRow.style.width = '100%';
+    buttonRow.style.marginBottom = '12px';
+
+    // 1/3 Anteil: Reset-Button
     let resetBtn = document.createElement('button');
-    resetBtn.textContent = "🔄 Standardwerte wiederherstellen";
-    resetBtn.style.width = '100%';
-    resetBtn.style.background = '#2a3547'; // Dezentes Dunkelgrau/Blau
-    resetBtn.style.color = '#ff9900';     // NAVIS Orange für den Text
+    resetBtn.textContent = "🔄 Reset";
+    resetBtn.style.flex = '1'; 
+    resetBtn.style.background = '#2a3547'; 
+    resetBtn.style.color = '#ff9900';     
     resetBtn.style.border = '1px solid #4e5a6b';
     resetBtn.style.borderRadius = '8px';
-    resetBtn.style.padding = '12px';
-    resetBtn.style.fontSize = '15px';
+    resetBtn.style.padding = '10px'; 
+    resetBtn.style.fontSize = '14px'; 
     resetBtn.style.fontWeight = 'bold';
     resetBtn.style.fontFamily = 'Arial, sans-serif';
-    resetBtn.style.marginBottom = '12px';  // Abstand zum Schließen-Button
     resetBtn.style.cursor = 'pointer';
 
     resetBtn.addEventListener('click', () => {
         if (confirm("Möchtest du alle Zentrum-Einstellungen auf die Startwerte zurücksetzen?")) {
-            // 1. centerConfig mit den originalen Standardwerten überschreiben
             centerConfig = Object.assign({}, DEFAULT_CENTER_CONFIG);
-            
-            // 2. Sofort im LocalStorage sichern
             saveDashboardLayout();
             
-            // 3. Die HTML-Elemente im aktuell offenen Menü sofort live aktualisieren
             items.forEach(item => {
                 let cb = document.getElementById('cb_' + item.key);
                 if (cb) cb.checked = centerConfig[item.key];
@@ -766,23 +854,47 @@ function initCenterSettingsMenu(overlay) {
                     if (cp) cp.value = centerConfig[item.colorKey];
                 }
             });
+
+            let sInput = document.getElementById('slider_targetTwa');
+            if (sInput) sInput.value = centerConfig.targetTwa || 45;
+            let sText = document.getElementById('slider_val_targetTwa');
+            if (sText) sText.textContent = (centerConfig.targetTwa || 45) + " °";
             
             console.log("⚓ Zentrum-Filter auf Startwerte zurückgesetzt.");
         }
     });
-    centerContainer.appendChild(resetBtn);
-    
-    // Sortierung im DOM: Füge das Zentrums-Menü (inkl. Reset-Button) vor dem Schließen-Button ein
-    menuBox.insertBefore(centerContainer, closeBtn);
 
-    // Dem Kachelraster (Grid) nachträglich eine ID verpassen, damit wir es steuern können
+    // 2/3 Anteil: Eigener, neuer Schließen-Button (reicht Klick an das Original weiter)
+    let newCloseBtn = document.createElement('button');
+    newCloseBtn.textContent = "💾 Speichern & Schließen";
+    newCloseBtn.style.flex = '2'; 
+    newCloseBtn.style.background = '#ff9900';
+    newCloseBtn.style.color = '#11161d';
+    newCloseBtn.style.border = 'none';
+    newCloseBtn.style.borderRadius = '8px';
+    newCloseBtn.style.padding = '10px';
+    newCloseBtn.style.fontSize = '14px';
+    newCloseBtn.style.fontWeight = 'bold';
+    newCloseBtn.style.fontFamily = 'Arial, sans-serif';
+    newCloseBtn.style.cursor = 'pointer';
+
+    // Wenn der neue Button geklickt wird, triggern wir einfach den originalen Button
+    newCloseBtn.addEventListener('click', () => {
+        originalCloseBtn.click(); 
+    });
+
+    buttonRow.appendChild(resetBtn);
+    buttonRow.appendChild(newCloseBtn);
+    centerContainer.appendChild(buttonRow);
+    
+    // Das Menü sauber vor dem versteckten, originalen Button einfügen
+    menuBox.insertBefore(centerContainer, originalCloseBtn);
+
     let existingGrid = menuBox.querySelector('div');
     if (existingGrid && existingGrid !== centerContainer) {
         existingGrid.id = 'touchGridContainer';
     }
 }
-
-
 
 // ============================================================
 // MODULARE GRAPHISCHE ZEICHENFUNKTIONEN
@@ -912,45 +1024,57 @@ function drawTopRudderArc(cx, cy, r, ap, config) {
  * 1. Zeichnet die gestrichelten Layline-Steuerlinien (Upwind/Downwind) zum wahren Wind
  */
 function drawCompassLaylines(r, heading) {
-    // Falls noch keine Historie da ist, nutzen wir ein kleines Standarddelta von 4 Grad für die Optik
+    // Prüfen, ob Laylines im Menü deaktiviert wurden
+    if (typeof centerConfig !== 'undefined' && centerConfig.showLaylines === false) {
+        return; 
+    }
+
+    // Historie-Schwankung (Standard: 4 Grad)
     let dev = twdDeltaStats.deviation || 4; 
     
-    // Optimaler Am-Wind-Winkel deines Bootes (z.B. 45° zum wahren Wind)
-    const targetTwa = 45; 
+    // Dynamischer Ziel-Winkel aus dem Menü-Schieberegler
+    let targetTwa = (typeof centerConfig !== 'undefined' && centerConfig.targetTwa) ? centerConfig.targetTwa : 45; 
 
-    // Berechnung der theoretischen, globalen Steuerkurse (Soll-Kurse nach Kompass)
+    // Berechnung der theoretischen, globalen Soll-Kurse nach Kompass
     let headingStarboard = (twdDeltaStats.currentGlobal - targetTwa + 360) % 360;
     let headingPort = (twdDeltaStats.currentGlobal + targetTwa) % 360;
 
-    // Radius-Punkte definieren
+    // --- Sektoren zeichnen via Hilfsfunktion ---
+    // 1. STEUERBORDBUG (Rot)
+    drawSingleLaylineSector(headingStarboard, r, dev, "#e74c3c", "rgba(231, 76, 60, 0.06)", "rgba(231, 76, 60, 0.25)", "rgba(231, 76, 60, 0.4)");
+
+    // 2. BACKBORDBUG (Grün)
+    drawSingleLaylineSector(headingPort, r, dev, "#26a65b", "rgba(38, 166, 91, 0.06)", "rgba(38, 166, 91, 0.25)", "rgba(38, 166, 91, 0.4)");
+}
+
+function drawSingleLaylineSector(angleGrad, r, dev, baseColor, areaColor, lineColor, triangleColor) {
     const innerR = r - 15; // Basis des Dreiecks
     const outerR = r;      // Spitze an der Skala
     const symW = 6;        // Halbe Grundbreite des Dreieckskeils
 
-    // --- 1. STEUERBORDBUG (Rote Layline, Dreieck & transparentes Kuchenstück) ---
     ctx.save();
-    ctx.rotate(headingStarboard * Math.PI / 180);
+    ctx.rotate(angleGrad * Math.PI / 180);
     
-    // NEU: Die transparente Gesamtfläche (Kuchenstück inklusive Schwankung) zum Mittelpunkt zeichnen
-    ctx.fillStyle = "rgba(231, 76, 60, 0.06)"; // Sehr sanftes, transparentes Rot für die Fläche
+    // 1. Transparente Gesamtfläche (Kuchenstück)
+    ctx.fillStyle = areaColor;
     ctx.beginPath();
-    ctx.moveTo(0, 0); // Start im Zentrum
-    ctx.lineTo(-symW - (dev * 0.5), -innerR); // Zur linken Ecke der Basis
-    ctx.lineTo(0, -outerR);                    // Zur äußeren Spitze an der Skala
-    ctx.lineTo(symW + (dev * 0.5), -innerR);   // Zur rechten Ecke der Basis
+    ctx.moveTo(0, 0); 
+    ctx.lineTo(-symW - (dev * 0.5), -innerR); 
+    ctx.lineTo(0, -outerR);                    
+    ctx.lineTo(symW + (dev * 0.5), -innerR);   
     ctx.closePath();
     ctx.fill();
 
-    // NEU: Feine transparente Begrenzungslinien von den äußeren Dreiecksecken zum Mittelpunkt
-    ctx.strokeStyle = "rgba(231, 76, 60, 0.25)";
+    // 2. Feine Begrenzungslinien zum Mittelpunkt
+    ctx.strokeStyle = lineColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, 0); ctx.lineTo(-symW - (dev * 0.5), -innerR);
     ctx.moveTo(0, 0); ctx.lineTo(symW + (dev * 0.5), -innerR);
     ctx.stroke();
 
-    // GESTRICHELTE HAUPTLINIE (In der Mitte des Sektors)
-    ctx.strokeStyle = "#e74c3c";
+    // 3. Gestrichelte Hauptlinie in der Mitte
+    ctx.strokeStyle = baseColor;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 4]); 
     ctx.beginPath();
@@ -958,10 +1082,10 @@ function drawCompassLaylines(r, heading) {
     ctx.lineTo(0, -innerR);
     ctx.stroke();
     
-    // SCHMALES SCHWANKUNGS-DREIECK (An der Skalenspitze)
+    // 4. Schwankungs-Dreieck an der Skalenspitze
     ctx.setLineDash([]); 
-    ctx.fillStyle = "rgba(231, 76, 60, 0.4)"; 
-    ctx.strokeStyle = "#e74c3c";
+    ctx.fillStyle = triangleColor; 
+    ctx.strokeStyle = baseColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, -outerR); 
@@ -970,56 +1094,9 @@ function drawCompassLaylines(r, heading) {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.restore();
-
-
-    // --- 2. BACKBORDBUG (Grüne Layline, Dreieck & transparentes Kuchenstück) ---
-    ctx.save();
-    ctx.rotate(headingPort * Math.PI / 180);
     
-    // NEU: Die transparente Gesamtfläche (Kuchenstück inklusive Schwankung) zum Mittelpunkt zeichnen
-    ctx.fillStyle = "rgba(38, 166, 91, 0.06)"; // Sehr sanftes, transparentes Grün für die Fläche
-    ctx.beginPath();
-    ctx.moveTo(0, 0); // Start im Zentrum
-    ctx.lineTo(-symW - (dev * 0.5), -innerR); // Zur linken Ecke der Basis
-    ctx.lineTo(0, -outerR);                    // Zur äußeren Spitze an der Skala
-    ctx.lineTo(symW + (dev * 0.5), -innerR);   // Zur rechten Ecke der Basis
-    ctx.closePath();
-    ctx.fill();
-
-    // NEU: Feine transparente Begrenzungslinien von den äußeren Dreiecksecken zum Mittelpunkt
-    ctx.strokeStyle = "rgba(38, 166, 91, 0.25)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(-symW - (dev * 0.5), -innerR);
-    ctx.moveTo(0, 0); ctx.lineTo(symW + (dev * 0.5), -innerR);
-    ctx.stroke();
-
-    // GESTRICHELTE HAUPTLINIE (In der Mitte des Sektors)
-    ctx.strokeStyle = "#26a65b";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]); 
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, -innerR);
-    ctx.stroke();
-    
-    // SCHMALES SCHWANKUNGS-DREIECK (An der Skalenspitze)
-    ctx.setLineDash([]); 
-    ctx.fillStyle = "rgba(38, 166, 91, 0.4)"; 
-    ctx.strokeStyle = "#26a65b";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, -outerR); 
-    ctx.lineTo(-symW - (dev * 0.5), -innerR); 
-    ctx.lineTo(symW + (dev * 0.5), -innerR);  
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
     ctx.restore();
-
-    // Setzt den Linienstil global zurück, damit der Rest des Dashboards sauber bleibt
-    ctx.setLineDash([]); 
+    ctx.setLineDash([]); // Globalen Stil zurücksetzen
 }
 
 /**
