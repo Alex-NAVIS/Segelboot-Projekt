@@ -125,7 +125,11 @@ const DEFAULT_CENTER_CONFIG = {
     showAwa: true,       // Scheinbarer Wind
     showTwa: true,       // Wahrer Wind
     showAbdrift: true,   // Gezeiten/Abdrift-Pfeil
-    // DIE ORIGINALEN FARBEN AUS DEINEM CODE:
+	showRoll: true, 	// Roll Skala
+	showPitch: true,  	// Pitch Skala  
+    // DIE ORIGINALEN FARBEN AUS DEINEM CODE:   
+    colorRollTriangle: "#ff9900",
+    colorPitchTriangle: "#ff9900",
     colorGpsKurs: "#ff9900",  // Originales Fahrten-Orange für COG
     colorWegpunkt: "#ff9900", // Originales Orange für den Wegpunkt (rgba(255,153,0,0.9))
     colorApKurs: "#ff9900",   // Originales Orange für den Pinnen-Ist-Winkel
@@ -229,6 +233,12 @@ function drawLeftColumn(display, raw) {
         let val = "--";
         let unit = "";
         const pairSize = 20;
+        
+        // Vorbereiten der Kompasskurs- und Windwerte
+        let heading = parseFloat(display.kompass) || 0;
+        let windGemessen = parseFloat(display.winddir_gemessen) || 0;
+        let windBerechnet = parseFloat(display.winddir_berechnet) || 0;
+
         switch(field.type) {
             case "BOAT SPEED":
                 val = formatValue(display.gps_speed); unit = "kn";
@@ -239,26 +249,28 @@ function drawLeftColumn(display, raw) {
                 drawDataBlock(field.type, val, unit, 25, field.yText, GL_SIZE);
                 break;
             case "AWA":
-                // Globale Windrichtung berechnen (Kompass + Winkel)
-                let globalAwa = (Math.round(Number(display.kompass) + Number(display.winddir_gemessen)) + 360) % 360;
-                val = formatValue(display.winddir_gemessen, 0); unit = "°";
+                // 1. Hauptwert: Scheinbare Windrichtung bezogen auf den Kompass (AWD)
+                let awdGlobal = (Math.round(heading + windGemessen) + 360) % 360;
+                val = awdGlobal.toString().padStart(3, '0'); unit = "°";
                 
-                // Der Trendpfeil errechnet seine Position (Y) passend zur Boxenhöhe
+                // 2. Klammer-Zusatz: Relativer Winkel zum Bug mit Stb/Bb Kennung
+                let awaSide = windGemessen >= 0 ? "Stb" : "Bb";
+                let awaLabel = `AWA (${Math.abs(windGemessen).toFixed(0)}° ${awaSide})`;
+                
                 drawWindTrendArrow(170, field.yStart + 40, display.winddir_gemessen); 
-                
-                // Name erweitert um die globale Richtung nach Kompass (TWD)
-                drawDataBlock(`AWA (${globalAwa.toString().padStart(3,'0')}°)`, val, unit, 25, field.yText, GL_SIZE);
+                drawDataBlock(awaLabel, val, unit, 25, field.yText, GL_SIZE);
                 break;
             case "TWA":
-                // Globale Windrichtung berechnen (Kompass + Winkel)
-                let globalTwa = (Math.round(Number(display.kompass) + Number(display.winddir_berechnet)) + 360) % 360;
-                val = formatValue(display.winddir_berechnet, 0); unit = "°";
+                // 1. Hauptwert: Wahre Windrichtung bezogen auf den Kompass (TWD)
+                let twdGlobal = (Math.round(heading + windBerechnet) + 360) % 360;
+                val = twdGlobal.toString().padStart(3, '0'); unit = "°";
                 
-                // Der Trendpfeil errechnet seine Position (Y) passend zur Boxenhöhe
+                // 2. Klammer-Zusatz: Relativer Winkel zum Bug mit Stb/Bb Kennung
+                let twaSide = windBerechnet >= 0 ? "Stb" : "Bb";
+                let twaLabel = `TWA (${Math.abs(windBerechnet).toFixed(0)}° ${twaSide})`;
+                
                 drawWindTrendArrow(170, field.yStart + 40, display.winddir_berechnet); 
-                
-                // Name erweitert um die globale Richtung nach Kompass (TWD)
-                drawDataBlock(`TWA (${globalTwa.toString().padStart(3,'0')}°)`, val, unit, 25, field.yText, GL_SIZE);
+                drawDataBlock(twaLabel, val, unit, 25, field.yText, GL_SIZE);
                 break;
             case "SOG":
                 val = formatValue(display.gps_speed); unit = "kn";
@@ -312,28 +324,35 @@ function drawCenterInstruments(cx, cy, radius, display, raw) {
     // 1. Basis-Elemente (bleiben immer sichtbar)
     drawTopRudderArc(cx, cy, radius, tempApObj, centerConfig);
     drawCompassRose(cx, cy, radius, display.kompass, centerConfig);
-    drawRollColorBackground(cx, cy);
-    drawRollArcGauge(cx, cy, display.roll);
-    drawPitchGauge(cx, cy, display.pitch);
-    drawBoatIndicator(cx, cy, display.roll, display.pitch);
+    
+    // DYNAMISCH: Krängung nur zeichnen, wenn im Menü aktiv
+	if (centerConfig.showRoll !== false) {
+		drawRollColorBackground(cx, cy);
+		drawRollArcGauge(cx, cy, display.roll);
+	}
+
+	// DYNAMISCH: Stampfen (Pitch) NUR zeichnen, wenn showPitch aktiv ist
+	if (centerConfig.showPitch !== false) {
+		drawPitchGauge(cx, cy, display.pitch);
+	}
+
+	drawBoatIndicator(cx, cy, display.roll, display.pitch);
     
     // ============================================================
-    // NEU: SCHWACHE GESTRICHELTE PEILLINIE AB BUGSPITZE NACH OBEN
+    // SCHWACHE GESTRICHELTE PEILLINIE AB BUGSPITZE NACH OBEN
     // ============================================================
     ctx.save();
     ctx.translate(cx, cy); // Ins Zentrum des Kompasses wechseln
     
-    // Y-Offset für die Bugspitze deines Bootsymbols (hier ca. -22 Pixel nach oben).
-    // Falls die Linie zu hoch/tief ansetzt, diesen Wert leicht anpassen (z.B. -25 oder -18).
     const bugVerschiebungY = -22; 
     
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)"; // Sehr schwaches Weiß für minimale Ablenkung
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)"; 
     ctx.lineWidth = 1.2;
-    ctx.setLineDash([4, 6]);                       // Feine Strichelung: 4px Linie, 6px Lücke
+    ctx.setLineDash([4, 6]);                       
     
     ctx.beginPath();
-    ctx.moveTo(0, bugVerschiebungY);               // Startpunkt exakt an der Spitze des Bugs
-    ctx.lineTo(0, -radius);                        // Linie gerade hoch bis zum inneren Kompasskreis
+    ctx.moveTo(0, bugVerschiebungY);               
+    ctx.lineTo(0, -radius);                        
     ctx.stroke();
     
     ctx.restore();
@@ -345,12 +364,10 @@ function drawCenterInstruments(cx, cy, radius, display, raw) {
     }
     
     // 3. Wind-Pfeile filtern und Farben übergeben
-    // Wir reichen das gesamte centerConfig-Objekt an deine drawWindArrows weiter
     if (centerConfig.showAwa || centerConfig.showTwa) {
         drawWindArrows(cx, cy, radius, display, centerConfig); 
     }
 }
-
 
 // ============================================================
 // MODUL 4: RECHTE OBERE DYNAMISCHE SPALTE
@@ -358,6 +375,12 @@ function drawCenterInstruments(cx, cy, radius, display, raw) {
 function drawRightColumn(display, raw) {
     rightDynamicFields.forEach(field => {
         const pairSize = 20;
+        let val = "--";
+        
+        let heading = parseFloat(display.kompass) || 0;
+        let windGemessen = parseFloat(display.winddir_gemessen) || 0;
+        let windBerechnet = parseFloat(display.winddir_berechnet) || 0;
+
         switch(field.type) {
             case "°M ETW":
                 let timeStr = "--:--:--";
@@ -393,19 +416,24 @@ function drawRightColumn(display, raw) {
                 drawDataBlock("DEPTH", formatValue(display.Echolot, 1), "m", 825, field.yText, GL_SIZE);
                 break;
             case "AWA":
-                drawDataBlock("AWA", formatValue(display.winddir_gemessen, 0), "°", 825, field.yText, GL_SIZE);
-                break;
-            case "AWA":
-                let rGlobalAwa = (Math.round(Number(display.kompass) + Number(display.winddir_gemessen)) + 360) % 360;
-                val = formatValue(display.winddir_gemessen, 0);
-                drawDataBlock(`AWA (${rGlobalAwa.toString().padStart(3,'0')}°)`, val, "°", 825, field.yText, GL_SIZE);
+                // KORRIGIERT: Zusammengeführt zu einer sauberen Kompass-bezogenen Anzeige
+                let rGlobalAwa = (Math.round(heading + windGemessen) + 360) % 360;
+                val = rGlobalAwa.toString().padStart(3, '0');
+                
+                let rAwaSide = windGemessen >= 0 ? "Stb" : "Bb";
+                let rAwaLabel = `AWA (${Math.abs(windGemessen).toFixed(0)}° ${rAwaSide})`;
+                
+                drawDataBlock(rAwaLabel, val, "°", 825, field.yText, GL_SIZE);
                 break;
             case "TWA":
-                let rGlobalTwa = (Math.round(Number(display.kompass) + Number(display.winddir_berechnet)) + 360) % 360;
-                val = formatValue(display.winddir_berechnet, 0);
-                drawDataBlock(`TWA (${rGlobalTwa.toString().padStart(3,'0')}°)`, val, "°", 825, field.yText, GL_SIZE);
+                let rGlobalTwa = (Math.round(heading + windBerechnet) + 360) % 360;
+                val = rGlobalTwa.toString().padStart(3, '0');
+                
+                let rTwaSide = windBerechnet >= 0 ? "Stb" : "Bb";
+                let rTwaLabel = `TWA (${Math.abs(windBerechnet).toFixed(0)}° ${rTwaSide})`;
+                
+                drawDataBlock(rTwaLabel, val, "°", 825, field.yText, GL_SIZE);
                 break;
-
         }
     });
 }
@@ -700,6 +728,7 @@ function initCenterSettingsMenu(overlay) {
     listContainer.style.overflowY = 'auto';    
     listContainer.style.paddingRight = '5px';  
 
+    // JETZT AKTUALISIERT: Roll und Pitch mit eigenen Checkboxen und Farbwählern
     const items = [
         { key: "showGpsKurs", label: "GPS Kurs (COG) anzeigen", hasColor: true, colorKey: "colorGpsKurs" },
         { key: "showWegpunkt", label: "Wegpunkt-Zeiger anzeigen", hasColor: true, colorKey: "colorWegpunkt" },
@@ -707,7 +736,9 @@ function initCenterSettingsMenu(overlay) {
         { key: "showAwa", label: "Scheinbarer Wind (AWA) Pfeil", hasColor: true, colorKey: "colorAwa" },
         { key: "showTwa", label: "Wahrer Wind (TWA) Pfeil", hasColor: true, colorKey: "colorTwa" },
         { key: "showAbdrift", label: "Abdrift (Tide/Drift) anzeigen", hasColor: false },
-        { key: "showLaylines", label: "Laylines (An-Wind-Peilung) anzeigen", hasColor: false }
+        { key: "showLaylines", label: "Laylines (An-Wind-Peilung) anzeigen", hasColor: false },
+        { key: "showRoll", label: "Krängung (Roll-Skala) anzeigen", hasColor: true, colorKey: "colorRollTriangle" },
+        { key: "showPitch", label: "Stampfen (Pitch-Skala) anzeigen", hasColor: true, colorKey: "colorPitchTriangle" }
     ];
 
     items.forEach(item => {
@@ -734,7 +765,8 @@ function initCenterSettingsMenu(overlay) {
         checkbox.type = 'checkbox';
         checkbox.id = 'cb_' + item.key;
         checkbox.style.transform = 'scale(1.2)'; 
-        checkbox.checked = centerConfig[item.key];
+        // Falls noch kein Wert existiert, true als Standard setzen
+        checkbox.checked = centerConfig[item.key] !== false;
         
         checkbox.addEventListener('change', () => {
             centerConfig[item.key] = checkbox.checked;
@@ -749,7 +781,9 @@ function initCenterSettingsMenu(overlay) {
             let colorInput = document.createElement('input');
             colorInput.type = 'color';
             colorInput.id = 'cp_' + item.colorKey;
-            colorInput.value = centerConfig[item.colorKey];
+            // Fallback auf dein NAVIS-Orange für normale Linien oder Gelb für Roll/Pitch Zeiger
+            let defaultColor = (item.key === "showRoll" || item.key === "showPitch") ? "#ffff00" : "#ff9900";
+            colorInput.value = centerConfig[item.colorKey] || defaultColor;
             colorInput.style.width = '38px';  
             colorInput.style.height = '26px'; 
             colorInput.style.border = 'none';
@@ -766,7 +800,7 @@ function initCenterSettingsMenu(overlay) {
         listContainer.appendChild(row);
     });
 
-    // SLIDER FÜR DEN LAYLINE-WINKEL
+    // SLIDER FÜR DEN LAYLINE-WINKEL (In der Scrollbox)
     let sliderRow = document.createElement('div');
     sliderRow.style.display = 'flex';
     sliderRow.style.flexDirection = 'column';
@@ -818,7 +852,7 @@ function initCenterSettingsMenu(overlay) {
     centerContainer.appendChild(listContainer);
 
     // ============================================================
-    // NEU: KORRIGIERTE BUTTON ZEILE (1/3 ZU 2/3)
+    // BUTTON ZEILE (1/3 ZU 2/3)
     // ============================================================
     let buttonRow = document.createElement('div');
     buttonRow.style.display = 'flex';
@@ -847,11 +881,12 @@ function initCenterSettingsMenu(overlay) {
             
             items.forEach(item => {
                 let cb = document.getElementById('cb_' + item.key);
-                if (cb) cb.checked = centerConfig[item.key];
+                if (cb) cb.checked = centerConfig[item.key] !== false;
                 
                 if (item.hasColor) {
                     let cp = document.getElementById('cp_' + item.colorKey);
-                    if (cp) cp.value = centerConfig[item.colorKey];
+                    let defaultColor = (item.key === "showRoll" || item.key === "showPitch") ? "#ffff00" : "#ff9900";
+                    if (cp) cp.value = centerConfig[item.colorKey] || defaultColor;
                 }
             });
 
@@ -864,7 +899,7 @@ function initCenterSettingsMenu(overlay) {
         }
     });
 
-    // 2/3 Anteil: Eigener, neuer Schließen-Button (reicht Klick an das Original weiter)
+    // 2/3 Anteil: Eigener, neuer Schließen-Button
     let newCloseBtn = document.createElement('button');
     newCloseBtn.textContent = "💾 Speichern & Schließen";
     newCloseBtn.style.flex = '2'; 
@@ -878,7 +913,6 @@ function initCenterSettingsMenu(overlay) {
     newCloseBtn.style.fontFamily = 'Arial, sans-serif';
     newCloseBtn.style.cursor = 'pointer';
 
-    // Wenn der neue Button geklickt wird, triggern wir einfach den originalen Button
     newCloseBtn.addEventListener('click', () => {
         originalCloseBtn.click(); 
     });
@@ -887,7 +921,6 @@ function initCenterSettingsMenu(overlay) {
     buttonRow.appendChild(newCloseBtn);
     centerContainer.appendChild(buttonRow);
     
-    // Das Menü sauber vor dem versteckten, originalen Button einfügen
     menuBox.insertBefore(centerContainer, originalCloseBtn);
 
     let existingGrid = menuBox.querySelector('div');
@@ -895,6 +928,8 @@ function initCenterSettingsMenu(overlay) {
         existingGrid.id = 'touchGridContainer';
     }
 }
+
+
 
 // ============================================================
 // MODULARE GRAPHISCHE ZEICHENFUNKTIONEN
@@ -1356,20 +1391,23 @@ function drawRollArcGauge(x, y, currentRoll) {
         ctx.restore();
     }
 
-    // 3. Beweglicher Zeiger (Orange, rotierte Achse)
+    // 3. Beweglicher Zeiger (Nutzt jetzt die konfigurierte Menüfarbe)
     ctx.save(); 
     ctx.rotate(currentRoll * Math.PI / 180);
-    ctx.fillStyle = "#ff9900"; ctx.beginPath();
+    
+    // Dynamische Farbe zuweisen, Fallback auf dein NAVIS-Orange
+    ctx.fillStyle = centerConfig.colorRollTriangle || "#ff9900"; 
+    
+    ctx.beginPath();
     ctx.moveTo(0, arcRadius - 2); ctx.lineTo(-6, arcRadius + 10); ctx.lineTo(6, arcRadius + 10);
     ctx.closePath(); ctx.fill(); 
-    ctx.restore(); // KORREKTUR: Hebt die Drehung für den Zeiger sofort wieder auf!
+    ctx.restore(); 
 
     // 4. FESTSTEHENDE ZAHL: Genau in der Mitte unter der Skala
     ctx.fillStyle = "#8a96a3";
     ctx.font = "bold 13px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    // Steht fest verankert bei y = arcRadius + 16 (dreht sich nicht mit)
     ctx.fillText(`${currentRoll >= 0 ? '+' : ''}${Math.round(currentRoll)}° Roll`, 0, arcRadius + 16);
 
     ctx.restore(); 
@@ -1396,10 +1434,14 @@ function drawPitchGauge(x, y, currentPitch) {
         }
     }
 
-    // 3. Beweglicher Zeiger (Orange, wandert auf und ab)
+    // 3. Beweglicher Zeiger (Nutzt jetzt die konfigurierte Menüfarbe)
     let limitedPitch = Math.max(-maxPitchDeg, Math.min(maxPitchDeg, currentPitch));
     const pointerY = (limitedPitch / maxPitchDeg) * (-scaleHeight / 2);
-    ctx.fillStyle = "#ff9900"; ctx.beginPath();
+    
+    // Dynamische Farbe zuweisen, Fallback auf dein NAVIS-Orange
+    ctx.fillStyle = centerConfig.colorPitchTriangle || "#ff9900"; 
+    
+    ctx.beginPath();
     ctx.moveTo(offsetX + 12, pointerY - 5); ctx.lineTo(offsetX + 12, pointerY + 5); ctx.lineTo(offsetX + 3, pointerY);
     ctx.closePath(); ctx.fill(); 
 
@@ -1408,7 +1450,6 @@ function drawPitchGauge(x, y, currentPitch) {
     ctx.font = "bold 13px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "bottom";
-    // Steht fest genau über der Oberkante der Linie bei (-scaleHeight / 2) - 6 Pixel Puffer
     ctx.fillText(`P: ${currentPitch >= 0 ? '+' : ''}${Math.round(currentPitch)}°`, offsetX, (-scaleHeight / 2) - 6);
 
     ctx.restore();
@@ -1686,10 +1727,13 @@ function openCenterSettingsMenu() {
     const items = [
         { key: "showGpsKurs", label: "GPS Kurs (COG) anzeigen", hasColor: true, colorKey: "colorGpsKurs" },
         { key: "showWegpunkt", label: "Wegpunkt-Zeiger anzeigen", hasColor: true, colorKey: "colorWegpunkt" },
-        { key: "showApKurs", label: "Autopilot Sollkurs-Dreieck anzeigen", hasColor: true, colorKey: "colorApKurs" }, // <-- NEU!
+        { key: "showApKurs", label: "Autopilot Sollkurs-Dreieck anzeigen", hasColor: true, colorKey: "colorApKurs" },
         { key: "showAwa", label: "Scheinbarer Wind (AWA) Pfeil", hasColor: true, colorKey: "colorAwa" },
         { key: "showTwa", label: "Wahrer Wind (TWA) Pfeil", hasColor: true, colorKey: "colorTwa" },
-        { key: "showAbdrift", label: "Abdrift (Tide/Drift) anzeigen", hasColor: false }
+        { key: "showAbdrift", label: "Abdrift (Tide/Drift) anzeigen", hasColor: false },
+        { key: "showLaylines", label: "Laylines (An-Wind-Peilung) anzeigen", hasColor: false },
+        { key: "showRoll", label: "Krängung (Roll-Zeiger) anzeigen", hasColor: true, colorKey: "colorRollTriangle" },   // <-- JETZT MIT FARBE
+        { key: "showPitch", label: "Stampfen (Pitch-Zeiger) anzeigen", hasColor: true, colorKey: "colorPitchTriangle" } // <-- JETZT MIT FARBE
     ];
 
     items.forEach(item => {
